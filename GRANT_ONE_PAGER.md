@@ -53,7 +53,7 @@ The missing layer is memory that is **durable**, **structurally private** (opera
 | Security write-up of fixed bugs | `SECURITY.md` |
 | Cryptographic claim boundaries | `CRYPTO_FOUNDATIONS.md` |
 
-**Automated suite:** 36 tests + end-to-end demo (Merkle 10 · store 5 · adversarial 9 · replication 12).
+**Automated suite (2026-08-05):** 80 tests + end-to-end demo — Merkle 13 · store 5 · metadata 8 · adversarial 9 · replication 12 · recovery 21 · hardening 12.
 
 **Not claimed as shipping:** peer discovery, anti-equivocation witnesses, proof-of-retrievability, PIR, zkML, token incentives.
 

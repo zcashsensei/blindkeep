@@ -147,7 +147,7 @@ Implemented, running, and covered by tests in this repository:
 
 | Component | Status | Evidence |
 |-----------|--------|----------|
-| RFC 6962 inclusion + consistency proofs | Complete | 10 tests, exhaustive over all index/size pairs for sizes 0–32 |
+| RFC 6962 inclusion + consistency proofs | Complete | 13 tests, exhaustive over all index/size pairs for sizes 0–32 |
 | Client encryption, per-record key derivation | Complete | 5 tests including wrong-key rejection and reload persistence |
 | Signed tree heads | Complete | Signature verified against on-disk state |
 | Client verification pipeline | Complete | 9 adversarial tests running genuinely malicious HTTP nodes |
