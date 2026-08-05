@@ -1,0 +1,383 @@
+# Blindkeep — Architecture and Feasibility
+
+**Version 0.1 · 2026-08-05 · zcashsensei**
+
+---
+
+## Abstract
+
+Blindkeep is infrastructure for AI memory that a storage operator cannot read
+and cannot silently alter. Clients encrypt records locally; nodes hold only
+ciphertext, committed to an append-only Merkle log with signed heads. Integrity
+is enforced by proofs the client checks itself, not by trusting the operator.
+
+This document states what is implemented and verified today, what is achievable
+with established techniques, and — explicitly — what is **not** achievable as
+originally conceived. A design document that only lists strengths is a sales
+brochure, and the distinction matters more here than the ambition does.
+
+---
+
+## 1. Problem
+
+Agentic AI systems accumulate long-lived memory: preferences, history, working
+context, private documents. Today that memory lives either on a single local
+disk (durable only as long as the device) or inside a provider's infrastructure
+(readable by the provider, and by anyone who compels or breaches them).
+
+The gap is a memory layer that is simultaneously:
+
+- **durable** — survives device loss, replicated across operators
+- **private** — the operator cannot read it, structurally rather than by policy
+- **verifiable** — the operator cannot alter, reorder or drop it undetected
+
+Existing decentralized storage solves durability. Encryption solves privacy.
+Transparency logs solve verifiability. Blindkeep's contribution is combining
+them into a memory API with a client that trusts no single operator, and being
+honest about the boundary of what that achieves.
+
+---
+
+## 2. Threat model
+
+A node is **untrusted for both confidentiality and integrity**. It is assumed
+capable of reading everything it stores, modifying it, withholding it, lying
+about it, and colluding with other nodes.
+
+It is *not* assumed to be prevented from observing metadata. See §7.
+
+---
+
+## 3. Design
+
+### 3.1 Encryption
+
+Each record is encrypted client-side with AES-256-GCM under a key derived per
+record via HKDF-SHA256 from a master key that never leaves the client. Per-record
+derivation means compromise of one record key does not extend to the store.
+
+The node receives a random record identifier, a ciphertext, and a length.
+
+### 3.2 The log
+
+Records are committed to an append-only Merkle tree using RFC 6962 hashing —
+the construction underlying Certificate Transparency. Leaves and interior nodes
+are domain-separated so a leaf can never be reinterpreted as a subtree.
+
+The node publishes a **signed tree head**: an Ed25519 signature over exactly
+`(tree_size, root)`. No unsigned fields ride alongside, so no metadata can be
+altered without invalidating the signature.
+
+### 3.3 Verification
+
+Five checks, all client-side. Any failure raises rather than returning data.
+
+| # | Check | Defeats |
+|---|-------|---------|
+| 1 | Response bound to the request | Answering a different question than asked |
+| 2 | Signature over `(tree_size, root)` | Forged or unsigned log state |
+| 3 | Merkle inclusion proof | Serving a record never committed to |
+| 4 | Merkle consistency proof vs. a pinned head | Rewriting, reordering, dropping history |
+| 5 | AES-256-GCM authenticated decryption | Modified ciphertext |
+
+Check 1 is not decoration. Two vulnerabilities were found pre-release where the
+client verified a response was internally self-consistent but never that it was
+*responsive* — a node asked for index 0 could return index 1 together with index
+1's authentic proof, and every cryptographic check passed. See `SECURITY.md`.
+
+### 3.4 Privacy and proof are separate mechanisms
+
+This distinction is worth stating explicitly, because it is commonly collapsed.
+
+| Mechanism | Prevents | Property |
+|-----------|----------|----------|
+| AES-256-GCM, client-side | The node **reading** a record | **Confidentiality** |
+| Merkle proofs + signed heads | The node **lying** about a record | **Integrity** |
+
+Confidentiality here comes from encryption, not from proving. The system does
+produce proofs continuously — one inclusion proof per read, one consistency
+proof per observed log growth — but those proofs are not zero-knowledge. An
+inclusion proof reveals the leaf and its full sibling path.
+
+That leaks nothing, because **the leaf is ciphertext**. The result is
+verifiability without the proof system needing to conceal anything, which is why
+the design achieves both properties without a proving system in the critical
+path.
+
+The practical consequence: the confidentiality guarantee does not depend on any
+future zero-knowledge work. It holds today.
+
+What encryption cannot do is hide *behaviour*. The node still observes which
+record is requested and when. Closing that gap requires private information
+retrieval (§5.4) — the one privacy property in this design that genuinely
+requires advanced cryptography rather than a cipher.
+
+Two adjacent leaks did *not* require advanced cryptography and have been closed
+by framing rather than by adding a proof system:
+
+- **Labels are encrypted with the record** rather than stored beside it. A label
+  is the metadata most likely to be descriptive, and leaving it readable
+  weakened the guarantee the rest of the design provides.
+- **Records are padded to 256-byte buckets** before encryption, so stored length
+  reveals a bucket rather than an exact size, at bounded overhead.
+
+The distinction is worth noting for scoping: of the metadata originally exposed,
+the portion removable by better framing has been removed, and what remains —
+access pattern, record count, timing — is precisely the portion that needs PIR.
+
+**Cryptographic status of these claims** is spelled out in
+[`CRYPTO_FOUNDATIONS.md`](CRYPTO_FOUNDATIONS.md): security reduces to standard
+assumptions on AES-GCM, HKDF, Ed25519, and SHA-256 under the RFC 6962 Merkle
+construction (as used in Certificate Transparency). The repository provides
+exhaustive and adversarial *implementation tests*; it does not claim a novel
+peer-reviewed proving system or machine-checked formal verification of the
+entire codebase. That honesty is intentional.
+
+### 3.5 Cost
+
+Inclusion and consistency proofs are `O(log n)` hashes. At one billion records a
+proof is roughly 30 SHA-256 hashes — under a kilobyte, verified in microseconds.
+The verification layer does not become the bottleneck at any realistic scale.
+
+---
+
+## 4. What is verified today
+
+Implemented, running, and covered by tests in this repository:
+
+| Component | Status | Evidence |
+|-----------|--------|----------|
+| RFC 6962 inclusion + consistency proofs | Complete | 10 tests, exhaustive over all index/size pairs for sizes 0–32 |
+| Client encryption, per-record key derivation | Complete | 5 tests including wrong-key rejection and reload persistence |
+| Signed tree heads | Complete | Signature verified against on-disk state |
+| Client verification pipeline | Complete | 9 adversarial tests running genuinely malicious HTTP nodes |
+| Single-node HTTP service + CLI | Complete | End-to-end demo |
+| Multi-node replication, quorum reads | Complete | 12 tests covering offline, tampered and dishonest nodes |
+
+The adversarial suites are the substantive claim. They stand up nodes that
+substitute records, fork history at equal length, forge heads, tamper with
+stored ciphertext, and silently alter a payload during a write — and assert the
+client refuses or excludes each one.
+
+**Not implemented:** peer discovery, witnessing against equivocation,
+retrievability proofs, incentives, private queries, verifiable inference.
+
+---
+
+## 5. Feasibility of the remaining layers
+
+This section exists to separate what is engineering from what is research, and
+to name one item that is neither.
+
+### 5.1 Multi-node replication — **implemented**
+
+`ReplicatedClient` (`blindkeep/replica.py`) writes byte-identical ciphertext to
+N nodes and returns a value only when a quorum **independently verifies** and
+**agrees**. Covered by 12 tests (offline, tampered, and dishonest nodes).
+
+Remaining problem: **equivocation** — a node showing different histories to
+different clients. Consistency proofs bind a node to its own past, not to what
+it told someone else. The standard solution is gossip between clients or
+independent witnesses co-signing heads, as Certificate Transparency does. Known
+technique; not yet in this repository.
+
+### 5.2 Proof of retrievability — **achievable, established**
+
+Proving a node still holds data without transferring it is solved in production
+by Filecoin (PoRep/PoSt) and adjacent systems. Notably, Filecoin generates
+enormous volumes of zero-knowledge proofs for exactly this, with no machine
+learning involved anywhere. This is the natural first place ZK earns its cost in
+Blindkeep, and it is a genuine ZK application rather than branding.
+
+### 5.3 Distributed model weights — **achievable, with a performance cost**
+
+Sharding large model weights across volunteer nodes and streaming the needed
+shards is demonstrated by Petals, which performs distributed inference of large
+models over ordinary internet connections. Integrity of a shard needs only a
+content hash; no proof system is required.
+
+The honest caveat: it works and it is slower than local inference. Blindkeep
+would add an incentive and privacy layer, not the sharding technique itself.
+
+### 5.4 Private queries (PIR) — **achievable, expensive**
+
+Hiding *which* record a client reads is the one privacy gap that cryptography
+can close but Blindkeep's current design does not. Single-server private
+information retrieval fundamentally requires the server to touch the entire
+database per query, or to perform substantial preprocessing. Modern schemes make
+this practical for modest databases. It is real, it is costly, and it should be
+scoped to a specific dataset size before being promised.
+
+### 5.5 Verifiable inference (zkML) — **not achievable at LLM scale today**
+
+Proving that a model produced an output correctly, without revealing inputs, is
+genuine and active research. Proving overhead is currently orders of magnitude
+above native execution. Small models are demonstrable; a forward pass of a
+multi-billion-parameter model is not practical today.
+
+It belongs on a roadmap. It must not appear in any claim about what ships.
+
+### 5.6 Distributed KV cache — **not achievable. This item is withdrawn.**
+
+An earlier formulation of this project proposed holding transformer KV cache
+across community nodes. That is not an engineering difficulty; it is ruled out
+by arithmetic, and it is recorded here so it is not proposed again.
+
+For a 7-billion-parameter model at fp16 with 32 layers, 32 heads and head
+dimension 128, the cache per token per layer is
+`2 × 32 × 128 × 2 bytes = 16 KiB`, so `512 KiB` per token across all layers. An
+8,192-token context is therefore about **4 GiB of live state**.
+
+Generating each token requires reading that entire cache. Local high-bandwidth
+memory delivers it in single-digit milliseconds. A 10 Gbps network link delivers
+roughly 1.25 GB/s, requiring over three seconds per token for transfer alone,
+before round-trip latency. That is a gap of roughly three orders of magnitude on
+bandwidth and considerably more on latency.
+
+KV cache must sit next to the accelerator. No protocol design changes this.
+
+---
+
+## 5.7 Adding proofs later — does stored data have to change?
+
+Largely **no**, with one exception that is worth deciding now because it is the
+only part that would force a migration.
+
+**No migration required for:**
+
+- **Proof of retrievability.** A node proves it still holds bytes it already
+  committed to. It operates on data at rest, exactly as written. No
+  re-encryption, no rewriting, no new leaf format.
+- **Proofs about the log.** The Merkle root is already an ideal public input to
+  a circuit: a statement of the form "a record exists in the log with root R"
+  can be proven without revealing the record. The commitment structure needed
+  for this is what the log already is.
+- **Shielded payment settlement.** Entirely orthogonal to how records are
+  stored.
+
+Records are committed as opaque ciphertext. Proof layers make statements *about*
+those commitments; they do not require changing what the commitments are over.
+The design is forward-compatible by construction.
+
+**The exception: the hash function.**
+
+The log uses SHA-256, per RFC 6962. That is the right choice for
+interoperability — it matches Certificate Transparency and its tooling. But
+SHA-256 is expensive to evaluate *inside* a zero-knowledge circuit: on the order
+of tens of thousands of constraints per compression, against a few hundred for a
+SNARK-friendly hash such as Poseidon. Roughly two orders of magnitude.
+
+That difference only matters for one specific capability: proving Merkle
+membership **inside** a circuit — for example, proving "I hold a record in this
+log" without revealing which. A 30-deep path costs on the order of a million
+constraints with SHA-256 versus tens of thousands with a SNARK-friendly hash;
+the practical difference is a proof that takes minutes rather than seconds.
+
+Three options, and the third avoids a migration entirely:
+
+| Option | Cost | Consequence |
+|--------|------|-------------|
+| Keep SHA-256 only | None now | In-circuit membership proofs stay expensive |
+| Switch the log to a SNARK-friendly hash | **Rebuild every log** | Loses RFC 6962 compatibility and existing tooling |
+| Keep SHA-256; add a parallel accumulator from a checkpoint when needed | Extra hashing from that point forward | No migration; both properties available |
+
+The third is recommended. Existing records stay exactly where they are; a
+SNARK-friendly accumulator begins at a checkpoint and covers records from that
+point on. Historic data is still verifiable under SHA-256, and new data is
+additionally provable in-circuit.
+
+The decision that must be made *before* significant data accumulates is only
+whether in-circuit membership proofs are wanted at all. Nothing else about the
+current format constrains a future proof system.
+
+---
+
+## 6. Prior art
+
+Blindkeep is a combination of established components, and claiming otherwise
+would invite justified criticism:
+
+| Component | Prior art |
+|-----------|-----------|
+| Append-only verifiable log | Certificate Transparency (RFC 6962), Trillian, Tessera |
+| Proofs of storage over time | Filecoin, Arweave, Storj |
+| Distributed inference over volunteers | Petals, llama.cpp RPC |
+| Client-side encrypted storage | Long-established practice |
+| Shielded payments | Zcash |
+
+The contribution is the composition — a memory API for AI agents where the
+client verifies everything and the operator is trusted for nothing — plus a
+usable free path. Not the primitives.
+
+---
+
+## 7. Limits
+
+Stated plainly:
+
+- **Metadata is visible.** Record count, ciphertext sizes, creation timestamps
+  and access patterns are all observable by the node. Labels are stored in
+  plaintext by design as an optional tag.
+- **Availability is not integrity.** A node can refuse to serve. Detection is
+  not retrieval; replication addresses this, proofs do not.
+- **Equivocation is undetected** until witnessing exists (§5.1).
+- **The client is trusted.** Compromised client software or a leaked master key
+  defeats every guarantee above.
+- **Key loss is unrecoverable.** This is a property of the design, not a defect.
+
+---
+
+## 8. Economics — the principal unverified risk
+
+Everything above is a technical question with a technical answer. This section
+is neither, and it is where comparable projects have failed.
+
+The intended model is: MIT-licensed software, free self-hosting permanently, a
+grant-funded free public tier, and optional paid capacity above quota.
+
+**The supply side is buildable. The demand side is unproven.** Golem, iExec,
+Akash and Render each built functioning decentralized capacity networks and then
+had to go looking for paying load. A free tier funded by grants is a runway, not
+a business model; when the grant ends, either paying demand exists or the free
+capacity does not.
+
+This is the risk that should govern sequencing. It argues for:
+
+1. Making the free path genuinely useful to a real user before any incentive design
+2. Metering on quantities that can be measured honestly — stored gigabyte-months,
+   verified reads, egress — rather than per-token pricing for inference the
+   project does not yet serve
+3. Deferring any token until the free network demonstrably works
+
+No amount of cryptographic rigour substitutes for someone choosing to store
+their data here.
+
+---
+
+## 9. Verdict
+
+| Layer | Verdict |
+|-------|---------|
+| Encrypted verifiable memory, single node | **Built and verified** |
+| Multi-node replication and quorum reads | **Built and verified** |
+| Witnessing against equivocation | Achievable — established technique (not shipped) |
+| Proof of retrievability | Achievable — production precedent |
+| Distributed model weights | Achievable — with a real speed penalty |
+| Private queries (PIR) | Achievable — expensive, scope carefully |
+| Verifiable inference (zkML) | Research. Roadmap only. Never a shipping claim |
+| Distributed KV cache | **Withdrawn — ruled out by bandwidth arithmetic** |
+| Sustainable economics | **Unverified. The principal risk** |
+
+The architecture is sound for what it claims, and the claims have been narrowed
+to what the arithmetic supports. One original component was removed rather than
+carried forward as an aspiration, and the largest open question is commercial
+rather than cryptographic.
+
+---
+
+## References
+
+- RFC 6962 — Certificate Transparency
+- Filecoin — Proof of Replication and Proof of Spacetime
+- Petals — collaborative inference of large language models
+- Zcash — shielded transactions

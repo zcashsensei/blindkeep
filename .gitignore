@@ -1,0 +1,78 @@
+# =============================================================================
+# PUBLICATION POLICY — settled 2026-08-05. Read before adding or removing lines.
+#
+# Rule: the repository contains what a USER or CONTRIBUTOR needs. It does not
+# contain what the maintainer needs in order to run the project.
+#
+# PUBLISHED (do not add these to this file):
+#   README.md               what it is, how to run it
+#   WHITEPAPER.md           architecture, feasibility, limits
+#   CRYPTO_FOUNDATIONS.md   what is cryptographically established vs tested
+#   SECURITY.md             threat model, fixed vulnerabilities, reporting
+#   CONTRIBUTING.md         design principles and contribution rules
+#   THESIS.md               category, privacy model, naming history
+#   PATH_TO_MASSES.md       free-tier economics, illustrative budget, milestones
+#   LICENSE_RIGHTS.md       what MIT does and does not grant
+#   GRANT_ONE_PAGER.md      public funding summary
+#   AUTHORS.md              provenance
+#   LICENSE, blindkeep/, tests/, demo.py, requirements.txt
+#
+# NOT PUBLISHED (listed below):
+#   secrets, personal cockpit and task board, working notes, unfiled drafts.
+#
+# The distinction is not sensitivity alone. An illustrative budget split is fine
+# in a public one-pager; actual line items in an unfiled application are not.
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# SECRETS — never commit. data/client/master.key decrypts every record, and
+# data/node/identity.pem is a node's signing key. Publishing either destroys
+# the guarantees this project is built on.
+# -----------------------------------------------------------------------------
+data/node/
+data/client/
+*.pem
+*.key
+!requirements.txt
+
+# -----------------------------------------------------------------------------
+# Personal cockpit and task board. Local working tools carrying private roadmap
+# and task state. Their CLI subcommands register only when these files exist,
+# so a clone never advertises a command it cannot run.
+# -----------------------------------------------------------------------------
+dashboard.py
+data/plan.json
+blindkeep/progress.py
+
+# -----------------------------------------------------------------------------
+# Working notes and unfiled drafts.
+#   GRANT_PROPOSAL.md      real budget line items and a pre-submission checklist
+#                          (the public summary is GRANT_ONE_PAGER.md)
+#   HANDOFF_NEXT_TODOS.md  task handoff between maintainers, not project docs
+#   COORDINATION.md        shared working surface — READ THIS BEFORE EDITING
+# -----------------------------------------------------------------------------
+GRANT_PROPOSAL.md
+HANDOFF_NEXT_TODOS.md
+COORDINATION.md
+
+# Local runtime state
+data/peers.json
+*.log
+*.jsonl
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+env/
+
+# Environment / editors / OS
+.env
+.env.*
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+desktop.ini

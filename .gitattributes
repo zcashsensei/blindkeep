@@ -1,0 +1,16 @@
+# Normalise line endings so the repository always stores LF, regardless of the
+# contributor's platform. Without this, Windows checkouts commit CRLF and every
+# cross-platform diff becomes noise.
+* text=auto eol=lf
+
+*.py   text eol=lf
+*.md   text eol=lf
+*.json text eol=lf
+*.txt  text eol=lf
+
+# Never transform key material or binaries.
+*.pem  -text
+*.key  -text
+*.png  binary
+*.jpg  binary
+*.ico  binary
