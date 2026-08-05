@@ -1,5 +1,7 @@
 # License and commercial rights
 
+**Version 0.1 · 2026-08-05**
+
 **Not legal advice.** Plain-English summary of how Blindkeep is licensed.
 
 ## Summary

@@ -1,5 +1,7 @@
 # Contributing to Blindkeep
 
+**Version 0.1 · 2026-08-05**
+
 Read this before opening a pull request. It records the design constraints that
 are not up for renegotiation, and the reasoning behind them.
 

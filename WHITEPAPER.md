@@ -141,7 +141,7 @@ The verification layer does not become the bottleneck at any realistic scale.
 
 ---
 
-## 4. What is verified today
+## 4. What is verified — as of 2026-08-05
 
 Implemented, running, and covered by tests in this repository:
 

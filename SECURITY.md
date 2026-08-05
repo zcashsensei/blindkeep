@@ -1,5 +1,7 @@
 # Security
 
+**Version 0.1 · 2026-08-05 · applies to Blindkeep v0 alpha**
+
 ## Threat model
 
 A Blindkeep storage node is **untrusted for both confidentiality and integrity**.

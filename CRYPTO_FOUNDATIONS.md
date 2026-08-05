@@ -1,5 +1,7 @@
 # Cryptographic foundations
 
+**Version 0.1 · 2026-08-05 · applies to Blindkeep v0 alpha**
+
 **Audience:** grant reviewers, security readers, maintainers.  
 **Purpose:** state precisely what is *mathematically established*, what is *implemented and tested*, and what is *not* claimed.  
 **Not legal advice. Not a novel peer-reviewed paper.**

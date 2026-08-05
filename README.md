@@ -14,6 +14,11 @@
   <img src="https://img.shields.io/badge/dependencies-1-lightgrey.svg" alt="1 dependency">
 </p>
 
+<p align="center">
+  <sub><b>Status as of 2026-08-05</b> · v0 alpha · 80 tests passing · single-node
+  and multi-node replication implemented · no proving system implemented</sub>
+</p>
+
 ---
 
 ## What it is
@@ -87,13 +92,22 @@ tree structure, the promote-not-duplicate semantics, the audit-path logic and
 the incremental append are all hash-independent; only the compression function
 changes. The second tree is a constructor argument, not a rewrite.
 
-**What is measured today, on a 15W laptop CPU with no GPU:** the hash-based log
-generates roughly **200,000 inclusion proofs per second** over a million records
-(≈5 seconds for a million proofs, ~81 MB resident). SNARK proving is a different
-cost class entirely — seconds to minutes per proof and gigabytes of memory,
-which is why Filecoin runs GPU fleets for PoRep/PoSt. Any roadmap should price
-hash proofs and ZK proofs as separate line items; conflating them is how ZK
-projects promise throughput they cannot reach.
+**Measured 2026-08-05** on a 15 W laptop CPU, no GPU, CPython 3.14, over a log
+of 1,000,000 records:
+
+| Metric | Measured |
+|--------|----------|
+| Inclusion proofs | **263,000 / second** (20,000 proofs in 0.076 s) |
+| One million proofs | **3.8 seconds** |
+| Log construction | 22.4 seconds |
+| Python heap for the tree | ~140 MB (`tracemalloc`) |
+
+Reproduce it with `tests/test_merkle.py` and a million-leaf `CachedLog`.
+
+SNARK proving is a different cost class entirely — seconds to minutes per proof
+and gigabytes of memory, which is why Filecoin runs GPU fleets for PoRep/PoSt.
+Any roadmap should price hash proofs and ZK proofs as separate line items;
+conflating them is how ZK projects promise throughput they cannot reach.
 
 ## Install
 

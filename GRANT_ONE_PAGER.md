@@ -40,7 +40,7 @@ The missing layer is memory that is **durable**, **structurally private** (opera
 
 ---
 
-## 4. What is implemented today (evidence)
+## 4. What is implemented — as of 2026-08-05 (evidence)
 
 | Capability | Evidence in repo |
 |------------|------------------|
