@@ -1,0 +1,9 @@
+{
+  "_comment": "Copy to data/peers.json and edit. Peers listed here are candidates only — every node is verified independently on use, so an entry in this file grants no trust. Setting pubkey_hex pins a node's identity: the client will refuse it if the key ever changes.",
+  "nodes": [
+    { "url": "http://127.0.0.1:8741", "pubkey_hex": null },
+    { "url": "http://127.0.0.1:8742", "pubkey_hex": null },
+    { "url": "http://127.0.0.1:8743", "pubkey_hex": null }
+  ],
+  "bootstrap_url": null
+}

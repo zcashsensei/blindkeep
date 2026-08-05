@@ -9,14 +9,15 @@
 <p align="center">
   <img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License: MIT">
   <img src="https://img.shields.io/badge/python-3.10%2B-blue.svg" alt="Python 3.10+">
-  <img src="https://img.shields.io/badge/tests-80%20passing-brightgreen.svg" alt="80 tests passing">
+  <img src="https://img.shields.io/badge/tests-134%20passing-brightgreen.svg" alt="134 tests passing">
   <img src="https://img.shields.io/badge/status-v0%20alpha-orange.svg" alt="v0 alpha">
   <img src="https://img.shields.io/badge/dependencies-1-lightgrey.svg" alt="1 dependency">
 </p>
 
 <p align="center">
-  <sub><b>Status as of 2026-08-05</b> · v0 alpha · 80 tests passing · single-node
-  and multi-node replication implemented · no proving system implemented</sub>
+  <sub><b>Status as of 2026-08-05</b> · v0 alpha · 134 tests passing · replication,
+  peer discovery, retrieval audits and local-model memory implemented ·
+  no proving system implemented</sub>
 </p>
 
 ---
@@ -183,6 +184,10 @@ python tests/test_adversarial.py   #  9 — real malicious nodes vs. the real cl
 python tests/test_replication.py   # 12 — offline, tampered and dishonest nodes
 python tests/test_recovery.py      # 21 — recovery codes, backups, k-of-n shares
 python tests/test_hardening.py     # 12 — resource limits, disclosure, redirects
+python tests/test_discover.py      # 18 — peer discovery, hostile bootstrap
+python tests/test_audit.py         # 10 — retrieval audits, offline vs dishonest
+python tests/test_ollama_mem.py    # 13 — local model memory, privacy boundary
+python tests/test_cloud_gate.py    # 13 — opt-in cloud path stays closed
 python demo.py                     # end-to-end walkthrough
 ```
 
@@ -222,8 +227,12 @@ blindkeep/
   client.py     encrypt / put / get / verify / pin
   replica.py    multi-node replication with quorum reads
   recovery.py   recovery codes, passphrase backups, k-of-n shares
+  discover.py   peer discovery with URL validation
+  audit.py      retrieval audits: offline vs lost vs dishonest
+  ollama_mem.py local-model memory loop (loopback enforced)
+  cloud_gate.py opt-in hosted-model path — NOT PRIVATE
   cli.py        command-line interface
-tests/          merkle · store · metadata · adversarial · replication · recovery
+tests/          11 suites, 134 tests
 ```
 
 ## Replication
@@ -251,10 +260,74 @@ any cryptographic check is excluded from the vote rather than allowed to
 influence it, and conflicting answers from verified nodes raise rather than
 resolve silently.
 
+### Finding nodes
+
+```bash
+cp data/peers.example.json data/peers.json     # then edit
+python -m blindkeep peers                      # probe and list live nodes
+```
+
+A peer list supplies candidate addresses only. Every node is still verified
+independently on use, so an entry grants no trust. URLs are validated before
+contact — cloud metadata addresses are refused outright, and a bootstrap
+endpoint cannot displace a locally pinned public key.
+
+### Auditing nodes
+
+Integrity proofs show that what a node returns is genuine. They say nothing
+about whether it returns anything at all.
+
+```bash
+python -m blindkeep audit --sample 10
+```
+
+An audit fetches a random sample of records and fully verifies each, then
+separates three outcomes a plain uptime check would conflate: **offline**
+(unreliable), **failed** (lost data), and **security failure** (dishonest). One
+security failure disqualifies a node outright — availability is a matter of
+degree, honesty is not.
+
+This is challenge–response retrieval, **not** a proof of storage. It shows a
+node served data at the time of asking.
+
+## Local model memory
+
+The loop the project exists for: an assistant that remembers you, where memory
+lives encrypted on storage you need not trust and the model runs on your machine.
+
+```bash
+python -m blindkeep chat --text "remember I prefer short answers"
+python -m blindkeep chat --text "how do I like my answers?"
+```
+
+Prior memories are recalled and placed in the model's context automatically. The
+endpoint **must** resolve to loopback; a non-local address requires
+`--allow-remote` and is refused otherwise.
+
+<details>
+<summary>Optional: a hosted model — <b>not private</b></summary>
+
+A gated path exists for when a frontier model is genuinely wanted. It requires
+two separate acknowledgements and cannot be entered by accident:
+
+```bash
+python -m blindkeep cloud-chat --enable-cloud --i-accept-not-private \
+  --model gpt-4o-mini --text "..." --redact
+```
+
+Nothing in the default paths imports it — enforced by a test. `--redact` removes
+obvious secrets on a best-effort basis and is **not** a privacy control: pattern
+matching catches an API key and misses "my daughter's school". Treat anything
+sent this way as disclosed.
+
+</details>
+
 ## Roadmap
 
-1. Peer discovery and witnessing against equivocation
-2. Proof-of-retrievability and uptime scoring
+1. Witnessing against equivocation — a node showing different histories to
+   different clients is not yet detectable
+2. Proof of *storage* rather than retrieval, so a node must hold data rather
+   than merely obtain it
 3. Sharded model-weight distribution (hash-addressed)
 4. Optional paid capacity above a free quota — only once the free path is real
 5. Specification written *from* the running code

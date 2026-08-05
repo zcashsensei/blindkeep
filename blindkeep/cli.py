@@ -73,6 +73,79 @@ def cmd_dash(args) -> int:
     return 0
 
 
+def cmd_peers(args) -> int:
+    from .discover import as_dicts, discover
+
+    peers = discover(args.file if args.file and os.path.exists(args.file) else None,
+                     bootstrap_url=args.bootstrap,
+                     require_live=not args.all,
+                     timeout=args.timeout)
+    if args.json:
+        print(json.dumps(as_dicts(peers), indent=2))
+    else:
+        for p in peers:
+            state = "live" if p.live else "unprobed"
+            size = f"  size={p.tree_size}" if p.tree_size is not None else ""
+            pin = "  pinned" if p.pubkey_hex else ""
+            print(f"  {p.url}  {state}{size}{pin}")
+        print(f"\n{len(peers)} peer(s)")
+    return 0
+
+
+def cmd_audit(args) -> int:
+    from .audit import audit_peers, rank
+    from .client import BlindkeepClient
+    from .discover import discover, urls
+
+    key = BlindkeepClient.load_master_key(args.key)
+    if args.url:
+        targets = [args.url]
+    else:
+        targets = urls(discover(args.file, timeout=args.timeout))
+
+    results = rank(audit_peers(targets, key, pin_dir=args.pin_dir,
+                               sample_size=args.sample))
+    if args.json:
+        print(json.dumps([r.as_dict() for r in results], indent=2))
+    else:
+        for r in results:
+            print("  " + r.summary())
+    # A dishonest node is a failure exit; an offline one is not.
+    return 1 if any(r.security_failures for r in results) else 0
+
+
+def cmd_chat(args) -> int:
+    from .client import BlindkeepClient
+    from .ollama_mem import OllamaMemory
+
+    key = BlindkeepClient.load_master_key(args.key)
+    client = BlindkeepClient(args.url, key, pin_path=args.pin)
+    mem = OllamaMemory(client, ollama_base=args.ollama_base, model=args.model,
+                       allow_remote=args.allow_remote)
+    reply = mem.chat(args.text, system=args.system,
+                     remember=not args.no_remember, recall=args.recall)
+    print(reply)
+    return 0
+
+
+def cmd_cloud_chat(args) -> int:
+    """Opt-in path to a hosted model. NOT PRIVATE."""
+    from .cloud_gate import cloud_complete
+
+    api_key = args.api_key or os.environ.get("BLINDKEEP_CLOUD_KEY", "")
+    result = cloud_complete(
+        args.text, api_base=args.api_base, api_key=api_key, model=args.model,
+        enable_cloud=args.enable_cloud,
+        accept_not_private=args.i_accept_not_private,
+        system=args.system, apply_redaction=args.redact)
+    print(f"[{result['notice']}]", file=sys.stderr)
+    if result["redacted"]:
+        print(f"[redacted before sending: {', '.join(result['redacted'])}]",
+              file=sys.stderr)
+    print(result["reply"])
+    return 0
+
+
 def _read_passphrase(args, confirm: bool = False) -> str:
     """Take a passphrase from a flag, a file, or an interactive prompt.
 
@@ -315,6 +388,52 @@ def build_parser() -> argparse.ArgumentParser:
 
     lst = sub.add_parser("list", parents=[common], help="list record metadata")
     lst.set_defaults(func=cmd_list)
+
+    pe = sub.add_parser("peers", help="discover and probe storage nodes")
+    pe.add_argument("--file", default="data/peers.json")
+    pe.add_argument("--bootstrap", default=None, help="url returning a peer list")
+    pe.add_argument("--all", action="store_true", help="include unreachable peers")
+    pe.add_argument("--timeout", type=float, default=2.0)
+    pe.add_argument("--json", action="store_true")
+    pe.set_defaults(func=cmd_peers)
+
+    au = sub.add_parser("audit", help="challenge nodes to serve records they hold")
+    au.add_argument("--url", default=None, help="audit one node instead of a peer file")
+    au.add_argument("--file", default="data/peers.json")
+    au.add_argument("--key", default="data/client/master.key")
+    au.add_argument("--pin-dir", default="data/pins")
+    au.add_argument("--sample", type=int, default=5)
+    au.add_argument("--timeout", type=float, default=2.0)
+    au.add_argument("--json", action="store_true")
+    au.set_defaults(func=cmd_audit)
+
+    ch = sub.add_parser("chat", help="chat with a LOCAL model, with memory")
+    ch.add_argument("--text", required=True)
+    ch.add_argument("--url", default="http://127.0.0.1:8741")
+    ch.add_argument("--key", default="data/client/master.key")
+    ch.add_argument("--pin", default="data/client/pin.json")
+    ch.add_argument("--ollama-base", default="http://127.0.0.1:11434")
+    ch.add_argument("--model", default="llama3.2")
+    ch.add_argument("--system", default=None)
+    ch.add_argument("--recall", type=int, default=6)
+    ch.add_argument("--no-remember", action="store_true")
+    ch.add_argument("--allow-remote", action="store_true",
+                    help="permit a non-loopback model endpoint (prompts leave this machine)")
+    ch.set_defaults(func=cmd_chat)
+
+    cc = sub.add_parser("cloud-chat",
+                        help="send a prompt to a hosted model — NOT PRIVATE")
+    cc.add_argument("--text", required=True)
+    cc.add_argument("--api-base", default="https://api.openai.com")
+    cc.add_argument("--api-key", default=None,
+                    help="or set BLINDKEEP_CLOUD_KEY; a flag is visible in shell history")
+    cc.add_argument("--model", default="gpt-4o-mini")
+    cc.add_argument("--system", default=None)
+    cc.add_argument("--redact", action="store_true",
+                    help="best-effort secret removal; NOT a privacy guarantee")
+    cc.add_argument("--enable-cloud", action="store_true")
+    cc.add_argument("--i-accept-not-private", action="store_true")
+    cc.set_defaults(func=cmd_cloud_chat)
 
     return p
 
