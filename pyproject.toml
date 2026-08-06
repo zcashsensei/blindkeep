@@ -1,0 +1,57 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "blindkeep"
+description = "Privacy-preserving AI memory: clients encrypt, untrusted nodes store ciphertext in a verifiable append-only Merkle log."
+readme = "README.md"
+requires-python = ">=3.10"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [{ name = "zcashsensei" }]
+keywords = [
+    "encryption",
+    "merkle-tree",
+    "transparency-log",
+    "ai-memory",
+    "privacy",
+    "local-llm",
+    "self-hosted",
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Topic :: Security :: Cryptography",
+    "Topic :: System :: Archiving :: Backup",
+    "Typing :: Typed",
+]
+dependencies = ["cryptography>=42.0.0"]
+dynamic = ["version"]
+
+[project.urls]
+Homepage = "https://github.com/zcashsensei/blindkeep"
+Source = "https://github.com/zcashsensei/blindkeep"
+Issues = "https://github.com/zcashsensei/blindkeep/issues"
+
+[project.scripts]
+blindkeep = "blindkeep.cli:main"
+
+# Single source of truth for the version — blindkeep/__init__.py. A version
+# written in two places drifts; one of them is then wrong and nobody knows which.
+[tool.setuptools.dynamic]
+version = { attr = "blindkeep.__version__" }
+
+# `progress.py` is the maintainer's local task board (gitignored, see the
+# COORDINATION.md publication policy). It is absent from a clean clone, so a
+# build from a fresh checkout never contains it — build releases from a clean
+# clone, not from a working tree that has it.
+[tool.setuptools.packages.find]
+include = ["blindkeep*"]
+exclude = ["tests*", "data*"]

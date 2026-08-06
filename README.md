@@ -112,29 +112,40 @@ conflating them is how ZK projects promise throughput they cannot reach.
 
 ## Install
 
-Requires **Python 3.10+** and one dependency.
+Requires **Python 3.10+** and one dependency (`cryptography`).
+
+```bash
+pip install git+https://github.com/zcashsensei/blindkeep.git
+```
+
+Or from a clone — the option you want if you intend to run the tests:
 
 ```bash
 git clone https://github.com/zcashsensei/blindkeep.git
 cd blindkeep
-pip install -r requirements.txt
+pip install -e .
 ```
+
+Either one installs a `blindkeep` command. From a clone you can equally skip
+installing and use `python -m blindkeep ...` with `pip install -r
+requirements.txt`; the two forms are interchangeable everywhere below.
 
 ## Quick start
 
 ```bash
 # terminal A — run a node
-python -m blindkeep node --data-dir data/node --port 8741
+blindkeep node --data-dir data/node --port 8741
 
 # terminal B — store and retrieve a memory
-python -m blindkeep keygen --key data/client/master.key
-python -m blindkeep put --text "prefers concise answers" --label prefs
-python -m blindkeep list
-python -m blindkeep get --index 0
-python -m blindkeep head
+blindkeep keygen --key data/client/master.key
+blindkeep put --text "prefers concise answers" --label prefs
+blindkeep list
+blindkeep get --index 0
+blindkeep head
 ```
 
-<sub>On Windows use `py -3` in place of `python`.</sub>
+<sub>On Windows, `python -m blindkeep` becomes `py -3 -m blindkeep`; the
+`blindkeep` command itself works unchanged.</sub>
 
 **Keep `master.key` secret, and set up recovery before you store anything you
 care about.** The key is the only thing that can decrypt your records — no node
