@@ -64,6 +64,9 @@ data/peers.json
 __pycache__/
 *.py[cod]
 *.egg-info/
+build/
+dist/
+*.whl
 .venv/
 venv/
 env/
