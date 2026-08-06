@@ -244,7 +244,7 @@ blindkeep/
   ollama_mem.py local-model memory loop (loopback enforced)
   cloud_gate.py opt-in hosted-model path — NOT PRIVATE
   cli.py        command-line interface
-tests/          11 suites, 134 tests
+tests/          12 suites, 147 tests
 ```
 
 ## Replication

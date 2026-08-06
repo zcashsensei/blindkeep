@@ -145,8 +145,8 @@ The verification layer does not become the bottleneck at any realistic scale.
 
 ## 4. What is verified — as of 2026-08-06
 
-Implemented, running, and covered by tests in this repository. **134 tests
-across 11 suites**, plus an end-to-end demonstration.
+Implemented, running, and covered by tests in this repository. **147 tests
+across 12 suites**, plus an end-to-end demonstration.
 
 | Component | Status | Evidence |
 |-----------|--------|----------|
@@ -163,6 +163,7 @@ across 11 suites**, plus an end-to-end demonstration.
 | Retrieval auditing | Complete | 10 tests separating offline, lost-data and dishonest nodes |
 | Local-model memory loop | Complete | 13 tests, loopback enforced, no hosted-provider path |
 | Gated hosted-model path | Complete | 13 tests asserting it stays closed by default |
+| Command-line surface | Complete | 13 tests, including that no command creates a master key as a side effect |
 
 The adversarial suites are the substantive claim. They stand up nodes that
 substitute records, fork history at equal length, forge heads, tamper with

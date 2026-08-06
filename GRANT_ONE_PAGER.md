@@ -48,7 +48,8 @@ The missing layer is memory that is **durable**, **structurally private** (opera
 | RFC 6962-style Merkle inclusion + consistency | `blindkeep/merkle.py`, 13 exhaustive tests |
 | Ed25519 signed tree heads | crypto + client verification |
 | Full client verify pipeline (5 checks) | `blindkeep/client.py`, 9 adversarial tests with malicious HTTP nodes |
-| Single-node HTTP API + CLI | `node.py`, `cli.py`, `demo.py` |
+| Single-node HTTP API + CLI | `node.py`, `demo.py` |
+| Command-line surface, no implicit key creation | `cli.py`, 13 tests |
 | Multi-node replication + quorum reads | `replica.py`, 12 tests |
 | Metadata minimisation (encrypted labels, padded sizes) | `store.py`, 8 tests |
 | Key recovery: codes, passphrase backups, k-of-n Shamir shares | `recovery.py`, 21 tests |
@@ -60,7 +61,7 @@ The missing layer is memory that is **durable**, **structurally private** (opera
 | Security write-up of fixed bugs | `SECURITY.md` |
 | Cryptographic claim boundaries | `CRYPTO_FOUNDATIONS.md` |
 
-**Automated suite (2026-08-06):** **134 tests** across 11 suites + end-to-end demo — Merkle 13 · store 5 · metadata 8 · adversarial 9 · replication 12 · recovery 21 · hardening 12 · discovery 18 · audit 10 · local-model memory 13 · cloud gate 13.
+**Automated suite (2026-08-06):** **147 tests** across 12 suites + end-to-end demo — Merkle 13 · store 5 · metadata 8 · adversarial 9 · replication 12 · recovery 21 · hardening 12 · discovery 18 · audit 10 · local-model memory 13 · cloud gate 13 · CLI 13.
 
 **Not claimed as shipping:** anti-equivocation witnesses, proof of *storage* (as distinct from the retrieval auditing that is implemented), PIR, zkML, token incentives.
 
@@ -93,7 +94,7 @@ Full statement: [`CRYPTO_FOUNDATIONS.md`](CRYPTO_FOUNDATIONS.md).
 
 | Phase | Deliverable | Status |
 |-------|-------------|--------|
-| **M0** | Public MIT repo, docs, 134 tests | **done** |
+| **M0** | Public MIT repo, docs, 147 tests | **done** |
 | **M0b** | Replication, peer discovery, retrieval auditing, key recovery, local-model memory | **done** |
 | **M1** | **Three nodes operated by people who are not the applicant**, serving one client | **the next milestone** |
 | **M2** | Operator runbooks, packaging, CI, free community pool design | funded work |
