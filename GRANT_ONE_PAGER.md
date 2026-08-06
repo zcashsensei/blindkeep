@@ -4,7 +4,7 @@
 **Applicant / maintainer:** zcashsensei ([GitHub](https://github.com/zcashsensei))  
 **Repository:** https://github.com/zcashsensei/blindkeep  
 **License:** MIT  
-**Date:** 2026-08-05  
+**Date:** 2026-08-06 (v0.2)  
 **Status:** Runnable open-source reference implementation (v0 alpha)
 
 *One page for Zcash Community Grants / Zcash Foundation-style review. Full technical detail: [`WHITEPAPER.md`](WHITEPAPER.md), [`CRYPTO_FOUNDATIONS.md`](CRYPTO_FOUNDATIONS.md), [`SECURITY.md`](SECURITY.md).*
@@ -40,22 +40,31 @@ The missing layer is memory that is **durable**, **structurally private** (opera
 
 ---
 
-## 4. What is implemented — as of 2026-08-05 (evidence)
+## 4. What is implemented — as of 2026-08-06 (evidence)
 
 | Capability | Evidence in repo |
 |------------|------------------|
 | Client-side AES-256-GCM + HKDF per-record keys | `blindkeep/crypto.py`, store tests |
-| RFC 6962-style Merkle inclusion + consistency | `blindkeep/merkle.py`, 10 exhaustive tests |
+| RFC 6962-style Merkle inclusion + consistency | `blindkeep/merkle.py`, 13 exhaustive tests |
 | Ed25519 signed tree heads | crypto + client verification |
 | Full client verify pipeline (5 checks) | `blindkeep/client.py`, 9 adversarial tests with malicious HTTP nodes |
 | Single-node HTTP API + CLI | `node.py`, `cli.py`, `demo.py` |
 | Multi-node replication + quorum reads | `replica.py`, 12 tests |
+| Metadata minimisation (encrypted labels, padded sizes) | `store.py`, 8 tests |
+| Key recovery: codes, passphrase backups, k-of-n Shamir shares | `recovery.py`, 21 tests |
+| Node resource + disclosure hardening | `node.py`, 12 tests |
+| Peer discovery with hostile-bootstrap defences | `discover.py`, 18 tests |
+| Retrieval auditing (offline vs lost vs dishonest) | `audit.py`, 10 tests |
+| Local-model memory loop, loopback enforced | `ollama_mem.py`, 13 tests |
+| Gated hosted-model path, closed by default | `cloud_gate.py`, 13 tests |
 | Security write-up of fixed bugs | `SECURITY.md` |
 | Cryptographic claim boundaries | `CRYPTO_FOUNDATIONS.md` |
 
-**Automated suite (2026-08-05):** 80 tests + end-to-end demo — Merkle 13 · store 5 · metadata 8 · adversarial 9 · replication 12 · recovery 21 · hardening 12.
+**Automated suite (2026-08-06):** **134 tests** across 11 suites + end-to-end demo — Merkle 13 · store 5 · metadata 8 · adversarial 9 · replication 12 · recovery 21 · hardening 12 · discovery 18 · audit 10 · local-model memory 13 · cloud gate 13.
 
-**Not claimed as shipping:** peer discovery, anti-equivocation witnesses, proof-of-retrievability, PIR, zkML, token incentives.
+**Not claimed as shipping:** anti-equivocation witnesses, proof of *storage* (as distinct from the retrieval auditing that is implemented), PIR, zkML, token incentives.
+
+**Not yet demonstrated:** every result above was produced by the author against nodes the author operates. The design assumes a node is untrusted; that assumption has not been tested against a node run by anyone else. Establishing that is milestone M1 below, and it is deliberately written so it cannot be satisfied alone.
 
 ---
 
@@ -72,7 +81,9 @@ Blindkeep does **not** invent a new zero-knowledge proving system.
 
 **Proofs in production path are hash proofs** (\(O(\log n)\) SHA-256 operations per verify), not SNARK proofs. Python with the `cryptography` library is an appropriate reference implementation for this cost model.
 
-**Explicit non-claims:** formal machine-checked verification of the entire codebase; metadata privacy (access patterns, sizes, optional plaintext labels); availability if a node withholds data; single-node anti-equivocation without witnesses.
+**Explicit non-claims:** formal machine-checked verification of the entire codebase; **access-pattern privacy** — the node still observes which record is read and when, which requires PIR and is not implemented; availability if a node withholds data; single-node anti-equivocation without witnesses; proof that a node *stores* data rather than obtaining it on demand.
+
+*(Labels and exact record sizes were previously listed here as exposed. Both are now protected — labels are encrypted with the record and sizes are padded to fixed buckets. Access pattern is what remains.)*
 
 Full statement: [`CRYPTO_FOUNDATIONS.md`](CRYPTO_FOUNDATIONS.md).
 
@@ -80,15 +91,21 @@ Full statement: [`CRYPTO_FOUNDATIONS.md`](CRYPTO_FOUNDATIONS.md).
 
 ## 6. Requested work (suggested milestones)
 
-| Phase | Deliverable | Outcome |
-|-------|-------------|---------|
-| **M0** | Public MIT repo + docs (done) | Reproducible baseline |
-| **M1** | Multi-node replication + quorum (done) | Durable writes without trusting one node |
-| **M1b** | Production hardening: incremental Merkle tree, packaging, CI | Scale readiness |
-| **M2** | Peer discovery + operator runbooks + free community pool design | Path to “masses” free tier |
-| **M3** | Proof-of-retrievability / uptime audits | Score nodes that actually serve data |
-| **M4** | Optional ZEC micropay above free quota (shielded where practical) | Sustainable free path + Zcash utility |
-| **M5** | Local-model integration (e.g. Ollama) using Blindkeep memory | End-user privacy story |
+| Phase | Deliverable | Status |
+|-------|-------------|--------|
+| **M0** | Public MIT repo, docs, 134 tests | **done** |
+| **M0b** | Replication, peer discovery, retrieval auditing, key recovery, local-model memory | **done** |
+| **M1** | **Three nodes operated by people who are not the applicant**, serving one client | **the next milestone** |
+| **M2** | Operator runbooks, packaging, CI, free community pool design | funded work |
+| **M3** | Proof of *storage* — a node must hold data, not merely obtain it | funded work |
+| **M4** | Anti-equivocation witnessing: clients gossip signed heads | funded work |
+| **M5** | Independent security review, published in full including findings | funded work |
+| **M6** | Optional ZEC micropay above free quota, shielded where practical | funded work |
+
+M1 is first deliberately. Everything before it is code the applicant could write
+alone, and all of it is already written. What has not been shown is that
+strangers will run a node — and that is the only thing that distinguishes this
+from a well-tested single-user tool.
 
 **Illustrative use of grant capital** (adjustable): ~40% sponsored free-tier nodes · ~30% engineering · ~15% docs/community · ~15% audit/reserve.
 

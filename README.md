@@ -15,9 +15,9 @@
 </p>
 
 <p align="center">
-  <sub><b>Status as of 2026-08-05</b> · v0 alpha · 134 tests passing · replication,
-  peer discovery, retrieval audits and local-model memory implemented ·
-  no proving system implemented</sub>
+  <sub><b>Status as of 2026-08-06</b> · v0 alpha · 134 tests passing · replication,
+  peer discovery, retrieval audits, key recovery and local-model memory
+  implemented · no proving system implemented · not yet run by anyone but the author</sub>
 </p>
 
 ---

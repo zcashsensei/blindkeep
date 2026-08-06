@@ -1,6 +1,6 @@
 # Contributing to Blindkeep
 
-**Version 0.1 · 2026-08-05**
+**Version 0.2 · 2026-08-06**
 
 Read this before opening a pull request. It records the design constraints that
 are not up for renegotiation, and the reasoning behind them.
@@ -40,8 +40,23 @@ any of it as shipping before it does.
 |----|-------|
 | Ship runnable memory: put, get, verify | Convert the project into a specification with no implementation |
 | Keep the adversarial tests green | "Simplify" by removing request-binding checks |
-| Build peer discovery, witnessing, retrievability proofs next | Add tokenomics before the free path is useful |
-| Keep README claims true today | Market capabilities that do not exist yet |
+| Build witnessing and proof of storage next | Add tokenomics before the free path is useful |
+| Keep README claims true, and dated | Market capabilities that do not exist yet |
+
+### Tests that assert limitations
+
+Several tests exist to pin down what the system does **not** do:
+
+| Test | Asserts |
+|------|---------|
+| `test_access_pattern_is_still_visible` | the node still sees which record is read |
+| `test_redaction_is_documented_as_incomplete` | redaction leaves sensitive prose untouched |
+| `test_no_default_module_imports_the_cloud_gate` | no default path can reach a hosted provider |
+
+These fail when the limitation is fixed, which is the point: a limitation that
+is only written in a document decays into an assumption. If one of them starts
+failing, the correct response is to update the documentation in the same change,
+not to delete the test.
 
 ## The security invariant
 

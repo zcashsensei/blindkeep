@@ -1,6 +1,6 @@
 # Security
 
-**Version 0.1 · 2026-08-05 · applies to Blindkeep v0 alpha**
+**Version 0.2 · 2026-08-06 · applies to Blindkeep v0 alpha**
 
 ## Threat model
 
@@ -121,6 +121,63 @@ node as a hostile client, and each has a regression test in
 | Record lookup scanned the log linearly | Indexed, so lookup cost does not grow with log size |
 | The client followed redirects supplied by a node | Redirects are refused |
 | The client read responses without bound | Responses above the limit are refused |
+
+## Surfaces added since v0.1
+
+Each new capability brought a way to attack it. Each is bounded, and each bound
+has a test.
+
+### Peer discovery
+
+A peer list is an attractive thing to poison, because it decides who a client
+talks to before any verification happens.
+
+| Attack | Defence |
+|--------|---------|
+| Bootstrap names a cloud metadata address, turning clients into probes against their own infrastructure | `169.254.169.254`, `metadata.google.internal` and link-local addresses are refused outright |
+| Bootstrap supplies `file://` or credentialed URLs | Only `http`/`https`, no credentials in a URL |
+| Bootstrap redirects a probe elsewhere | Redirects refused |
+| Bootstrap replaces a pinned node key with its own | First entry for a URL wins; a local pin cannot be displaced |
+| Bootstrap returns an enormous or malformed body | Size-bounded, malformed entries skipped rather than fatal |
+
+A peer list confers **no trust**. It supplies candidate addresses; every node is
+still verified independently on use.
+
+### Retrieval auditing
+
+The audit distinguishes unreliable from dishonest, and treats them differently.
+A single security failure disqualifies a node regardless of how many challenges
+it passed: availability is a matter of degree, honesty is not. Ranking places an
+honest slow node above a fast one that failed a cryptographic check.
+
+The audit is challenge–response *retrieval*, not proof of storage. A node that
+obtains a record on demand passes while storing nothing.
+
+### Local-model memory
+
+The endpoint must resolve to a loopback address; anything else is refused unless
+a caller passes `allow_remote=True` deliberately. A test asserts the module
+contains no reference to any hosted provider endpoint, so no code path there can
+reach one.
+
+### Gated hosted-model path
+
+This path **discloses by design**, and the protection is that it cannot be
+entered by accident:
+
+- Two separate acknowledgements are required, neither defaulted on. One flag
+  gets copied from a forum post without being read; two do not.
+- No default module imports it. A test parses the import graph rather than
+  matching text, so a passing mention in documentation is fine and an actual
+  import is not.
+- Provider errors never echo the request, because it carries the bearer token.
+- Stored memories are never attached to a cloud request by this module.
+
+**Redaction is not a privacy control.** It removes obvious secrets — API keys,
+emails, wallet addresses, home paths — and cannot understand what is sensitive
+in prose. A test asserts that `"my daughter attends St Mary's primary school"`
+passes through **unchanged**, so the limitation is enforced rather than merely
+documented. Treat anything sent through this path as disclosed.
 
 ### Deployment note
 

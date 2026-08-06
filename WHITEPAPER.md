@@ -1,6 +1,8 @@
 # Blindkeep — Architecture and Feasibility
 
-**Version 0.1 · 2026-08-05 · zcashsensei**
+**Version 0.2 · 2026-08-06 · zcashsensei**
+*v0.1 2026-08-05: initial. v0.2: peer discovery, retrieval auditing,
+local-model memory and a gated hosted-model path implemented; limits revised.*
 
 ---
 
@@ -141,9 +143,10 @@ The verification layer does not become the bottleneck at any realistic scale.
 
 ---
 
-## 4. What is verified — as of 2026-08-05
+## 4. What is verified — as of 2026-08-06
 
-Implemented, running, and covered by tests in this repository:
+Implemented, running, and covered by tests in this repository. **134 tests
+across 11 suites**, plus an end-to-end demonstration.
 
 | Component | Status | Evidence |
 |-----------|--------|----------|
@@ -152,15 +155,29 @@ Implemented, running, and covered by tests in this repository:
 | Signed tree heads | Complete | Signature verified against on-disk state |
 | Client verification pipeline | Complete | 9 adversarial tests running genuinely malicious HTTP nodes |
 | Single-node HTTP service + CLI | Complete | End-to-end demo |
-| Multi-node replication, quorum reads | Complete | 12 tests covering offline, tampered and dishonest nodes |
+| Metadata minimisation | Complete | 8 tests: encrypted labels, padded sizes, access pattern asserted still open |
+| Multi-node replication, quorum reads | Complete | 12 tests: offline, tampered and dishonest nodes |
+| Key recovery | Complete | 21 tests: codes, passphrase backups, k-of-n Shamir shares |
+| Node resource and disclosure hardening | Complete | 12 tests: bounded bodies, paginated listing, no path disclosure |
+| Peer discovery | Complete | 18 tests, including a hostile bootstrap endpoint |
+| Retrieval auditing | Complete | 10 tests separating offline, lost-data and dishonest nodes |
+| Local-model memory loop | Complete | 13 tests, loopback enforced, no hosted-provider path |
+| Gated hosted-model path | Complete | 13 tests asserting it stays closed by default |
 
 The adversarial suites are the substantive claim. They stand up nodes that
 substitute records, fork history at equal length, forge heads, tamper with
-stored ciphertext, and silently alter a payload during a write — and assert the
-client refuses or excludes each one.
+stored ciphertext, silently alter a payload during a write, probe the node as a
+hostile client, and serve a poisoned peer list — and assert the client refuses
+or excludes each one.
 
-**Not implemented:** peer discovery, witnessing against equivocation,
-retrievability proofs, incentives, private queries, verifiable inference.
+A recurring pattern in these suites is worth naming: several tests assert a
+**limitation** rather than a capability. One asserts that access patterns remain
+visible; another that redaction leaves sensitive prose untouched. If either
+property ever changes, the test fails and forces the documentation to be
+updated. A limitation that is only written down decays into an assumption.
+
+**Not implemented:** witnessing against equivocation, proof of *storage* as
+distinct from retrieval, incentives, private queries, verifiable inference.
 
 ---
 
@@ -175,19 +192,49 @@ to name one item that is neither.
 N nodes and returns a value only when a quorum **independently verifies** and
 **agrees**. Covered by 12 tests (offline, tampered, and dishonest nodes).
 
+Peer lists come from `blindkeep/discover.py`, from a file or a bootstrap
+endpoint. A bootstrap is treated as hostile input: URLs are validated before
+contact, cloud metadata addresses are refused, redirects are not followed, and a
+bootstrap cannot displace a locally pinned public key. The list supplies
+candidate addresses and confers no trust — every node is still verified
+independently on use.
+
 Remaining problem: **equivocation** — a node showing different histories to
 different clients. Consistency proofs bind a node to its own past, not to what
 it told someone else. The standard solution is gossip between clients or
 independent witnesses co-signing heads, as Certificate Transparency does. Known
 technique; not yet in this repository.
 
-### 5.2 Proof of retrievability — **achievable, established**
+### 5.2 Retrieval auditing — **implemented**; proof of storage — **not**
 
-Proving a node still holds data without transferring it is solved in production
-by Filecoin (PoRep/PoSt) and adjacent systems. Notably, Filecoin generates
-enormous volumes of zero-knowledge proofs for exactly this, with no machine
-learning involved anywhere. This is the natural first place ZK earns its cost in
-Blindkeep, and it is a genuine ZK application rather than branding.
+These are two different claims and the distinction is easy to blur.
+
+**Implemented.** `blindkeep/audit.py` challenges a node on a random sample of
+records and runs full client verification on each answer. Integrity proofs
+establish that what a node returns is genuine; they say nothing about whether it
+returns anything at all. The audit separates three outcomes a plain uptime check
+would conflate:
+
+| Outcome | Meaning | Consequence |
+|---------|---------|-------------|
+| offline | did not answer | unreliable |
+| failed | answered, record missing or unreadable | unreliable |
+| security failure | answered, cryptographic check failed | **disqualifying** |
+
+A single security failure disqualifies a node outright. Availability is a matter
+of degree and can be scored proportionally; honesty cannot. A node that served
+one unverifiable answer has demonstrated that it can, and no proportion of
+correct answers offsets that.
+
+**Not implemented, and not claimed.** This is challenge–response *retrieval*. It
+shows a node served data at the time of asking. A node could in principle obtain
+a record from elsewhere on demand and pass every audit while storing nothing.
+Distinguishing "stores" from "can obtain" requires proof of replication of the
+kind Filecoin implements — genuinely different machinery.
+
+That is also the natural first place zero-knowledge proving earns its cost here.
+Filecoin generates enormous volumes of SNARKs for exactly this purpose, with no
+machine learning involved anywhere: a real ZK application rather than branding.
 
 ### 5.3 Distributed model weights — **achievable, with a performance cost**
 
@@ -315,15 +362,25 @@ usable free path. Not the primitives.
 
 Stated plainly:
 
-- **Metadata is visible.** Record count, ciphertext sizes, creation timestamps
-  and access patterns are all observable by the node. Labels are stored in
-  plaintext by design as an optional tag.
-- **Availability is not integrity.** A node can refuse to serve. Detection is
-  not retrieval; replication addresses this, proofs do not.
+- **Access patterns are visible.** The node observes which record is requested
+  and when, along with record count and creation times. Labels and exact sizes
+  are no longer exposed (§3.4), but which record you read cannot be hidden by a
+  cipher — that requires private retrieval (§5.4).
+- **Availability is not integrity.** A node can refuse to serve. Replication
+  addresses this; proofs do not. Auditing (§5.2) measures it but cannot compel it.
+- **Retrieval is audited, storage is not proven.** A node that obtains a record
+  on demand passes an audit while storing nothing (§5.2).
 - **Equivocation is undetected** until witnessing exists (§5.1).
-- **The client is trusted.** Compromised client software or a leaked master key
-  defeats every guarantee above.
-- **Key loss is unrecoverable.** This is a property of the design, not a defect.
+- **The client is trusted.** Compromised client software defeats every guarantee
+  above, and no server-side measure can help.
+- **Key loss is survivable but not automatic.** Three client-side recovery
+  mechanisms exist — a written code, a passphrase-wrapped backup, and k-of-n
+  shares — but each must be set up *before* the key is lost. Recovery material
+  is also the security floor: whoever holds a recovery code holds the store.
+- **The hosted-model path discloses.** It is opt-in, requires two separate
+  acknowledgements, and is imported by no default code path — but a user who
+  chooses it has disclosed that prompt. Redaction is best-effort pattern
+  matching and is not a privacy control.
 
 ---
 
@@ -359,19 +416,33 @@ their data here.
 | Layer | Verdict |
 |-------|---------|
 | Encrypted verifiable memory, single node | **Built and verified** |
+| Metadata minimisation (labels, sizes) | **Built and verified** |
 | Multi-node replication and quorum reads | **Built and verified** |
+| Key recovery | **Built and verified** |
+| Peer discovery | **Built and verified** |
+| Retrieval auditing | **Built and verified** |
+| Local-model memory loop | **Built and verified** |
 | Witnessing against equivocation | Achievable — established technique (not shipped) |
-| Proof of retrievability | Achievable — production precedent |
+| Proof of *storage* (not retrieval) | Achievable — production precedent, substantial work |
 | Distributed model weights | Achievable — with a real speed penalty |
 | Private queries (PIR) | Achievable — expensive, scope carefully |
 | Verifiable inference (zkML) | Research. Roadmap only. Never a shipping claim |
 | Distributed KV cache | **Withdrawn — ruled out by bandwidth arithmetic** |
+| **External validation** | **None. Every claim is self-verified** |
 | Sustainable economics | **Unverified. The principal risk** |
 
 The architecture is sound for what it claims, and the claims have been narrowed
 to what the arithmetic supports. One original component was removed rather than
-carried forward as an aspiration, and the largest open question is commercial
-rather than cryptographic.
+carried forward as an aspiration.
+
+The two open items at the bottom of that table are the honest ones. Every
+result in this document was produced by the author, on the author's machine,
+against nodes the author controls. The system is designed on the premise that a
+node is untrusted, and that premise has never been tested against a node the
+author does not run. Until a second operator stands one up, "untrusted" is a
+design intention rather than an observed property.
+
+That, and not any remaining cryptography, is the next thing worth doing.
 
 ---
 
