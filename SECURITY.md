@@ -80,8 +80,9 @@ than silently producing a wrong key — the dangerous failure mode is not
 
 ## Fixed vulnerabilities
 
-All four were found by running genuinely malicious nodes against the real
-client, not by reading the code. Each now has a regression test.
+The first four were found by running genuinely malicious nodes against the real
+client; the fifth by exercising the command line as a new user would. None came
+from reading the code. Each now has a regression test.
 
 | # | Vulnerability | Impact | Test |
 |---|---------------|--------|------|
@@ -89,10 +90,11 @@ client, not by reading the code. Each now has a regression test.
 | 2 | Same omission for **record id** | Identical substitution through the lookup-by-id path. | `test_record_id_substitution_detected` |
 | 3 | Head pinning compared **tree size only** | Equal size with a different root is a fork. No consistency proof can exist for one, so a size-only comparison passed silently and overwrote the pin. | `test_equal_size_fork_detected` |
 | 4 | Label defaulted to empty while being used as **AEAD associated data** | A record stored with a label could not be decrypted by its owner. The fix defaults to the node-reported label, which makes it *authenticated* — a node that lies about a label now fails the GCM tag. | `test_labelled_record_is_readable` |
+| 5 | **Every CLI command created a master key** when none was found | A mistyped `--key` silently minted a new 32-byte secret instead of failing, so `put` encrypted under a key the user never chose and their real key could not read it back. `head` and `list`, which never use a key at all, wrote one into whatever directory they were run from; commands that then failed still left a secret behind. Only `keygen` and `recover` create key material now, and both refuse to overwrite without `--force`. | `test_no_read_command_creates_key_material` |
 
 A node identity that changes relative to a pinned head is also now rejected.
 
-### The generalised lesson
+### The generalised lessons
 
 > **A valid proof is not an answer to your question.**
 
@@ -104,6 +106,16 @@ scalar comparison standing in for an identity check.
 
 Every new endpoint must echo-check its request key before evaluating any proof
 contained in the response.
+
+Vulnerability 5 belongs to a different class and carries its own lesson:
+
+> **Creating a secret must never be a side effect.**
+
+Auto-creating a missing key reads as helpfulness and behaves as data loss. The
+failure it removes — *this key does not exist* — is legible and recoverable. The
+state it introduces — *a key you did not choose, holding records you cannot read*
+— is neither, and it is discovered later, by someone who has already stored
+something they wanted back. Where key material is concerned, prefer the error.
 
 ## Operational hardening
 

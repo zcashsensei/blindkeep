@@ -16,14 +16,39 @@ _HAS_DASHBOARD = (_ROOT / "dashboard.py").is_file()
 _HAS_PROGRESS = (Path(__file__).resolve().parent / "progress.py").is_file()
 
 
-def _client_from_args(args):
+class CliError(Exception):
+    """A usage problem stated in the user's terms, not a traceback."""
+
+
+def _load_key(key_path: str) -> bytes:
+    """Load an existing master key, or explain how to make one.
+
+    Creating key material must never be a side effect of another command.
+    It previously was, and the consequences were worse than the untidiness
+    suggests: a mistyped ``--key`` silently minted a *new* 32-byte secret, so
+    ``put`` would encrypt under a key the user did not mean and their real key
+    could never read it back. Read-only commands scattered secrets through
+    whatever directory they happened to run in, and even commands that went on
+    to fail left one behind. `keygen` and `recover` create keys — deliberately,
+    and with an overwrite guard. Nothing else does.
+    """
+    from .client import BlindkeepClient
+
+    if not os.path.exists(key_path):
+        raise CliError(
+            f"no master key at {key_path}\n"
+            f"  create one:  blindkeep keygen --key {key_path}\n"
+            f"  or restore:  blindkeep recover restore --code ... --key {key_path}")
+    return BlindkeepClient.load_master_key(key_path)
+
+
+def _client_from_args(args, need_key: bool = True):
     from .client import BlindkeepClient
 
     key_path = args.key
-    if not os.path.exists(key_path):
-        print(f"creating new master key at {key_path}", file=sys.stderr)
-        BlindkeepClient.create_keys(key_path)
-    key = BlindkeepClient.load_master_key(key_path)
+    # `head` and `list` are metadata-only: neither touches master_key. Asking
+    # for a key to read a signed tree head would be a lie about what is needed.
+    key = _load_key(key_path) if need_key else b""
     pin = getattr(args, "pin", None) or os.path.join(os.path.dirname(key_path) or ".", "pin.json")
     return BlindkeepClient(args.url, key, pin_path=pin,
                           expected_pubkey_hex=getattr(args, "pubkey", None) or None)
@@ -94,10 +119,9 @@ def cmd_peers(args) -> int:
 
 def cmd_audit(args) -> int:
     from .audit import audit_peers, rank
-    from .client import BlindkeepClient
     from .discover import discover, urls
 
-    key = BlindkeepClient.load_master_key(args.key)
+    key = _load_key(args.key)
     if args.url:
         targets = [args.url]
     else:
@@ -118,7 +142,7 @@ def cmd_chat(args) -> int:
     from .client import BlindkeepClient
     from .ollama_mem import OllamaMemory
 
-    key = BlindkeepClient.load_master_key(args.key)
+    key = _load_key(args.key)
     client = BlindkeepClient(args.url, key, pin_path=args.pin)
     mem = OllamaMemory(client, ollama_base=args.ollama_base, model=args.model,
                        allow_remote=args.allow_remote)
@@ -172,7 +196,7 @@ def cmd_recover(args) -> int:
     action = args.action
 
     if action == "export":
-        key = BlindkeepClient.load_master_key(args.key)
+        key = _load_key(args.key)
         print("Write this down and keep it somewhere safe. Anyone holding it")
         print("can read every record you have stored.\n")
         print("  " + recovery.to_recovery_code(key) + "\n")
@@ -188,7 +212,7 @@ def cmd_recover(args) -> int:
         return 0
 
     if action == "backup":
-        key = BlindkeepClient.load_master_key(args.key)
+        key = _load_key(args.key)
         blob = recovery.wrap_key(key, _read_passphrase(args, confirm=True))
         with open(args.out, "wb") as f:
             f.write(blob)
@@ -208,7 +232,7 @@ def cmd_recover(args) -> int:
         return 0
 
     if action == "split":
-        key = BlindkeepClient.load_master_key(args.key)
+        key = _load_key(args.key)
         shares = recovery.split_key(key, threshold=args.threshold, shares=args.shares)
         print(f"Any {args.threshold} of these {args.shares} shares restore the key.")
         print(f"Fewer than {args.threshold} reveal nothing at all.")
@@ -256,13 +280,20 @@ def cmd_put(args) -> int:
 
 
 def cmd_get(args) -> int:
+    # Check the selector before building a client: `get` with neither flag used
+    # to reach `int(None)` and surface as a TypeError about int().
+    if args.record_id is None and args.index is None:
+        raise CliError("get needs one of --index N or --record-id ID")
+    if args.record_id is not None and args.index is not None:
+        raise CliError("get takes --index or --record-id, not both")
+
     client = _client_from_args(args)
     # None (not "") means "use the label the record was stored with".
     label = args.label or None
     if args.record_id:
         result = client.get_by_id(args.record_id, label=label)
     else:
-        result = client.get(int(args.index), label=label)
+        result = client.get(args.index, label=label)
     plain = result.pop("plaintext")
     if args.raw:
         sys.stdout.buffer.write(plain)
@@ -279,14 +310,14 @@ def cmd_get(args) -> int:
 
 
 def cmd_head(args) -> int:
-    client = _client_from_args(args)
+    client = _client_from_args(args, need_key=False)
     head = client.head()
     print(json.dumps(head, indent=2))
     return 0
 
 
 def cmd_list(args) -> int:
-    client = _client_from_args(args)
+    client = _client_from_args(args, need_key=False)
     # list is metadata only (no ciphertexts); still refresh pin via head
     client.head()
     records = client.list()
@@ -377,7 +408,7 @@ def build_parser() -> argparse.ArgumentParser:
     put.set_defaults(func=cmd_put)
 
     get = sub.add_parser("get", parents=[common], help="fetch + verify + decrypt")
-    get.add_argument("--index", default=None)
+    get.add_argument("--index", type=int, default=None)
     get.add_argument("--record-id", default=None)
     get.add_argument("--label", default="")
     get.add_argument("--raw", action="store_true", help="write raw bytes to stdout")
@@ -443,7 +474,18 @@ def main(argv=None) -> int:
     args = parser.parse_args(argv)
     try:
         return args.func(args)
+    except CliError as e:
+        # A usage problem: the message is the whole point, so no "error:" noise.
+        print(str(e), file=sys.stderr)
+        return 2
+    except KeyboardInterrupt:
+        # Ctrl-C is how `blindkeep node` is meant to be stopped. Exiting with a
+        # traceback made a normal shutdown look like a crash.
+        print("\ninterrupted", file=sys.stderr)
+        return 130
     except Exception as e:
+        if os.environ.get("BLINDKEEP_DEBUG"):
+            raise
         print(f"error: {e}", file=sys.stderr)
         return 1
 

@@ -9,13 +9,13 @@
 <p align="center">
   <img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License: MIT">
   <img src="https://img.shields.io/badge/python-3.10%2B-blue.svg" alt="Python 3.10+">
-  <img src="https://img.shields.io/badge/tests-134%20passing-brightgreen.svg" alt="134 tests passing">
+  <img src="https://img.shields.io/badge/tests-147%20passing-brightgreen.svg" alt="147 tests passing">
   <img src="https://img.shields.io/badge/status-v0%20alpha-orange.svg" alt="v0 alpha">
   <img src="https://img.shields.io/badge/dependencies-1-lightgrey.svg" alt="1 dependency">
 </p>
 
 <p align="center">
-  <sub><b>Status as of 2026-08-06</b> · v0 alpha · 134 tests passing · replication,
+  <sub><b>Status as of 2026-08-06</b> · v0 alpha · 147 tests passing · replication,
   peer discovery, retrieval audits, key recovery and local-model memory
   implemented · no proving system implemented · not yet run by anyone but the author</sub>
 </p>
@@ -199,6 +199,7 @@ python tests/test_discover.py      # 18 — peer discovery, hostile bootstrap
 python tests/test_audit.py         # 10 — retrieval audits, offline vs dishonest
 python tests/test_ollama_mem.py    # 13 — local model memory, privacy boundary
 python tests/test_cloud_gate.py    # 13 — opt-in cloud path stays closed
+python tests/test_cli.py           # 13 — only keygen/recover create key material
 python demo.py                     # end-to-end walkthrough
 ```
 
