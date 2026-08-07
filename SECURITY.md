@@ -224,6 +224,52 @@ here cannot quietly outgrow the code:
 - **It is pseudonymisation, not anonymisation.** The mapping exists, so the
   data remains personal data under GDPR.
 
+### Attestation of a model host
+
+`attest.py` applies the client's refuse-on-failure discipline to the compute
+side. Five checks, any failure raises, and there is no return value meaning
+"partly attested".
+
+The check worth naming is **binding to our nonce**. A report can be genuine,
+correctly signed by real hardware, unexpired, and still describe a different
+machine than the one about to see the data. `report_data` must contain
+`sha256("blindkeep-attest-v1\0" || nonce)` for a nonce this client generated in
+the same call — `attest_host` creates it internally so a caller cannot verify
+against a nonce an attacker supplied. Redirects from an attestation endpoint are
+refused for the reason the storage client refuses them: a host being asked to
+prove it is trustworthy is by definition not yet trusted.
+
+`attested_complete()` takes a verified `Result` rather than a boolean, so the
+call cannot be made without having attested first. An ordering that matters is
+not left to a caller remembering it.
+
+**Explicit non-claims.** No hardware vendor root certificates are bundled and no
+real SEV-SNP, TDX or NVIDIA attestation binary is parsed. Those formats are
+registered as unimplemented and **refuse**; the reference `ed25519-ref` format
+exists so every check is exercised against genuine cryptography. Attestation
+also shifts trust to the silicon vendor and the attestation chain — it narrows
+who must be trusted, it does not eliminate trust.
+
+### Release policy across model tiers
+
+`memory_gate.py` decides what leaves. Sensitivity is carried in the encrypted,
+AAD-authenticated label, so a node can neither read a record's class nor
+relabel it. The plaintext index on disk is a convenience, never the authority: a
+test forges it and asserts a `secret` record is still withheld.
+
+- A tier that is claimed but not proven is **demoted to `OPEN`**, and the
+  demotion is carried in the grant so the refusal names it. A user who believed
+  they were talking to an enclave finds out when it matters.
+- A prover that raises demotes rather than crashing; an unreadable sensitivity
+  class parses as `SECRET`, and an unlabelled record is not public. Every
+  ambiguity resolves toward withholding.
+- `SECRET` is pinned to `LOCAL` in the default policy and does not leave the
+  machine for any remote proof, because "the operator cannot read it" remains a
+  claim about someone else's hardware.
+
+This governs what is *sent*. It cannot govern what a model does with text after
+it arrives.
+
 ### Not a privacy control: sending embeddings or hidden states
 
 A recurring suggestion is to send vectors or intermediate activations instead of

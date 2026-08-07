@@ -9,13 +9,13 @@
 <p align="center">
   <img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License: MIT">
   <img src="https://img.shields.io/badge/python-3.10%2B-blue.svg" alt="Python 3.10+">
-  <img src="https://img.shields.io/badge/tests-185%20passing-brightgreen.svg" alt="185 tests passing">
+  <img src="https://img.shields.io/badge/tests-244%20passing-brightgreen.svg" alt="244 tests passing">
   <img src="https://img.shields.io/badge/status-v0%20alpha-orange.svg" alt="v0 alpha">
   <img src="https://img.shields.io/badge/dependencies-1-lightgrey.svg" alt="1 dependency">
 </p>
 
 <p align="center">
-  <sub><b>Status as of 2026-08-06</b> · v0 alpha · 185 tests passing · replication,
+  <sub><b>Status as of 2026-08-06</b> · v0 alpha · 244 tests passing · replication,
   peer discovery, retrieval audits, key recovery and local-model memory
   implemented · no proving system implemented · not yet run by anyone but the author</sub>
 </p>
@@ -242,11 +242,13 @@ blindkeep/
   discover.py   peer discovery with URL validation
   audit.py      retrieval audits: offline vs lost vs dishonest
   ollama_mem.py local-model memory loop (loopback enforced)
+  attest.py     remote attestation: 5 checks, refuse on any failure
+  memory_gate.py one memory layer, any model, release by PROVEN tier
   cloud_gate.py  opt-in hosted-model path — NOT PRIVATE
   vault_proxy.py reversible pseudonymisation for that path — SMALLER disclosure
   _console.py   terminal output helpers
   cli.py        command-line interface
-tests/          14 suites, 185 tests
+tests/          16 suites, 244 tests
 ```
 
 ## Replication
@@ -369,14 +371,79 @@ Each of these limits has a test that passes by demonstrating the failure.
 | Path | Provider sees | Trust required |
 |------|---------------|----------------|
 | `chat` — local model | nothing; no provider exists | none beyond your own machine |
+| `gate-chat --tier attested` | nothing; hardware prevents it | silicon vendor + attestation chain |
 | `private-chat` — pseudonymised | the question, minus declared identities | provider not to correlate what remains |
 | `cloud-chat` — gated | everything you send | provider's policy and retention terms |
 
-Storage trust is unchanged in all three: the node never holds plaintext. Only
-the *model* side differs. Attested confidential inference — where the operator
-is cryptographically prevented from reading rather than trusted not to — is the
-route that would make a hosted model genuinely private, and is not implemented
-here.
+Storage trust is unchanged in all four: the node never holds plaintext. Only the
+*model* side differs.
+
+## One memory layer, any AI
+
+The model is swappable. The guarantee is not. Memory lives encrypted in the
+keep, every backend sits on a **trust tier it has to prove**, and a policy
+decides which memories may cross to which tier.
+
+```bash
+blindkeep gate-chat --tier attested --text "what do you know about me?" \
+  --attest-url https://host.example/attest \
+  --measurement <approved-code-hash> --root <vendor-key>
+```
+
+| Sensitivity | Minimum tier | Reaches an open hosted model? |
+|-------------|--------------|-------------------------------|
+| `public` | `open` | yes |
+| `personal` | `pseudonymous` | only with identities substituted |
+| `sensitive` | `attested` | only inside a verified enclave |
+| `secret` | `local` | never |
+
+**A claimed tier is worth nothing.** A backend that says `attested` and fails
+verification is demoted to `open` and the demotion is named in the output — so
+memories its claim would have unlocked stay home:
+
+```
+[tier: attested: ... (5 checks passed)]
+[memory: attested: released 3, withheld 1 (secret)]     # honest host
+
+error: report_data does not bind this client's nonce     # replaying host
+                                                         # -> nothing was sent
+```
+
+**The classification travels inside the ciphertext.** A record's class lives in
+its encrypted label, authenticated as AAD, so the node can neither read it nor
+relabel `secret` as `public` to coax a client into releasing it. Editing the
+plaintext index on disk does not work either — the authenticated label is the
+authority, and a test asserts a forged index cannot promote a record.
+
+### Attestation
+
+`blindkeep attest` challenges a host to prove it cannot read what it computes.
+Five checks, mirroring the five the storage client already runs, in the
+published SEV-SNP verification order:
+
+| # | Check | Defeats |
+|---|-------|---------|
+| 1 | Format has a registered verifier | An unknown envelope waved through |
+| 2 | Signature chains to a pinned root | A report signed by anyone at all |
+| 3 | `report_data` binds **our** nonce | A genuine report replayed from another session |
+| 4 | Measurement is on the allowlist | Real hardware, software you never approved |
+| 5 | Debug disabled, not expired | An enclave opened for inspection |
+
+Check 3 is the one that is easy to omit and fatal to. A correctly signed,
+unexpired report proves something about *some* machine; without binding it to a
+nonce this client just generated, a host can replay a report captured from a
+genuinely confidential machine and process your request somewhere else.
+
+**What is not implemented, stated plainly:** this ships **no hardware vendor
+root certificates** and **no parser for real SEV-SNP, TDX or NVIDIA GPU
+attestation binaries**. Those formats are registered as *unimplemented*, which
+means requesting one **refuses** — it does not mean the check is skipped. An
+unrecognised format must refuse, never pass silently, because callers read the
+absence of an error as success. What is implemented and fully tested is the
+verification framework and an Ed25519 reference format that exercises every
+check with real cryptography. Wiring a real vendor verifier means implementing
+`Verifier` for that format and supplying its roots; the surrounding logic does
+not change.
 
 ## Roadmap
 

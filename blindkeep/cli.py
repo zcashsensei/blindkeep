@@ -213,6 +213,107 @@ def cmd_private_chat(args) -> int:
     return 0
 
 
+def cmd_attest(args) -> int:
+    """Challenge a model host to prove it cannot read what it computes."""
+    from .attest import AttestationError, Policy, attest_host
+
+    try:
+        policy = Policy.build(args.measurement, args.root,
+                              max_age_seconds=args.max_age)
+        result = attest_host(args.url, policy=policy, timeout=args.timeout)
+    except AttestationError as exc:
+        print(f"REFUSED: {exc}", file=sys.stderr)
+        return 1
+
+    print(result.summary())
+    for check in result.checks:
+        print(f"  ok  {check}")
+    return 0
+
+
+def _gate_backend(args, client):
+    """Build the backend named by --tier, with the prover that tier requires."""
+    from .memory_gate import (SimpleBackend, Tier, attestation_prover,
+                              loopback_prover, vault_prover)
+
+    tier = Tier[args.tier.upper()]
+
+    if tier is Tier.LOCAL:
+        from .ollama_mem import OllamaMemory
+        mem = OllamaMemory(client, ollama_base=args.ollama_base,
+                           model=args.model)
+        return SimpleBackend(
+            name=f"ollama:{args.model}", claimed_tier=tier,
+            completer=lambda p, s: mem.chat(p, system=s, remember=False,
+                                            recall=0),
+            prover=loopback_prover(args.ollama_base))
+
+    api_key = args.api_key or os.environ.get("BLINDKEEP_CLOUD_KEY", "")
+
+    if tier is Tier.ATTESTED:
+        from .attest import Policy, attest_host, attested_complete
+        policy = Policy.build(args.measurement, args.root,
+                              max_age_seconds=args.max_age)
+        # Verify once, then reuse the Result for the completion so the call is
+        # provably ordered after a passing check.
+        result = attest_host(args.attest_url, policy=policy)
+        return SimpleBackend(
+            name=f"attested:{args.model}", claimed_tier=tier,
+            completer=lambda p, s: attested_complete(
+                p, api_base=args.api_base, api_key=api_key, model=args.model,
+                result=result, system=s)["reply"],
+            prover=lambda: attestation_prover(args.attest_url, policy)())
+
+    from .cloud_gate import cloud_complete
+
+    def cloud(p, s):
+        return cloud_complete(
+            p, api_base=args.api_base, api_key=api_key, model=args.model,
+            system=s, enable_cloud=args.enable_cloud,
+            accept_not_private=args.i_accept_not_private)["reply"]
+
+    if tier is Tier.PSEUDONYMOUS:
+        from .vault_proxy import EntityVault
+        vault = (EntityVault.load(client, args.vault_record)
+                 if args.vault_record else EntityVault())
+        for value in args.declare or []:
+            vault.declare(value)
+        for pair in args.declare_as or []:
+            kind, _, value = pair.partition(":")
+            if not value:
+                raise ValueError(f"--declare-as expects KIND:VALUE, got {pair!r}")
+            vault.declare(value, kind=kind)
+        return SimpleBackend(name=f"pseudonymous:{args.model}",
+                             claimed_tier=tier, completer=cloud,
+                             prover=vault_prover(vault), vault=vault)
+
+    return SimpleBackend(name=f"open:{args.model}", claimed_tier=Tier.OPEN,
+                         completer=cloud)
+
+
+def cmd_gate_chat(args) -> int:
+    """One memory layer, any model, release decided by a PROVEN tier."""
+    from .client import BlindkeepClient
+    from .memory_gate import MemoryGate, Sensitivity
+
+    key = _load_key(args.key)
+    client = BlindkeepClient(args.url, key, pin_path=args.pin)
+    gate = MemoryGate(client, index_path=args.index)
+    backend = _gate_backend(args, client)
+
+    out = gate.chat(backend, args.text, system=args.system,
+                    recall=args.recall, remember=not args.no_remember,
+                    sensitivity=Sensitivity[args.sensitivity.upper()])
+
+    print(f"[tier: {out['grant']}]", file=sys.stderr)
+    print(f"[memory: {out['summary']}]", file=sys.stderr)
+    if backend.vault is not None:
+        ref = backend.vault.save(client)
+        print(f"[vault record: {ref['record_id']}]", file=sys.stderr)
+    print(out["reply"])
+    return 0
+
+
 def _read_passphrase(args, confirm: bool = False) -> str:
     """Take a passphrase from a flag, a file, or an interactive prompt.
 
@@ -532,6 +633,53 @@ def build_parser() -> argparse.ArgumentParser:
     pc.add_argument("--enable-cloud", action="store_true")
     pc.add_argument("--i-accept-not-private", action="store_true")
     pc.set_defaults(func=cmd_private_chat)
+
+    at = sub.add_parser(
+        "attest",
+        help="challenge a model host to prove it cannot read your data")
+    at.add_argument("--url", required=True, help="the host's attestation endpoint")
+    at.add_argument("--measurement", action="append", default=[], required=True,
+                    help="an approved code measurement, hex (repeatable)")
+    at.add_argument("--root", action="append", default=[], required=True,
+                    help="a trusted root key, hex (repeatable)")
+    at.add_argument("--max-age", type=float, default=300.0,
+                    help="reject reports older than this many seconds")
+    at.add_argument("--timeout", type=float, default=10.0)
+    at.set_defaults(func=cmd_attest)
+
+    gc = sub.add_parser(
+        "gate-chat",
+        help="one encrypted memory layer, any model, release by PROVEN tier")
+    gc.add_argument("--text", required=True)
+    gc.add_argument("--tier", required=True,
+                    choices=["local", "attested", "pseudonymous", "open"],
+                    help="what the backend CLAIMS; it must prove it or be demoted")
+    gc.add_argument("--sensitivity", default="personal",
+                    choices=["public", "personal", "sensitive", "secret"],
+                    help="class to store this exchange under")
+    gc.add_argument("--url", default="http://127.0.0.1:8741")
+    gc.add_argument("--key", default="data/client/master.key")
+    gc.add_argument("--pin", default="data/client/pin.json")
+    gc.add_argument("--index", default="data/client/gate_index.json")
+    gc.add_argument("--recall", type=int, default=6)
+    gc.add_argument("--no-remember", action="store_true")
+    gc.add_argument("--system", default=None)
+    gc.add_argument("--model", default="llama3.2")
+    gc.add_argument("--ollama-base", default="http://127.0.0.1:11434")
+    gc.add_argument("--api-base", default="https://api.openai.com")
+    gc.add_argument("--api-key", default=None,
+                    help="or set BLINDKEEP_CLOUD_KEY; a flag is visible in shell history")
+    gc.add_argument("--attest-url", default=None,
+                    help="attestation endpoint, required for --tier attested")
+    gc.add_argument("--measurement", action="append", default=[])
+    gc.add_argument("--root", action="append", default=[])
+    gc.add_argument("--max-age", type=float, default=300.0)
+    gc.add_argument("--vault-record", default=None)
+    gc.add_argument("--declare", action="append", default=[])
+    gc.add_argument("--declare-as", action="append", default=[])
+    gc.add_argument("--enable-cloud", action="store_true")
+    gc.add_argument("--i-accept-not-private", action="store_true")
+    gc.set_defaults(func=cmd_gate_chat)
 
     return p
 
