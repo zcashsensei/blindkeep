@@ -9,13 +9,13 @@
 <p align="center">
   <img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License: MIT">
   <img src="https://img.shields.io/badge/python-3.10%2B-blue.svg" alt="Python 3.10+">
-  <img src="https://img.shields.io/badge/tests-265%20passing-brightgreen.svg" alt="265 tests passing">
+  <img src="https://img.shields.io/badge/tests-279%20passing-brightgreen.svg" alt="279 tests passing">
   <img src="https://img.shields.io/badge/status-v0%20alpha-orange.svg" alt="v0 alpha">
   <img src="https://img.shields.io/badge/dependencies-1-lightgrey.svg" alt="1 dependency">
 </p>
 
 <p align="center">
-  <sub><b>Status as of 2026-08-06</b> · v0 alpha · 265 tests passing · replication,
+  <sub><b>Status as of 2026-08-06</b> · v0 alpha · 279 tests passing · replication,
   peer discovery, retrieval audits, key recovery and local-model memory
   implemented · no proving system implemented · not yet run by anyone but the author</sub>
 </p>
@@ -144,6 +144,19 @@ blindkeep get --index 0
 blindkeep head
 ```
 
+To see what the repository actually contains — counted from the source on every
+run, including what is **not** done:
+
+```bash
+blindkeep status
+```
+
+Every number it prints is computed, and every capability is detected rather than
+asserted: whether the SEV-SNP verifier is enabled, for instance, is read from
+the live registry, so it flips on its own the day someone validates it. **If a
+document in this repo disagrees with `blindkeep status`, the document is
+wrong.**
+
 <sub>On Windows, `python -m blindkeep` becomes `py -3 -m blindkeep`; the
 `blindkeep` command itself works unchanged.</sub>
 
@@ -245,11 +258,12 @@ blindkeep/
   attest.py     remote attestation: 5 checks, refuse on any failure
   memory_gate.py one memory layer, any model, release by PROVEN tier
   sev_snp.py    AMD SEV-SNP report verification — OFF by default, unvalidated
+  status.py     what the repo contains, counted not claimed
   cloud_gate.py  opt-in hosted-model path — NOT PRIVATE
   vault_proxy.py reversible pseudonymisation for that path — SMALLER disclosure
   _console.py   terminal output helpers
   cli.py        command-line interface
-tests/          17 suites, 265 tests
+tests/          18 suites, 279 tests
 ```
 
 ## Replication

@@ -1,0 +1,158 @@
+"""What this repository actually contains, counted rather than claimed.
+
+Published test counts here have drifted five times. Every one of those drifts
+happened the same way: a number was typed into a document, more work shipped,
+and nobody went back. A number this module computes on every run cannot drift —
+so if a document and `blindkeep status` disagree, **the document is wrong.**
+
+Two design rules, both learned from the failures they prevent:
+
+**Enumerate, never list.** The dashboard this replaced kept a hardcoded tuple of
+nine module names beside a directory glob for tests. The glob stayed current for
+months; the tuple showed nine of sixteen modules and none of the memory-path
+work. When one function builds two rosters and only one is a glob, the typed one
+is already stale.
+
+**Detect the negatives too.** A status report that can only say "done" is a
+brochure. Whether the SEV-SNP verifier is *enabled* is read from the live
+registry rather than asserted here, so it flips on its own the day someone
+validates it against real hardware — and stays honest until then.
+"""
+
+from __future__ import annotations
+
+import json
+from pathlib import Path
+from typing import Any, Optional
+
+PACKAGE = "blindkeep"
+TESTS = "tests"
+
+
+def _root(root: Optional[Path] = None) -> Path:
+    return Path(root) if root else Path(__file__).resolve().parent.parent
+
+
+def count_tests(root: Optional[Path] = None) -> dict[str, Any]:
+    """Count test functions by reading them. The authoritative total."""
+    tests_dir = _root(root) / TESTS
+    suites, total = [], 0
+    if tests_dir.is_dir():
+        for p in sorted(tests_dir.glob("test_*.py")):
+            try:
+                n = sum(1 for line in
+                        p.read_text(encoding="utf-8", errors="replace").splitlines()
+                        if line.startswith("def test_"))
+            except OSError:
+                continue
+            suites.append({"name": p.name, "tests": n})
+            total += n
+    return {"total": total, "suites": len(suites), "files": suites}
+
+
+def list_modules(root: Optional[Path] = None) -> list[dict[str, Any]]:
+    """Every module in the package. Enumerated, so nothing can be omitted."""
+    pkg = _root(root) / PACKAGE
+    if not pkg.is_dir():
+        return []
+    return [{"name": p.name, "bytes": p.stat().st_size}
+            for p in sorted(pkg.glob("*.py"))]
+
+
+def _sev_snp_enabled() -> bool:
+    """Read the live registry rather than assert a value.
+
+    The real SEV-SNP verifier exists but is deliberately excluded from the
+    default registry until it has been checked against a report from real
+    hardware. Reading the registry means this line becomes true by itself on
+    the day that changes, and cannot be true before.
+    """
+    try:
+        from .attest import default_registry
+        from .sev_snp import SevSnpVerifier
+        return isinstance(default_registry().get("sev-snp"), SevSnpVerifier)
+    except Exception:
+        return False
+
+
+def capabilities(root: Optional[Path] = None) -> list[dict[str, Any]]:
+    """Implemented capabilities, each detected from what is on disk."""
+    r = _root(root)
+    pkg, tests_dir = r / PACKAGE, r / TESTS
+
+    def mod(*names):
+        return all((pkg / n).is_file() for n in names)
+
+    def suite(*names):
+        return all((tests_dir / n).is_file() for n in names)
+
+    rows = [
+        ("Merkle + tests", mod("merkle.py") and suite("test_merkle.py")),
+        ("Store / node / CLI", mod("store.py", "node.py", "client.py", "cli.py")),
+        ("Adversarial tests", suite("test_adversarial.py")),
+        ("Replication", mod("replica.py") and suite("test_replication.py")),
+        ("Peer discovery", mod("discover.py") and suite("test_discover.py")),
+        ("Retrieval audits", mod("audit.py") and suite("test_audit.py")),
+        ("Key recovery", mod("recovery.py") and suite("test_recovery.py")),
+        ("Local-model memory", mod("ollama_mem.py") and suite("test_ollama_mem.py")),
+        ("Gated cloud path", mod("cloud_gate.py") and suite("test_cloud_gate.py")),
+        ("Pseudonymisation proxy", mod("vault_proxy.py") and suite("test_vault_proxy.py")),
+        ("Attestation (5 checks)", mod("attest.py") and suite("test_attest.py")),
+        ("Memory gate (tiers)", mod("memory_gate.py") and suite("test_memory_gate.py")),
+        ("SEV-SNP verifier written", mod("sev_snp.py") and suite("test_sev_snp.py")),
+        ("SEV-SNP enabled by default", _sev_snp_enabled()),
+    ]
+    return [{"label": label, "ok": bool(ok)} for label, ok in rows]
+
+
+# Milestones that no file can prove. Kept deliberately short and next to the
+# README's "not claimed as shipping" list, because a status report that only
+# says "done" is a brochure. Anything here that becomes detectable should move
+# into `capabilities()` and stop being a written line.
+NOT_CLAIMED = [
+    "SEV-SNP validated against real hardware",
+    "Run by anyone other than the author (milestone M1)",
+    "Anti-equivocation witnessing",
+    "Proof of storage, as distinct from retrieval auditing",
+    "Access-pattern privacy (PIR)",
+]
+
+
+def summary(root: Optional[Path] = None) -> dict[str, Any]:
+    return {
+        "tests": count_tests(root),
+        "modules": list_modules(root),
+        "capabilities": capabilities(root),
+        "not_claimed": list(NOT_CLAIMED),
+    }
+
+
+def render(root: Optional[Path] = None) -> str:
+    s = summary(root)
+    t = s["tests"]
+    out = [
+        "",
+        f"  {t['total']} tests across {t['suites']} suites   (counted, not stated)",
+        f"  {len(s['modules'])} modules",
+        "",
+    ]
+    for row in s["capabilities"]:
+        out.append(f"  {'OK' if row['ok'] else '..'}  {row['label']}")
+    out.append("")
+    out.append("  Not claimed:")
+    for item in s["not_claimed"]:
+        out.append(f"      - {item}")
+    out.append("")
+    out.append("  If a document disagrees with this, the document is wrong.")
+    out.append("")
+    return "\n".join(out)
+
+
+def main(argv: Optional[list[str]] = None) -> int:
+    import argparse
+
+    p = argparse.ArgumentParser(description="What this repository contains")
+    p.add_argument("--json", action="store_true")
+    args = p.parse_args(argv)
+    print(json.dumps(summary(), indent=2) if args.json else render())
+    return 0

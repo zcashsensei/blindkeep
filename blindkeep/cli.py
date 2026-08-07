@@ -100,6 +100,13 @@ def cmd_dash(args) -> int:
     return 0
 
 
+def cmd_status(args) -> int:
+    """Report what the repository contains, counted rather than claimed."""
+    from .status import main as status_main
+
+    return status_main(["--json"] if args.json else [])
+
+
 def cmd_peers(args) -> int:
     from .discover import as_dicts, discover
 
@@ -574,6 +581,11 @@ def build_parser() -> argparse.ArgumentParser:
 
     lst = sub.add_parser("list", parents=[common], help="list record metadata")
     lst.set_defaults(func=cmd_list)
+
+    st = sub.add_parser("status",
+                        help="what this repo contains — tests counted, not stated")
+    st.add_argument("--json", action="store_true")
+    st.set_defaults(func=cmd_status)
 
     pe = sub.add_parser("peers", help="discover and probe storage nodes")
     pe.add_argument("--file", default="data/peers.json")
