@@ -14,6 +14,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Optional
 from urllib.parse import parse_qs, urlparse
 
+from ._console import use_utf8_stdout
 from .store import MemoryStore
 
 # Resource limits. A node accepts writes from anyone, so every bound a client
@@ -173,6 +174,7 @@ def serve(data_dir: str, host: str = "127.0.0.1", port: int = 8741) -> None:
 
 
 def main(argv: Optional[list[str]] = None) -> int:
+    use_utf8_stdout()
     import argparse
 
     p = argparse.ArgumentParser(description="Blindkeep local memory node")

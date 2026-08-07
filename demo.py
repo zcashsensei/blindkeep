@@ -16,12 +16,14 @@ from http.server import ThreadingHTTPServer
 ROOT = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, ROOT)
 
+from blindkeep._console import use_utf8_stdout
 from blindkeep.client import SecurityError, BlindkeepClient
 from blindkeep.node import _Handler
 from blindkeep.store import MemoryStore
 
 
 def main() -> int:
+    use_utf8_stdout()
     td = tempfile.mkdtemp(prefix="blindkeep-demo-")
     node_dir = os.path.join(td, "node")
     client_dir = os.path.join(td, "client")
