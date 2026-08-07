@@ -10,14 +10,14 @@
 <p align="center">
   <img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License: MIT">
   <img src="https://img.shields.io/badge/python-3.10%2B-blue.svg" alt="Python 3.10+">
-  <img src="https://img.shields.io/badge/tests-369%20passing-brightgreen.svg" alt="369 tests passing">
+  <img src="https://img.shields.io/badge/tests-389%20passing-brightgreen.svg" alt="389 tests passing">
   <img src="https://img.shields.io/badge/status-v0%20alpha-orange.svg" alt="v0 alpha">
   <img src="https://img.shields.io/badge/dependencies-1-lightgrey.svg" alt="1 dependency">
   <img src="https://img.shields.io/badge/zero--knowledge-sigma%20protocols-6E4B9E.svg" alt="Zero-knowledge: sigma protocols">
 </p>
 
 <p align="center">
-  <sub><b>Status as of 2026-08-07</b> · v0 alpha · 369 tests passing ·
+  <sub><b>Status as of 2026-08-07</b> · v0 alpha · 389 tests passing ·
   replication, peer discovery, retrieval audits, key recovery, local-model
   memory, pseudonymisation, an attestation framework and <b>zero-knowledge
   membership</b> implemented · sigma protocols, not SNARKs — no zkML ·
@@ -455,9 +455,10 @@ circuits/       halo2 membership circuit + the blindkeep-prove binary (Rust)
   cloud_gate.py  opt-in hosted-model path — NOT PRIVATE
   vault_proxy.py reversible pseudonymisation for that path — SMALLER disclosure
   delegate.py   abstract locally, verify, send a question about nobody
+  anon_token.py blind-signed entitlement: prove you may ask, not who you are
   _console.py   terminal output helpers
   cli.py        command-line interface
-tests/          22 suites, 369 tests
+tests/          23 suites, 389 tests
 ```
 
 ## Replication
@@ -657,10 +658,37 @@ and a hit **raises rather than sends**. A leaky attempt is retried with the
 reason, and after three failures it gives up — *"ask the local model directly"*
 is a real answer.
 
-**What it still does not hide:** that you asked something, and roughly what
-about. An abstraction unusual enough to be unique is still identifying. This is
-confidentiality of content, not unlinkability of interest, and it rests on a
-judgement rather than on hardware — which is why it ranks below `attested`.
+**Who is asking — `anon_token.py`.** A generic question sent from a named
+subscriber still says *this person asked about debt recovery at 14:20*. Zcash
+solved the equivalent problem for payments by preserving **unlinkability of
+authorisation**, and [RFC 9578](https://datatracker.ietf.org/doc/rfc9578/)
+standardises the web-shaped version. Blindkeep uses the construction underneath
+it — Chaum blind signatures:
+
+```
+  client   picks a token, blinds it, sends the blinded value
+  issuer   signs what it cannot read
+  client   removes the blinding — a valid signature on a token never seen
+  redeem   the issuer verifies it signed *something*, not *this*
+```
+
+The issuer counts its subscribers and refuses strangers; it cannot say which
+subscriber asked which question. Full-domain hashing is what keeps it sound —
+RSA's multiplicative structure is exactly what makes blinding work *and* what
+makes naive blind signing forgeable, so a test multiplies two real signatures
+and asserts the product verifies as nothing.
+
+**How identifying the question itself is — measured, not solved.**
+`specificity()` counts uncommon terms and `LeakGate(max_specificity=…)` refuses
+an abstraction that is too detailed. It is off by default and it is a **proxy**:
+nothing syntactic can tell that *"options after a diagnosis of a rare autoimmune
+condition in a man under thirty"* — every word ordinary — names almost nobody. A
+measurement honestly labelled a proxy beats a check implying a guarantee it
+cannot give.
+
+**What remains, stated plainly:** that a request happened at all. Timing and
+volume are network properties, and no amount of rewriting hides them. Only
+`local` avoids that, by not making a request.
 
 Storage trust is unchanged in all four: the node never holds plaintext. Only the
 *model* side differs.

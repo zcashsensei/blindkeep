@@ -29,11 +29,19 @@ private source mechanically and **raises rather than sends** on any hit. The rul
 blunt — rare words, proper nouns, numbers, and any shared 3-gram — because a subtle rule that
 sometimes allows a leak is worse than a crude one that sometimes forces a rewrite.
 
-**What this does NOT give you.** The provider learns *that you asked something*, and roughly what
-about. An abstraction unusual enough to be unique is still identifying; asking about a rare
-disease in the abstract narrows you to people who would ask. This is confidentiality of content,
-not unlinkability of interest — and unlike attestation it rests on a judgement (was the
-abstraction complete?) rather than on hardware. That is why it ranks below `ATTESTED`.
+**What this does NOT give you, and what now narrows it.** The provider still learns that *someone*
+asked, and roughly what about. Two of those are addressed elsewhere and one is not:
+
+* **Who asked** — `anon_token.py`. A blind-signed entitlement proves you may ask without saying
+  which subscriber you are, so the request arrives unattributed rather than merely uncontentful.
+* **How identifying the question itself is** — `specificity()` below counts uncommon terms and
+  `LeakGate(max_specificity=...)` will refuse an abstraction that is too detailed. It is a proxy,
+  not a solution: nothing syntactic can tell that an ordinary-sounding question names one person.
+* **That a request happened at all** — untouched. Timing and volume are network properties, and
+  no amount of rewriting hides them.
+
+It also rests on a judgement — was the abstraction complete? — rather than on hardware, which is
+why it ranks below `ATTESTED`, and why `SEALED` runs both.
 """
 
 from __future__ import annotations
@@ -106,6 +114,21 @@ def _ngrams(text: str, n: int = NGRAM) -> set[tuple[str, ...]]:
     return {tuple(toks[i:i + n]) for i in range(len(toks) - n + 1)}
 
 
+def specificity(text: str) -> int:
+    """How many uncommon terms the text carries. A PROXY for how identifying it is.
+
+    The gate above is syntactic: it can tell that "Sarah" survived, and cannot tell that "what
+    are the options after a diagnosis of a rare autoimmune condition in a man under thirty" names
+    almost nobody. Every word there is ordinary; the *combination* is not.
+
+    Nothing syntactic solves that. What can be done is refuse to pretend otherwise — count the
+    uncommon terms, hand the number to the caller, and let them set a policy. A measurement that
+    is honestly a proxy beats a check that implies a guarantee it cannot give.
+    """
+    return len({t.strip(".,'’-").lower() for t in _tokens(text)
+                if t.strip(".,'’-").lower() not in _COMMON})
+
+
 @dataclass
 class LeakGate:
     """Refuses to let private material reach the wire.
@@ -113,8 +136,13 @@ class LeakGate:
     Holds the private sources rather than a single string, because context assembled from several
     memories leaks the same way one message does — and checking only the message is exactly the
     gap that would make this theatre.
+
+    `max_specificity` is off by default and advisory when set: it bounds how detailed an
+    abstraction may be, which limits — never eliminates — the chance that a question is unusual
+    enough to identify the person asking it.
     """
     sources: list[str] = field(default_factory=list)
+    max_specificity: Optional[int] = None
 
     def add(self, *texts: str) -> "LeakGate":
         self.sources.extend(t for t in texts if t)
@@ -139,6 +167,13 @@ class LeakGate:
                 sample = " ".join(sorted(overlap)[0])
                 found.append(f"phrase copied from the private side: {sample!r}")
                 break
+
+        if self.max_specificity is not None:
+            score = specificity(outgoing)
+            if score > self.max_specificity:
+                found.append(
+                    f"too specific to be safely generic: {score} uncommon terms, "
+                    f"limit {self.max_specificity}")
         return found
 
     def check(self, outgoing: str) -> None:

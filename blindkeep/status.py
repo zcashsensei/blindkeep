@@ -98,6 +98,8 @@ def capabilities(root: Optional[Path] = None) -> list[dict[str, Any]]:
         ("Gated cloud path", mod("cloud_gate.py") and suite("test_cloud_gate.py")),
         ("Pseudonymisation proxy", mod("vault_proxy.py") and suite("test_vault_proxy.py")),
         ("Delegated inference (abstraction + gate)", mod("delegate.py") and suite("test_delegate.py")),
+        ("Anonymous entitlement (blind signatures)", mod("anon_token.py")
+         and suite("test_anon_token.py")),
         ("SEALED tier: abstraction AND attestation", mod("delegate.py", "attest.py",
          "memory_gate.py") and suite("test_delegate.py", "test_memory_gate.py")),
         ("Attestation (5 checks)", mod("attest.py") and suite("test_attest.py")),

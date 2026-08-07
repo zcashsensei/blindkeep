@@ -18,6 +18,7 @@ from blindkeep.delegate import (
     LeakGate,
     delegate,
     identifying_terms,
+    specificity,
 )
 
 PRIVATE = ("Sarah Whitfield, my landlord in Truro who breeds Basenjis, "
@@ -213,6 +214,44 @@ def test_the_result_states_what_the_provider_still_learned():
     out = delegate(PRIVATE, local, remote_stub())
     assert out.as_dict()["private"] is True
     assert "roughly what about" in out.as_dict()["notice"]
+
+
+# --- specificity: the limit the syntactic gate cannot reach --------------------
+
+def test_specificity_counts_uncommon_terms():
+    assert specificity("what should I do about it") == 0
+    assert specificity("rare autoimmune condition diagnosis") == 4
+
+
+def test_a_generic_question_passes_a_specificity_limit():
+    gate = LeakGate(max_specificity=8).add(PRIVATE)
+    gate.check("What are the options for recovering an unpaid debt?")
+
+
+def test_an_over_detailed_abstraction_is_refused():
+    """Every word ordinary, no overlap — and still narrow enough to identify someone."""
+    gate = LeakGate(max_specificity=6).add("something private")
+    try:
+        gate.check("options after diagnosis of rare autoimmune condition affecting "
+                   "young adult males following unusual occupational exposure")
+    except LeakError as exc:
+        assert "too specific" in str(exc)
+        return
+    raise AssertionError("an over-detailed abstraction was allowed through")
+
+
+def test_specificity_is_off_unless_asked_for():
+    """A proxy that fires by default would be switched off, and then protect nothing."""
+    gate = LeakGate().add("something private")
+    gate.check("options after diagnosis of rare autoimmune condition affecting "
+               "young adult males following unusual occupational exposure")
+
+
+def test_the_specificity_refusal_reports_the_number():
+    """Advisory means the caller sets the policy, so it needs the measurement not a verdict."""
+    gate = LeakGate(max_specificity=2).add("x")
+    problems = gate.leaks("recovering unpaid commercial debt quickly")
+    assert any("uncommon terms" in p and "limit 2" in p for p in problems), problems
 
 
 def run():
