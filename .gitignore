@@ -35,6 +35,13 @@ data/client/
 *.key
 !requirements.txt
 
+# Node runtime state under ANY data dir, not just the default one. `--data-dir`
+# takes an arbitrary path, so a rule naming `data/node/` only covers the node
+# nobody renamed: `data/memory_node/` slipped past it with 168 committable
+# files. Match the shape a node leaves behind instead of one directory name.
+data/*/records/
+data/*/head.json
+
 # -----------------------------------------------------------------------------
 # Personal cockpit and task board. Local working tools carrying private roadmap
 # and task state. Their CLI subcommands register only when these files exist,
