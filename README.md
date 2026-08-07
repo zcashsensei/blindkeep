@@ -10,14 +10,14 @@
 <p align="center">
   <img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License: MIT">
   <img src="https://img.shields.io/badge/python-3.10%2B-blue.svg" alt="Python 3.10+">
-  <img src="https://img.shields.io/badge/tests-322%20passing-brightgreen.svg" alt="322 tests passing">
+  <img src="https://img.shields.io/badge/tests-337%20passing-brightgreen.svg" alt="337 tests passing">
   <img src="https://img.shields.io/badge/status-v0%20alpha-orange.svg" alt="v0 alpha">
   <img src="https://img.shields.io/badge/dependencies-1-lightgrey.svg" alt="1 dependency">
   <img src="https://img.shields.io/badge/zero--knowledge-sigma%20protocols-6E4B9E.svg" alt="Zero-knowledge: sigma protocols">
 </p>
 
 <p align="center">
-  <sub><b>Status as of 2026-08-07</b> · v0 alpha · 322 tests passing ·
+  <sub><b>Status as of 2026-08-07</b> · v0 alpha · 337 tests passing ·
   replication, peer discovery, retrieval audits, key recovery, local-model
   memory, pseudonymisation, an attestation framework and <b>zero-knowledge
   membership</b> implemented · sigma protocols, not SNARKs — no zkML ·
@@ -114,13 +114,8 @@ question.*
 not arbitrary computation, and no zkML. Keep membership is an OR-proof across
 every leaf, so proofs are **O(n)** — about 1 KB per record, fine at 40 records
 and impractical at 40,000, and `keep_leaves` refuses rather than hanging. Making
-it O(log n) means proving a Merkle path inside a circuit, which needs a SNARK
-and a ZK-friendly hash — the decision the next section is about. That circuit
-now exists and has been measured: a halo2 Poseidon Merkle proof is **3,040 bytes
-at depth 3 and 3,040 bytes at depth 7** — constant, against ~1 KB per record
-here. See [zk-encrypted-intelligence](https://github.com/zcashsensei/zk-encrypted-intelligence)
-`halo2/src/merkle.rs`. Wiring it in means running a second, Poseidon-hashed tree
-over the same records, which `merkle.CachedLog` already accepts. The code is
+it O(log n) means proving a Merkle path inside a circuit. **That path now works
+end to end**, and the next section is the measurement. The code is
 standard, carefully written, adversarially tested, and **unaudited**, which is
 not the same as reviewed by a cryptographer.
 
@@ -183,6 +178,57 @@ independent checks:
 Any one failing raises instead of returning data. These are enforced by
 [`tests/test_adversarial.py`](tests/test_adversarial.py), which stands up **real
 malicious nodes** and asserts the client refuses them.
+
+## Succinct membership, end to end
+
+The O(n) proof above is the honest version and it does not scale. The succinct
+one is built, and the whole chain has been run:
+
+```
+  a record in the keep
+    → Poseidon tree over the same committed leaves   blindkeep/zk_tree.py
+    → witness (leaf + path private, root public)     blindkeep zk-witness
+    → halo2 circuit                                  halo2/src/merkle.rs
+    → 3,040-byte SNARK proof, verified
+```
+
+| Records | Sigma OR-proof | halo2 Merkle proof |
+|---------|----------------|--------------------|
+| 8 | ~8 KB | **3,040 bytes** |
+| 128 | ~128 KB | **3,040 bytes** |
+| 40,000 | ~40 MB | **3,040 bytes** |
+
+Flat, because a Merkle path is `log2(n)` hashes however large the log grows.
+
+**The tree needed no node change and adds nothing to trust.** The Poseidon root
+is a deterministic function of the leaf set the node already publishes and
+already signs over via the SHA-256 head. A verifier fetches the leaves, checks
+the signed head exactly as before, rebuilds the Poseidon tree themselves, and
+verifies the proof against the root *they* computed:
+
+- the **signed SHA-256 head** anchors *which* leaves exist
+- the **Poseidon tree** makes a statement about them provable in a circuit
+
+Either alone is worth nothing. A Poseidon root by itself proves membership in a
+tree the prover could have built, which is why `zk-witness` carries the signed
+head alongside the path and `verify_anchor` recomputes the root before any proof
+is looked at.
+
+**The two implementations are checked against each other, not trusted.** A
+Poseidon that is subtly wrong still hashes, still builds a tree, and produces
+proofs that verify against nothing — the prover simply fails, with no sign that
+the implementations disagree rather than the witness being bad. So the
+parameters are *generated* from `halo2_gadgets` rather than transcribed, and
+`tests/test_poseidon.py` asserts this implementation reproduces the Rust one:
+**7 known-answer hash vectors and 7 tree roots, including odd sizes where a
+padding rule is most likely to drift.** A test on the Rust side then takes a
+witness produced by the CLI above and proves it for real.
+
+```bash
+blindkeep zk-witness --index 5 --out w.json
+# [depth 3 · poseidon root 06d0810a5af04edd… · anchored to signed head 34c97cf4…]
+# [the leaf and path are PRIVATE inputs; only the root is public]
+```
 
 ## Making the proofs succinct: the hash is the decision
 
@@ -384,13 +430,15 @@ blindkeep/
   memory_gate.py one memory layer, any model, release by PROVEN tier
   zk.py         commitments + sigma proofs: prove a property, reveal nothing
   zk_keep.py    prove you hold a record here, without saying which
+  poseidon.py   Poseidon over Pallas — the hash a circuit can afford
+  zk_tree.py    the circuit-compatible tree, and witness export
   sev_snp.py    AMD SEV-SNP report verification — OFF by default, unvalidated
   status.py     what the repo contains, counted not claimed
   cloud_gate.py  opt-in hosted-model path — NOT PRIVATE
   vault_proxy.py reversible pseudonymisation for that path — SMALLER disclosure
   _console.py   terminal output helpers
   cli.py        command-line interface
-tests/          20 suites, 322 tests
+tests/          21 suites, 337 tests
 ```
 
 ## Replication
@@ -641,9 +689,8 @@ beyond an equality check.
    different clients is not yet detectable
 2. Proof of *storage* rather than retrieval, so a node must hold data rather
    than merely obtain it
-3. **Succinct membership** — take keep membership from O(n) to O(log n). The
-   halo2 circuit is built and measured (3,040-byte proofs, flat in tree depth);
-   what remains here is the second Poseidon-hashed tree and the binding to it
+3. Ship the succinct path as the default: a prover binary users can run without
+   a Rust toolchain, so `zk-witness` → proof is one step rather than two
 4. Validate the SEV-SNP verifier against real hardware and enable it
 5. Sharded model-weight distribution (hash-addressed)
 6. Optional paid capacity above a free quota — only once the free path is real

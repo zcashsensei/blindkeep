@@ -201,6 +201,27 @@ def cmd_verify_in_keep(args) -> int:
     return 1
 
 
+def cmd_zk_witness(args) -> int:
+    """Export everything a halo2 prover needs for a membership proof over this keep."""
+    from .client import BlindkeepClient
+    from .zk_tree import export_for_circuit, write_witness
+
+    key = _load_key(args.key)
+    client = BlindkeepClient(args.url, key, pin_path=args.pin)
+    bundle = export_for_circuit(client, args.index)
+
+    if args.out:
+        write_witness(bundle, args.out)
+        print(f"witness written to {args.out}", file=sys.stderr)
+    else:
+        print(json.dumps(bundle, indent=2))
+    print(f"[depth {bundle['depth']} · poseidon root {bundle['public']['root'][:16]}… "
+          f"· anchored to signed head {bundle['anchor']['sha256_root_hex'][:16]}…]",
+          file=sys.stderr)
+    print("[the leaf and path are PRIVATE inputs; only the root is public]", file=sys.stderr)
+    return 0
+
+
 def cmd_peers(args) -> int:
     from .discover import as_dicts, discover
 
@@ -718,6 +739,15 @@ def build_parser() -> argparse.ArgumentParser:
     vk.add_argument("--key", default="data/client/master.key")
     vk.add_argument("--pin", default="data/client/pin.json")
     vk.set_defaults(func=cmd_verify_in_keep)
+
+    zw = sub.add_parser("zk-witness",
+                        help="export a halo2 membership witness for a record")
+    zw.add_argument("--index", type=int, required=True)
+    zw.add_argument("--url", default="http://127.0.0.1:8741")
+    zw.add_argument("--key", default="data/client/master.key")
+    zw.add_argument("--pin", default="data/client/pin.json")
+    zw.add_argument("--out", default=None)
+    zw.set_defaults(func=cmd_zk_witness)
 
     pe = sub.add_parser("peers", help="discover and probe storage nodes")
     pe.add_argument("--file", default="data/peers.json")
