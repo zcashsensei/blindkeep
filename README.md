@@ -10,14 +10,14 @@
 <p align="center">
   <img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License: MIT">
   <img src="https://img.shields.io/badge/python-3.10%2B-blue.svg" alt="Python 3.10+">
-  <img src="https://img.shields.io/badge/tests-360%20passing-brightgreen.svg" alt="360 tests passing">
+  <img src="https://img.shields.io/badge/tests-369%20passing-brightgreen.svg" alt="369 tests passing">
   <img src="https://img.shields.io/badge/status-v0%20alpha-orange.svg" alt="v0 alpha">
   <img src="https://img.shields.io/badge/dependencies-1-lightgrey.svg" alt="1 dependency">
   <img src="https://img.shields.io/badge/zero--knowledge-sigma%20protocols-6E4B9E.svg" alt="Zero-knowledge: sigma protocols">
 </p>
 
 <p align="center">
-  <sub><b>Status as of 2026-08-07</b> · v0 alpha · 360 tests passing ·
+  <sub><b>Status as of 2026-08-07</b> · v0 alpha · 369 tests passing ·
   replication, peer discovery, retrieval audits, key recovery, local-model
   memory, pseudonymisation, an attestation framework and <b>zero-knowledge
   membership</b> implemented · sigma protocols, not SNARKs — no zkML ·
@@ -457,7 +457,7 @@ circuits/       halo2 membership circuit + the blindkeep-prove binary (Rust)
   delegate.py   abstract locally, verify, send a question about nobody
   _console.py   terminal output helpers
   cli.py        command-line interface
-tests/          22 suites, 360 tests
+tests/          22 suites, 369 tests
 ```
 
 ## Replication
@@ -593,10 +593,42 @@ Each of these limits has a test that passes by demonstrating the failure.
 | Path | Provider sees | Trust required |
 |------|---------------|----------------|
 | `chat` — local model | nothing; no provider exists | none beyond your own machine |
+| **`--tier sealed`** | **a generic question, and it cannot read even that** | **both must fail at once** |
 | `--tier attested` | nothing; hardware prevents it | silicon vendor + attestation chain |
-| **`--tier delegated`** | **a generic question containing no fact about you** | **that the abstraction was complete — mechanically checked** |
+| `--tier delegated` | a generic question containing no fact about you | that the abstraction was complete — mechanically checked |
 | `private-chat` — pseudonymised | the question, minus declared identities | provider not to correlate what remains |
 | `cloud-chat` — gated | everything you send | provider's policy and retention terms |
+
+### `sealed` — both, because they fail differently
+
+The strongest tier that still uses somebody else's compute. It requires **both**
+mechanisms to hold, and they are independent:
+
+| Mechanism | Fails when | Covered by |
+|-----------|-----------|------------|
+| Abstraction | it carries something it should not | the host cannot read it |
+| Enclave | hardware or attestation is broken | the question is about nobody |
+
+An attacker needs both at once. A leaked identifier arrives at a host that
+cannot read it; a broken enclave receives a question about nobody. That is not a
+theoretical pairing — the `ecc::chip::mul` soundness bug sat inside the most
+scrutinised circuit in the ecosystem for **four years**, and an enclave is a
+trust assumption like any other. The argument is Bowe's argument for removing
+trusted setups, applied one layer up: prefer designs where a single broken
+assumption is not fatal.
+
+**It degrades to the strongest tier that still holds, and says so.** Lose the
+enclave and you are at `delegated`, not `open` — a host's problem should not
+throw away a working abstraction. Lose the abstraction and you are at
+`attested`. Lose both and you are at `open`, with only `public` memories moving.
+Every demotion is named, because silently keeping the `sealed` label would be
+the actual failure.
+
+One detail worth stating: at the delegating tiers the **released memories are
+abstracted alongside the message**, not appended after it. Sending a generic
+question with your memories stapled underneath would defeat the whole
+construction, and is the obvious way to get this wrong — so there is a test that
+fails if anyone does.
 
 **Delegated is the one that needs no special hardware.** A local model rewrites
 your question into one any stranger could have asked; a leak gate checks it

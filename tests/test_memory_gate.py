@@ -399,6 +399,140 @@ def test_delegation_without_a_leak_gate_is_demoted():
     assert "no leak gate" in rel.grant.reason
 
 
+# --- SEALED: both mechanisms, and what happens when one fails -----------------
+
+class _Gate:
+    """A leak gate that clears everything, so these tests isolate the COMPOSITION."""
+    def check(self, text):
+        return None
+
+
+def _sealed(attest_ok, has_gate):
+    """A sealed prover whose attestation half is forced to pass or fail."""
+    from blindkeep.memory_gate import sealed_prover
+    url = "http://127.0.0.1:1/attest"          # always unreachable -> attestation fails
+    prover = sealed_prover(url, None, _Gate() if has_gate else None)
+    if not attest_ok:
+        return prover
+
+    def both():
+        from blindkeep.memory_gate import Grant
+        g = prover()
+        # substitute a passing attestation, leaving the gate logic untouched
+        if has_gate:
+            return Grant(Tier.SEALED, Tier.SEALED, "abstraction gate + attestation (forced)")
+        return Grant(Tier.SEALED, Tier.ATTESTED, "attested, but no abstraction gate attached")
+    return both
+
+
+def test_sealed_ranks_between_attested_and_local():
+    """Stronger than attestation alone; still weaker than never leaving the machine."""
+    assert Tier.LOCAL > Tier.SEALED > Tier.ATTESTED
+
+
+def test_both_mechanisms_holding_grants_sealed():
+    rel = seeded_gate().release_for(
+        backend(Tier.SEALED, _sealed(attest_ok=True, has_gate=True)), n=10)
+    assert rel.grant.granted is Tier.SEALED
+    assert rel.grant.demoted is False
+
+
+def test_losing_the_enclave_keeps_the_abstraction():
+    """Degrade to the strongest tier that still holds, not to OPEN.
+
+    A failed enclave should not throw away a working abstraction -- that would punish the user
+    for the host's problem and quietly send MORE than necessary.
+    """
+    rel = seeded_gate().release_for(
+        backend(Tier.SEALED, _sealed(attest_ok=False, has_gate=True)), n=10)
+    assert rel.grant.granted is Tier.DELEGATED
+    assert "attestation failed" in rel.grant.reason
+
+
+def test_losing_the_abstraction_keeps_the_enclave():
+    rel = seeded_gate().release_for(
+        backend(Tier.SEALED, _sealed(attest_ok=True, has_gate=False)), n=10)
+    assert rel.grant.granted is Tier.ATTESTED
+    assert "no abstraction gate" in rel.grant.reason
+
+
+def test_losing_both_falls_all_the_way_to_open():
+    rel = seeded_gate().release_for(
+        backend(Tier.SEALED, _sealed(attest_ok=False, has_gate=False)), n=10)
+    assert rel.grant.granted is Tier.OPEN
+    assert rel.allowed == ["the weather is nice"]
+
+
+def test_every_demotion_is_named():
+    """Silently keeping the SEALED label would be the real failure."""
+    for ok, gate in ((False, True), (True, False), (False, False)):
+        rel = seeded_gate().release_for(
+            backend(Tier.SEALED, _sealed(ok, gate)), n=10)
+        assert rel.grant.demoted is True
+        assert "DEMOTED" in rel.grant.summary()
+
+
+# --- the delegating tiers actually delegate -----------------------------------
+
+def test_a_sealed_backend_sends_only_the_abstraction():
+    """Even to a host that cannot read it, the question carries nothing."""
+    sent = {}
+
+    def remote(prompt, system=None):
+        sent["prompt"] = prompt
+        return "general guidance"
+
+    def local(prompt, system=None):
+        if "Rewrite" in (system or ""):
+            return "What are the options in this kind of situation?"
+        return "applied answer"
+
+    gate = fresh_gate()
+    gate.remember("Sarah Whitfield is my landlord in Truro", Sensitivity.SENSITIVE)
+    b = SimpleBackend(name="sealed", claimed_tier=Tier.SEALED,
+                      completer=remote, prover=_sealed(True, True),
+                      local=local, gate=_Gate())
+    out = gate.chat(b, "does Sarah owe me rent?", recall=10, remember=False)
+
+    assert out["tier"] == "sealed"
+    for secret in ("Sarah", "Whitfield", "Truro"):
+        assert secret not in sent["prompt"], f"{secret!r} reached the host"
+    assert out["reply"] == "applied answer"
+
+
+def test_released_memories_are_abstracted_not_appended():
+    """The obvious way to get this wrong: a generic question with the memories stapled under it."""
+    sent = {}
+
+    def remote(prompt, system=None):
+        sent["prompt"] = prompt
+        return "guidance"
+
+    def local(prompt, system=None):
+        if "Rewrite" in (system or ""):
+            return "How are such matters usually handled?"
+        return "applied"
+
+    gate = fresh_gate()
+    gate.remember("the user lives at Ridgeway Cottage", Sensitivity.SENSITIVE)
+    b = SimpleBackend(name="d", claimed_tier=Tier.DELEGATED,
+                      completer=remote, prover=None, local=local, gate=_Gate())
+    from blindkeep.memory_gate import delegation_prover
+    b.prover = delegation_prover(_Gate())
+    gate.chat(b, "what should I do?", recall=10, remember=False)
+    assert "Ridgeway" not in sent["prompt"], "released memory was appended to the wire"
+
+
+def test_a_delegating_tier_without_a_local_model_refuses():
+    """Claiming to abstract with nothing to abstract WITH must not silently send the raw text."""
+    from blindkeep.memory_gate import delegation_prover
+    b = SimpleBackend(name="d", claimed_tier=Tier.DELEGATED,
+                      completer=lambda p, s: "reply",
+                      prover=delegation_prover(_Gate()), local=None, gate=_Gate())
+    expect_refusal(lambda: seeded_gate().chat(b, "hello", recall=0),
+                   contains="requires a local model")
+
+
 def run():
     os.makedirs(TMP, exist_ok=True)
     tests = [(k, v) for k, v in sorted(globals().items()) if k.startswith("test_")]

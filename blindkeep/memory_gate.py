@@ -12,6 +12,8 @@ which tier. The model is swappable. The guarantee is not.
 Tier             What the operator can read                 How it is proven
 ===============  =========================================  ====================
 ``LOCAL``        nothing; there is no operator              endpoint is loopback
+``SEALED``       a generic question, and it cannot read     BOTH of the below
+                 even that
 ``ATTESTED``     nothing; hardware prevents it              `attest.py`, 5 checks
 ``DELEGATED``    a generic question containing no fact      a leak gate cleared it
                  about you
@@ -63,7 +65,8 @@ class Tier(IntEnum):
     PSEUDONYMOUS = 1
     DELEGATED = 2
     ATTESTED = 3
-    LOCAL = 4
+    SEALED = 4
+    LOCAL = 5
 
     @property
     def label(self) -> str:
@@ -164,6 +167,10 @@ class SimpleBackend:
     completer: Callable[[str, Optional[str]], str]
     prover: Optional[Callable[[], Grant]] = None
     vault: Any = None
+    # Only used by the delegating tiers: the local model that writes the generic question and
+    # re-applies the answer, and the gate that refuses to send a leaky abstraction.
+    local: Optional[Callable[[str, Optional[str]], str]] = None
+    gate: Any = None
 
     def prove(self) -> Grant:
         if self.prover is None:
@@ -204,6 +211,47 @@ def attestation_prover(url: str, policy) -> Callable[[], Grant]:
         except AttestationError as exc:
             return Grant(Tier.ATTESTED, Tier.OPEN, "attestation failed", str(exc))
         return Grant(Tier.ATTESTED, Tier.ATTESTED, res.summary())
+    return prove
+
+
+def sealed_prover(attest_url: str, policy: Any, gate: Any) -> Callable[[], Grant]:
+    """Prove SEALED by proving BOTH — abstraction and attestation, independently.
+
+    The two mechanisms fail differently, which is the entire reason to run them together. An
+    abstraction fails when it carries something it should not; an enclave fails when its hardware
+    or its attestation is broken — and the ecc::chip::mul soundness bug sat inside the most
+    scrutinised circuit in the ecosystem for four years before anyone noticed. Composed, an
+    attacker needs both to fail at once: a leaked identifier reaches a host that cannot read it,
+    and a broken enclave receives a question about nobody.
+
+    **Degrades to the strongest tier that still holds, never to OPEN by default.** Losing the
+    enclave should not throw away a working abstraction, and losing the abstraction should not
+    throw away a verified enclave. Silently keeping the SEALED label would be the real failure, so
+    the demotion is named either way.
+    """
+    def prove() -> Grant:
+        from .attest import AttestationError, attest_host
+
+        has_gate = gate is not None and hasattr(gate, "check")
+        try:
+            res = attest_host(attest_url, policy=policy)
+            attested, why = True, res.summary()
+        except AttestationError as exc:
+            attested, why = False, str(exc)
+        except Exception as exc:                      # a broken prover is not a passing one
+            attested, why = False, f"{type(exc).__name__}: {exc}"
+
+        if attested and has_gate:
+            return Grant(Tier.SEALED, Tier.SEALED,
+                         f"abstraction gate + attestation ({why})")
+        if attested:
+            return Grant(Tier.SEALED, Tier.ATTESTED,
+                         "attested, but no abstraction gate attached", why)
+        if has_gate:
+            return Grant(Tier.SEALED, Tier.DELEGATED,
+                         "abstraction gate holds, but attestation failed", why)
+        return Grant(Tier.SEALED, Tier.OPEN,
+                     "neither attestation nor an abstraction gate", why)
     return prove
 
 
@@ -357,15 +405,46 @@ class MemoryGate:
         base = system or (
             "You are a helpful assistant with persistent memory of this user.")
         prompt = message
+        granted = release.grant.granted
+
+        # ── the delegating tiers ────────────────────────────────────────────
+        # The released context is private material too, so it is abstracted ALONGSIDE the message
+        # rather than appended after it. Sending a generic question with the user's memories
+        # stapled underneath would defeat the whole construction, and is the obvious way to get
+        # this wrong.
+        if granted in (Tier.DELEGATED, Tier.SEALED):
+            from .delegate import delegate as _delegate
+
+            local = getattr(backend, "local", None)
+            if local is None:
+                raise PolicyRefusal(
+                    f"{granted.label} requires a local model to write the abstraction; "
+                    f"none was attached")
+            result = _delegate(message, local, backend.complete,
+                               context=release.allowed)
+            reply = result.reply
+            if remember:
+                self.remember(f"user: {message}", sensitivity=sensitivity)
+                self.remember(f"assistant: {reply}", sensitivity=sensitivity)
+            return {
+                "reply": reply,
+                "tier": granted.label,
+                "grant": release.grant.summary(),
+                "released": len(release.allowed),
+                "withheld": len(release.withheld),
+                "summary": release.summary(),
+                "sent": result.sent,
+                "attempts": result.attempts,
+            }
 
         vault = getattr(backend, "vault", None)
-        if release.grant.granted is Tier.PSEUDONYMOUS and vault is not None:
+        if granted is Tier.PSEUDONYMOUS and vault is not None:
             prompt = vault.anonymize(message).text
             base = vault.anonymize(base).text
 
         reply = backend.complete(prompt, base + release.context_block())
 
-        if release.grant.granted is Tier.PSEUDONYMOUS and vault is not None:
+        if granted is Tier.PSEUDONYMOUS and vault is not None:
             reply = vault.restore(reply)
 
         if remember:
