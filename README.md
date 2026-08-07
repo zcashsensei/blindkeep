@@ -115,7 +115,12 @@ not arbitrary computation, and no zkML. Keep membership is an OR-proof across
 every leaf, so proofs are **O(n)** — about 1 KB per record, fine at 40 records
 and impractical at 40,000, and `keep_leaves` refuses rather than hanging. Making
 it O(log n) means proving a Merkle path inside a circuit, which needs a SNARK
-and a ZK-friendly hash — the decision the next section is about. The code is
+and a ZK-friendly hash — the decision the next section is about. That circuit
+now exists and has been measured: a halo2 Poseidon Merkle proof is **3,040 bytes
+at depth 3 and 3,040 bytes at depth 7** — constant, against ~1 KB per record
+here. See [zk-encrypted-intelligence](https://github.com/zcashsensei/zk-encrypted-intelligence)
+`halo2/src/merkle.rs`. Wiring it in means running a second, Poseidon-hashed tree
+over the same records, which `merkle.CachedLog` already accepts. The code is
 standard, carefully written, adversarially tested, and **unaudited**, which is
 not the same as reviewed by a cryptographer.
 
@@ -636,8 +641,9 @@ beyond an equality check.
    different clients is not yet detectable
 2. Proof of *storage* rather than retrieval, so a node must hold data rather
    than merely obtain it
-3. **Succinct membership** — a halo2 Merkle-path circuit to take keep membership
-   from O(n) to O(log n), against the ZK-friendly tree the next section sizes
+3. **Succinct membership** — take keep membership from O(n) to O(log n). The
+   halo2 circuit is built and measured (3,040-byte proofs, flat in tree depth);
+   what remains here is the second Poseidon-hashed tree and the binding to it
 4. Validate the SEV-SNP verifier against real hardware and enable it
 5. Sharded model-weight distribution (hash-addressed)
 6. Optional paid capacity above a free quota — only once the free path is real
