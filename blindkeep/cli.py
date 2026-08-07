@@ -290,6 +290,44 @@ def cmd_zk_prove(args) -> int:
     return 0
 
 
+def cmd_token(args) -> int:
+    """Issue or verify an anonymous entitlement.
+
+    Both sides live here because a single-machine demonstration is the only way to show the
+    property without standing up a service: the issuer signs a blinded value, and the token that
+    comes back shares nothing with what it signed.
+    """
+    from .anon_token import Client, Issuer, Token, TokenError
+
+    if args.action == "issue":
+        issuer = Issuer()
+        client = Client(*issuer.public)
+        blinded = client.blind()
+        token = client.unblind(issuer.sign_blinded(blinded))
+
+        out = token.as_dict()
+        text = json.dumps(out, indent=2)
+        if args.out:
+            with open(args.out, "w", encoding="utf-8") as f:
+                f.write(text)
+            print(f"token written to {args.out}", file=sys.stderr)
+        else:
+            print(text)
+        print(f"[the issuer signed {f'{blinded:x}'[:16]}… and will later see "
+              f"{token.value_hex[:16]}… — it cannot connect them]", file=sys.stderr)
+        print("[single use: an issuer that does not remember has issued an "
+              "unlimited pass]", file=sys.stderr)
+        return 0
+
+    with open(args.token, "r", encoding="utf-8") as f:
+        blob = json.load(f)
+    tok = Token(value_hex=blob["token_hex"], signature_hex=blob["signature_hex"])
+    print(f"token {tok.value_hex[:16]}… — verification needs the issuer's key, "
+          f"which this command does not have.", file=sys.stderr)
+    print("A real deployment verifies at the provider. This checks shape only.")
+    return 0 if len(tok.value) == 32 and tok.signature_hex else 1
+
+
 def cmd_peers(args) -> int:
     from .discover import as_dicts, discover
 
@@ -421,10 +459,47 @@ def cmd_attest(args) -> int:
     return 0
 
 
+def Policy_for(args):
+    """The attestation policy named by the CLI flags."""
+    from .attest import Policy
+    return Policy.build(args.measurement, args.root, max_age_seconds=args.max_age)
+
+
+def _hosted_completer(args, api_key):
+    """A completer for any hosted endpoint, optionally spending an anonymous token.
+
+    The token is what stops the request being attributable. Without it a question about nobody
+    still arrives from a named subscriber, which tells the provider who asked even though it
+    cannot tell what about — so the flag exists and its absence is reported rather than assumed
+    away.
+    """
+    from .cloud_gate import cloud_complete
+
+    headers = {}
+    if getattr(args, "anon_token", None):
+        from .anon_token import Token
+        with open(args.anon_token, "r", encoding="utf-8") as f:
+            blob = json.load(f)
+        tok = Token(value_hex=blob["token_hex"], signature_hex=blob["signature_hex"])
+        # The Privacy Pass shape: an entitlement presented alongside the request, carrying no
+        # identity. Sent as a header rather than in the body so the model never reads it.
+        headers["Blindkeep-Token"] = f"{tok.value_hex}.{tok.signature_hex}"
+
+    def complete(prompt, system=None):
+        return cloud_complete(
+            prompt, api_base=args.api_base, api_key=api_key, model=args.model,
+            system=system, enable_cloud=args.enable_cloud,
+            accept_not_private=args.i_accept_not_private,
+            headers=headers or None)["reply"]
+
+    return complete
+
+
 def _gate_backend(args, client):
     """Build the backend named by --tier, with the prover that tier requires."""
     from .memory_gate import (SimpleBackend, Tier, attestation_prover,
-                              loopback_prover, vault_prover)
+                              delegation_prover, loopback_prover, sealed_prover,
+                              vault_prover)
 
     tier = Tier[args.tier.upper()]
 
@@ -451,6 +526,31 @@ def _gate_backend(args, client):
 
     api_key = args.api_key or os.environ.get("BLINDKEEP_CLOUD_KEY", "")
 
+    if tier in (Tier.DELEGATED, Tier.SEALED):
+        from .delegate import LeakGate
+        from .ollama_mem import OllamaMemory
+
+        # The abstraction is written by a model on THIS machine. Without one there is nothing to
+        # abstract with, and the honest behaviour is to refuse rather than fall back to sending
+        # the raw text — which is the failure this whole tier exists to prevent.
+        mem = OllamaMemory(client, ollama_base=args.ollama_base,
+                           model=args.local_model)
+        local = lambda p, s: mem.chat(p, system=s, remember=False, recall=0)
+        gate = LeakGate(max_specificity=args.max_specificity)
+
+        remote = _hosted_completer(args, api_key)
+
+        if tier is Tier.SEALED:
+            policy = Policy_for(args)
+            prover = sealed_prover(args.attest_url, policy, gate)
+            name = f"sealed:{args.model}"
+        else:
+            prover = delegation_prover(gate)
+            name = f"delegated:{args.model}"
+
+        return SimpleBackend(name=name, claimed_tier=tier, completer=remote,
+                             prover=prover, local=local, gate=gate)
+
     if tier is Tier.ATTESTED:
         from .attest import Policy, attest_host, attested_complete
         policy = Policy.build(args.measurement, args.root,
@@ -465,13 +565,11 @@ def _gate_backend(args, client):
                 result=result, system=s)["reply"],
             prover=lambda: attestation_prover(args.attest_url, policy)())
 
-    from .cloud_gate import cloud_complete
-
-    def cloud(p, s):
-        return cloud_complete(
-            p, api_base=args.api_base, api_key=api_key, model=args.model,
-            system=s, enable_cloud=args.enable_cloud,
-            accept_not_private=args.i_accept_not_private)["reply"]
+    # One hosted completer for every tier that talks to a provider. There used to be a second,
+    # inline one here, and it silently dropped the anonymous token: the entitlement was read,
+    # formatted and then never sent, so `--anon-token` appeared to work and protected nothing.
+    # Two paths to the same destination is how a flag becomes decoration.
+    cloud = _hosted_completer(args, api_key)
 
     if tier is Tier.PSEUDONYMOUS:
         from .vault_proxy import EntityVault
@@ -828,6 +926,13 @@ def build_parser() -> argparse.ArgumentParser:
     zp.add_argument("--pin", default="data/client/pin.json")
     zp.set_defaults(func=cmd_zk_prove)
 
+    tk = sub.add_parser("token",
+                        help="issue an anonymous entitlement — prove you may ask, not who you are")
+    tk.add_argument("action", choices=["issue", "inspect"])
+    tk.add_argument("--out", default=None)
+    tk.add_argument("--token", default=None, help="for inspect")
+    tk.set_defaults(func=cmd_token)
+
     pe = sub.add_parser("peers", help="discover and probe storage nodes")
     pe.add_argument("--file", default="data/peers.json")
     pe.add_argument("--bootstrap", default=None, help="url returning a peer list")
@@ -918,7 +1023,8 @@ def build_parser() -> argparse.ArgumentParser:
         help="one encrypted memory layer, any model, release by PROVEN tier")
     gc.add_argument("--text", required=True)
     gc.add_argument("--tier", required=True,
-                    choices=["local", "attested", "pseudonymous", "open"],
+                    choices=["local", "sealed", "attested", "delegated",
+                             "pseudonymous", "open"],
                     help="what the backend CLAIMS; it must prove it or be demoted")
     gc.add_argument("--sensitivity", default="personal",
                     choices=["public", "personal", "sensitive", "secret"],
@@ -931,6 +1037,15 @@ def build_parser() -> argparse.ArgumentParser:
     gc.add_argument("--no-remember", action="store_true")
     gc.add_argument("--system", default=None)
     gc.add_argument("--model", default="llama3.2")
+    gc.add_argument("--local-model", default="llama3.2",
+                    help="the LOCAL model that writes the abstraction for "
+                         "--tier delegated / sealed")
+    gc.add_argument("--max-specificity", type=int, default=None,
+                    help="refuse an abstraction carrying more than N uncommon "
+                         "terms; a proxy for how identifying it is, off by default")
+    gc.add_argument("--anon-token", default=None,
+                    help="a blind-signed entitlement from `blindkeep token`, so "
+                         "the request is not attributable to you")
     gc.add_argument("--ollama-base", default="http://127.0.0.1:11434")
     gc.add_argument("--api-base", default=None,
                     help="required for every tier except local: Blindkeep does not choose a provider for you")

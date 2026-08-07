@@ -290,6 +290,42 @@ def test_zk_prove_names_the_env_var_and_the_build_command():
             _os.environ["BLINDKEEP_PROVER"] = saved
 
 
+def test_every_hosted_tier_offers_the_delegating_options():
+    """A tier that exists in the gate but not in the CLI is a tier nobody can use."""
+    err = io.StringIO()
+    try:
+        with redirect_stderr(err), redirect_stdout(io.StringIO()):
+            main(["gate-chat", "--help"])
+    except SystemExit:
+        pass
+    text = err.getvalue()
+    # argparse prints help to stdout; capture both and check the choice list.
+    out = io.StringIO()
+    try:
+        with redirect_stdout(out), redirect_stderr(io.StringIO()):
+            main(["gate-chat", "--help"])
+    except SystemExit:
+        pass
+    helptext = out.getvalue() + text
+    for tier in ("sealed", "delegated", "attested", "local"):
+        assert tier in helptext, f"--tier {tier} is not reachable from the CLI"
+
+
+def test_one_hosted_completer_serves_every_tier():
+    """There were two, and the second silently dropped the anonymous token.
+
+    A flag that is read, formatted and then never sent is worse than an absent one: it reports
+    success while protecting nothing.
+    """
+    import pathlib as _p
+    src = (_p.Path(__file__).resolve().parent.parent / "blindkeep" / "cli.py").read_text(
+        encoding="utf-8")
+    assert src.count("def _hosted_completer") == 1
+    assert "cloud = _hosted_completer(args, api_key)" in src, (
+        "the hosted tiers no longer share one completer")
+    assert "def cloud(p, s):" not in src, "a second inline completer came back"
+
+
 def run():
     tests = [(k, v) for k, v in sorted(globals().items()) if k.startswith("test_")]
     passed, failed = [], []

@@ -94,6 +94,7 @@ def cloud_complete(prompt: str, *,
                    accept_not_private: bool = False,
                    system: Optional[str] = None,
                    apply_redaction: bool = False,
+                   headers: Optional[dict] = None,
                    timeout: float = 120.0) -> dict:
     """Send one prompt to an OpenAI-compatible endpoint. NOT PRIVATE.
 
@@ -117,11 +118,17 @@ def cloud_complete(prompt: str, *,
         messages.append({"role": "system", "content": system})
     messages.append({"role": "user", "content": sent})
 
+    # Extra headers exist so an anonymous entitlement can actually be presented. A token that
+    # cannot reach the provider protects nobody, and carrying it in the message body would put it
+    # in the one place the model reads.
+    hdrs = {"Content-Type": "application/json",
+            "Authorization": f"Bearer {api_key}"}
+    hdrs.update(headers or {})
+
     req = urllib.request.Request(
         api_base.rstrip("/") + "/v1/chat/completions",
         data=json.dumps({"model": model, "messages": messages}).encode("utf-8"),
-        headers={"Content-Type": "application/json",
-                 "Authorization": f"Bearer {api_key}"},
+        headers=hdrs,
         method="POST")
     try:
         with urllib.request.urlopen(req, timeout=timeout) as resp:
