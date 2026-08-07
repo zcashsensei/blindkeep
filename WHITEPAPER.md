@@ -17,10 +17,17 @@ without naming it, bound to a signed head. Sigma protocols, O(n), no SNARK.*
 
 ## Abstract
 
-Blindkeep is infrastructure for AI memory that a storage operator cannot read
-and cannot silently alter. Clients encrypt records locally; nodes hold only
-ciphertext, committed to an append-only Merkle log with signed heads. Integrity
-is enforced by proofs the client checks itself, not by trusting the operator.
+Blindkeep is a zero-knowledge memory layer for AI. A storage operator cannot
+read what it holds and cannot silently alter it: clients encrypt records
+locally, and nodes hold only ciphertext committed to an append-only Merkle log
+with signed heads, verified by the client rather than trusted from the operator.
+
+The second half is what makes it a proving system rather than encrypted storage.
+A signed log constrains the *node*; it gives the *holder* nothing to say, since
+naming a record is the only way to reference it. Blindkeep therefore also proves
+statements **about** records without identifying them — membership in a keep,
+and range, equality and opening over committed values — with every proof bound
+to a signed tree head so it transfers to no other keep or state.
 
 This document states what is implemented and verified today, what is achievable
 with established techniques, and — explicitly — what is **not** achievable as

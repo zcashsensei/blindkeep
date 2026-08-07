@@ -1,9 +1,10 @@
 <h1 align="center">Blindkeep</h1>
 
 <p align="center">
-  <strong>Verifiable, encrypted memory for local and sovereign AI.</strong><br>
-  Your agent remembers you. The node holding those memories cannot read them,
-  and cannot rewrite them without you finding out.
+  <strong>Zero-knowledge memory for local and sovereign AI.</strong><br>
+  Your agent remembers you. The node holding those memories cannot read them
+  and cannot rewrite them without you finding out — and you can prove things
+  about what it holds without saying which record you mean.
 </p>
 
 <p align="center">
@@ -12,6 +13,7 @@
   <img src="https://img.shields.io/badge/tests-322%20passing-brightgreen.svg" alt="322 tests passing">
   <img src="https://img.shields.io/badge/status-v0%20alpha-orange.svg" alt="v0 alpha">
   <img src="https://img.shields.io/badge/dependencies-1-lightgrey.svg" alt="1 dependency">
+  <img src="https://img.shields.io/badge/zero--knowledge-sigma%20protocols-6E4B9E.svg" alt="Zero-knowledge: sigma protocols">
 </p>
 
 <p align="center">
@@ -28,14 +30,33 @@
 
 ## What it is
 
-Blindkeep is privacy-preserving infrastructure for AI memory. Clients encrypt
-everything locally; storage nodes hold **ciphertext they have no key for**,
-committed to an **append-only Merkle log** they cannot alter undetected.
+Blindkeep is a zero-knowledge memory layer for AI. It does two things, and the
+second is the one that makes it more than encrypted storage:
 
-v0 ships the memory layer. There is no token, no chain and no SNARK. Hosted
-models *are* reachable, through paths that require two separate
-acknowledgements and say plainly what they disclose — but **no default path
-imports them**, and that is the constraint a test actually verifies.
+**1. The operator is blind.** Clients encrypt locally; storage nodes hold
+**ciphertext they have no key for**, committed to an **append-only Merkle log**
+they cannot alter undetected. Not a policy — a cipher and a transparency log.
+
+**2. The holder can speak without disclosing.** A signed log proves the *node*
+honest, but says nothing for *you* — `get(index)` names the index, and an
+inclusion proof reveals the leaf and its whole sibling path. So Blindkeep also
+proves statements **about** records without identifying them:
+
+```bash
+blindkeep prove-in-keep --index 1 --out p.json      # index is not in the proof
+blindkeep verify-in-keep --proof p.json
+# VERIFIED: the prover holds one of the 4 records in this keep.
+#           Which one is not revealed.
+```
+
+Pedersen commitments and sigma protocols, bound to a signed tree head, in **one
+dependency**. Range, membership, equality and opening are proven the same way.
+
+**Not SNARKs**, and no zkML — a fixed set of algebraic predicates, kilobyte
+proofs, honestly priced further down. There is no token and no chain. Hosted
+models are reachable through paths requiring two acknowledgements that say
+plainly what they disclose, and **no default path imports them** — a constraint
+a test verifies.
 
 ## What you get today
 
@@ -51,6 +72,8 @@ intended.
 - back up your key as a written code, a passphrase file, or k-of-n shares
 - run the adversarial suite, which stands up genuinely malicious nodes and
   asserts the client refuses them
+- **prove you hold a record without revealing which one**, bound to the signed
+  head so the proof transfers to no other keep
 - `blindkeep status` — every capability detected from source, including what is
   *not* done
 
