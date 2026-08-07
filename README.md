@@ -454,6 +454,7 @@ circuits/       halo2 membership circuit + the blindkeep-prove binary (Rust)
   status.py     what the repo contains, counted not claimed
   cloud_gate.py  opt-in hosted-model path — NOT PRIVATE
   vault_proxy.py reversible pseudonymisation for that path — SMALLER disclosure
+  delegate.py   abstract locally, verify, send a question about nobody
   _console.py   terminal output helpers
   cli.py        command-line interface
 tests/          21 suites, 337 tests
@@ -592,9 +593,42 @@ Each of these limits has a test that passes by demonstrating the failure.
 | Path | Provider sees | Trust required |
 |------|---------------|----------------|
 | `chat` — local model | nothing; no provider exists | none beyond your own machine |
-| `gate-chat --tier attested` | nothing; hardware prevents it | silicon vendor + attestation chain |
+| `--tier attested` | nothing; hardware prevents it | silicon vendor + attestation chain |
+| **`--tier delegated`** | **a generic question containing no fact about you** | **that the abstraction was complete — mechanically checked** |
 | `private-chat` — pseudonymised | the question, minus declared identities | provider not to correlate what remains |
 | `cloud-chat` — gated | everything you send | provider's policy and retention terms |
+
+**Delegated is the one that needs no special hardware.** A local model rewrites
+your question into one any stranger could have asked; a leak gate checks it
+mechanically and **refuses to send** if anything survived; the frontier model
+answers in the abstract; the local model re-applies the answer to your real
+situation, which never left:
+
+```
+  private   "Sarah Whitfield, my landlord in Truro who breeds Basenjis,
+             owes me £4,000 since March"
+  sent      "What are the options for recovering an unpaid debt from a
+             private individual?"
+  shown     that guidance, re-applied to Sarah, Truro and £4,000 — locally
+```
+
+Pseudonymisation is *subtractive*: it starts from your text and removes what it
+recognises, so anything unrecognised ships. Delegation is *generative*: it
+starts from nothing and writes a new question, so anything not deliberately
+carried is absent. Substitution leaks what it missed; abstraction loses what it
+failed to carry — and losing utility is recoverable where leaking is not.
+
+The gate, not the abstraction, is what makes this safe. A local model asked to
+be generic will sometimes not be, so nothing is sent on trust: rare words, proper
+nouns, amounts and any shared 3-gram are compared against every private source,
+and a hit **raises rather than sends**. A leaky attempt is retried with the
+reason, and after three failures it gives up — *"ask the local model directly"*
+is a real answer.
+
+**What it still does not hide:** that you asked something, and roughly what
+about. An abstraction unusual enough to be unique is still identifying. This is
+confidentiality of content, not unlinkability of interest, and it rests on a
+judgement rather than on hardware — which is why it ranks below `attested`.
 
 Storage trust is unchanged in all four: the node never holds plaintext. Only the
 *model* side differs.

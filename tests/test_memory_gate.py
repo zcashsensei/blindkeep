@@ -360,6 +360,45 @@ def test_the_gate_itself_reaches_no_provider():
                 assert banned not in mod, f"memory_gate imports {banned}"
 
 
+def test_delegated_ranks_below_attested_and_above_pseudonymous():
+    """Hardware enforces attestation; an abstraction is judged. The order says so."""
+    assert Tier.ATTESTED > Tier.DELEGATED > Tier.PSEUDONYMOUS
+
+
+def test_sensitive_now_requires_delegation_not_mere_substitution():
+    """Substitution ships what it failed to detect. For SENSITIVE that is not good enough."""
+    from blindkeep.memory_gate import DEFAULT_POLICY
+    assert DEFAULT_POLICY[Sensitivity.SENSITIVE] is Tier.DELEGATED
+
+    vault = FakeVault()
+    rel = seeded_gate().release_for(
+        backend(Tier.PSEUDONYMOUS, vault_prover(vault), vault=vault), n=10)
+    assert any(s is Sensitivity.SENSITIVE for _, s in rel.withheld), (
+        "a sensitive memory was released to a merely pseudonymous backend")
+
+
+def test_a_delegated_backend_receives_sensitive_but_never_secret():
+    from blindkeep.memory_gate import delegation_prover
+
+    class Gate:
+        def check(self, text):
+            return None
+
+    rel = seeded_gate().release_for(
+        backend(Tier.DELEGATED, delegation_prover(Gate())), n=10)
+    assert len(rel.allowed) == 3
+    assert [s for _, s in rel.withheld] == [Sensitivity.SECRET]
+
+
+def test_delegation_without_a_leak_gate_is_demoted():
+    """Claiming to abstract is not abstracting."""
+    from blindkeep.memory_gate import delegation_prover
+    rel = seeded_gate().release_for(
+        backend(Tier.DELEGATED, delegation_prover(None)), n=10)
+    assert rel.grant.granted is Tier.OPEN
+    assert "no leak gate" in rel.grant.reason
+
+
 def run():
     os.makedirs(TMP, exist_ok=True)
     tests = [(k, v) for k, v in sorted(globals().items()) if k.startswith("test_")]

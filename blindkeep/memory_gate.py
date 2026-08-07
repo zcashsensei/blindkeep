@@ -13,6 +13,8 @@ Tier             What the operator can read                 How it is proven
 ===============  =========================================  ====================
 ``LOCAL``        nothing; there is no operator              endpoint is loopback
 ``ATTESTED``     nothing; hardware prevents it              `attest.py`, 5 checks
+``DELEGATED``    a generic question containing no fact      a leak gate cleared it
+                 about you
 ``PSEUDONYMOUS`` the question minus declared identities     a vault is attached
 ``OPEN``         everything sent                            nothing to prove
 ===============  =========================================  ====================
@@ -59,8 +61,9 @@ class Tier(IntEnum):
     """Ordered so a comparison means what it reads like: higher is stronger."""
     OPEN = 0
     PSEUDONYMOUS = 1
-    ATTESTED = 2
-    LOCAL = 3
+    DELEGATED = 2
+    ATTESTED = 3
+    LOCAL = 4
 
     @property
     def label(self) -> str:
@@ -93,7 +96,7 @@ class Sensitivity(IntEnum):
 DEFAULT_POLICY: dict[Sensitivity, Tier] = {
     Sensitivity.PUBLIC: Tier.OPEN,
     Sensitivity.PERSONAL: Tier.PSEUDONYMOUS,
-    Sensitivity.SENSITIVE: Tier.ATTESTED,
+    Sensitivity.SENSITIVE: Tier.DELEGATED,
     Sensitivity.SECRET: Tier.LOCAL,
 }
 
@@ -201,6 +204,20 @@ def attestation_prover(url: str, policy) -> Callable[[], Grant]:
         except AttestationError as exc:
             return Grant(Tier.ATTESTED, Tier.OPEN, "attestation failed", str(exc))
         return Grant(Tier.ATTESTED, Tier.ATTESTED, res.summary())
+    return prove
+
+
+def delegation_prover(gate: Any) -> Callable[[], Grant]:
+    """Prove DELEGATED by showing a leak gate is attached and will be consulted.
+
+    Ranked below ATTESTED deliberately: attestation is enforced by hardware, whereas this rests
+    on an abstraction having been complete. The gate makes that checkable, not certain.
+    """
+    def prove() -> Grant:
+        if gate is None or not hasattr(gate, "check"):
+            return Grant(Tier.DELEGATED, Tier.OPEN, "no leak gate attached")
+        return Grant(Tier.DELEGATED, Tier.DELEGATED,
+                     "leak gate attached; only a cleared abstraction is sent")
     return prove
 
 

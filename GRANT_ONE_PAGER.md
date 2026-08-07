@@ -64,12 +64,13 @@ The missing layer is memory that is **durable**, **structurally private** (opera
 | SEV-SNP report verification, **disabled pending hardware validation** | `sev_snp.py`, 19 tests |
 | ZK proofs of properties without disclosure (range, membership, equality) | `zk.py`, 31 tests |
 | **ZK membership: prove you hold a record without naming it**, bound to a signed head | `zk_keep.py`, 12 tests |
+| **Delegated inference**: a local model abstracts, a leak gate verifies, only a question about nobody is sent | `delegate.py`, 17 tests |
 | **Poseidon tree matching the halo2 circuit**, cross-checked against Rust known-answer vectors | `poseidon.py`, `zk_tree.py`, 15 tests |
 | Self-reporting inventory — counts computed, non-claims listed | `status.py`, 14 tests (`blindkeep status`) |
 | Security write-up of fixed bugs | `SECURITY.md` |
 | Cryptographic claim boundaries | `CRYPTO_FOUNDATIONS.md` |
 
-**Automated suite (2026-08-07):** **337 tests** across 21 suites + end-to-end demo — Merkle 13 · store 5 · metadata 8 · adversarial 9 · replication 12 · recovery 21 · hardening 12 · discovery 18 · audit 10 · local-model memory 13 · cloud gate 13 · CLI 15 · console 8 · vault proxy 30 · attestation 30 · memory gate 29 · SEV-SNP 19 · status 14 · zk 31 · zk-keep 12 · poseidon 15.
+**Automated suite (2026-08-07):** **337 tests** across 21 suites + end-to-end demo — Merkle 13 · store 5 · metadata 8 · adversarial 9 · replication 12 · recovery 21 · hardening 12 · discovery 18 · audit 10 · local-model memory 13 · cloud gate 13 · CLI 15 · console 8 · vault proxy 30 · attestation 30 · memory gate 29 · SEV-SNP 19 · status 14 · zk 31 · zk-keep 12 · poseidon 15 · delegate 17.
 
 **Not claimed as shipping:** anti-equivocation witnesses, proof of *storage* (as distinct from the retrieval auditing that is implemented), PIR, general-purpose proving and zkML, token incentives, and **validated hardware attestation**. The framework and its five checks are implemented and tested; a full SEV-SNP report parser and verifier is implemented (`sev_snp.py`, 19 tests) but has never been run against a report from real hardware, so it is deliberately excluded from the default registry and `sev-snp` refuses on the default path. TDX and NVIDIA GPU formats refuse outright. No vendor root certificates are bundled.
 
