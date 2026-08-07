@@ -149,8 +149,8 @@ The verification layer does not become the bottleneck at any realistic scale.
 
 ## 4. What is verified — as of 2026-08-07
 
-Implemented, running, and covered by tests in this repository. **279 tests
-across 18 suites**, plus an end-to-end demonstration.
+Implemented, running, and covered by tests in this repository. **310 tests
+across 19 suites**, plus an end-to-end demonstration.
 
 | Component | Status | Evidence |
 |-----------|--------|----------|
@@ -171,6 +171,7 @@ across 18 suites**, plus an end-to-end demonstration.
 | Attestation framework | Complete | 30 tests; a replayed but genuine report is refused |
 | Release policy across model tiers | Complete | 29 tests; an unproven tier claim is demoted, not honoured |
 | SEV-SNP report verification | **Written, disabled** | 19 tests, all against synthetic reports; never run against real hardware, so it is excluded from the default registry |
+| ZK property proofs (sigma protocols) | Complete | 31 tests; Pedersen commitments, Schnorr/OR-composition, Fiat-Shamir binding the full statement. **Not SNARKs** — a fixed set of algebraic predicates, kilobyte proofs, unaudited |
 | Self-reporting inventory | Complete | 14 tests; counts computed from source, non-claims listed |
 | Command-line surface | Complete | 15 tests, including that no command creates a master key as a side effect |
 

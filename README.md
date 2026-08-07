@@ -9,16 +9,17 @@
 <p align="center">
   <img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License: MIT">
   <img src="https://img.shields.io/badge/python-3.10%2B-blue.svg" alt="Python 3.10+">
-  <img src="https://img.shields.io/badge/tests-279%20passing-brightgreen.svg" alt="279 tests passing">
+  <img src="https://img.shields.io/badge/tests-310%20passing-brightgreen.svg" alt="310 tests passing">
   <img src="https://img.shields.io/badge/status-v0%20alpha-orange.svg" alt="v0 alpha">
   <img src="https://img.shields.io/badge/dependencies-1-lightgrey.svg" alt="1 dependency">
 </p>
 
 <p align="center">
-  <sub><b>Status as of 2026-08-07</b> · v0 alpha · 279 tests passing ·
+  <sub><b>Status as of 2026-08-07</b> · v0 alpha · 310 tests passing ·
   replication, peer discovery, retrieval audits, key recovery, local-model
-  memory, pseudonymisation and an attestation framework implemented · no
-  proving system implemented · <b>runs on one machine today — no public node
+  memory, pseudonymisation, an attestation framework and ZK property proofs
+  implemented · <b>sigma protocols, not SNARKs — no general-purpose proving
+  system and no zkML</b> · <b>runs on one machine today — no public node
   network exists, and no node has ever been run by anyone but the author</b> ·
   run <code>blindkeep status</code> for a count computed from the source</sub>
 </p>
@@ -90,10 +91,10 @@ Any one failing raises instead of returning data. These are enforced by
 [`tests/test_adversarial.py`](tests/test_adversarial.py), which stands up **real
 malicious nodes** and asserts the client refuses them.
 
-## Design choice: not zero-knowledge for v0
+## Where zero-knowledge belongs, and where it does not
 
-Integrity and confidentiality of stored memory do not require SNARKs. Cheaper,
-auditable primitives are used first:
+Integrity and confidentiality of stored memory do not require ZK at all. Using
+proofs for them would be expensive decoration:
 
 | Goal | Tempting default | What Blindkeep uses |
 |------|------------------|---------------------|
@@ -102,9 +103,45 @@ auditable primitives are used first:
 | Node cannot read data | ZK proof | Client-side AES-256-GCM |
 | Append-only history | Trust | Consistency proof + pinned head |
 
-Zero-knowledge remains appropriate later for private queries (PIR), storage
-audits, and verifiable inference (zkML). None of those are claimed in the
-current release.
+**Where ZK earns its cost is a different question entirely: proving a property
+of data without disclosing the data.** That is implemented, in `zk.py`:
+
+```bash
+# prove a position was under the cap, without revealing the position
+blindkeep prove --value 731 --bits 10 --context "desk:kage|limit:1024" --out p.json
+blindkeep verify-proof --proof p.json
+# VERIFIED: the committed value is in [0, 2^10) for context 'desk:kage|limit:1024'
+
+blindkeep verify-proof --proof p.json --context "desk:other|limit:1024"
+# REFUSED: the proof does not hold for this statement
+```
+
+Pedersen commitments and sigma protocols (Schnorr, OR-composition) made
+non-interactive by Fiat-Shamir, over RFC 3526 MODP Group 14 — built from `int`
+arithmetic and `hashlib`, so the dependency count is still one. Four predicates:
+
+| Proof | Statement | Reveals |
+|-------|-----------|---------|
+| Opening | "I know what this commits to" | nothing |
+| Equality | "these two commit to the same value" | nothing |
+| Membership | "the value is one of *these*" | not which one |
+| Range | "0 ≤ value < 2ⁿ" | nothing but the bound |
+
+**The invariant that makes them proofs rather than theatre:** the Fiat-Shamir
+challenge binds the entire statement — group, generators, commitments and
+context — length-prefixed so no two statements serialise alike. A proof made for
+`desk:kage` does not verify for `desk:other`. That is this project's oldest
+lesson in a third register: *a valid proof is not an answer to your question.*
+
+**Honest costs and limits.** These are **not SNARKs.** They prove a fixed set of
+algebraic predicates, not arbitrary computation — no zkML, no "prove the model
+ran correctly". Proofs are kilobytes: the 10-bit range proof above is **29.7 KB**
+and takes about a second, where a SNARK would be a few hundred bytes. The code
+is standard, carefully written and adversarially tested — and **unaudited**,
+which is not the same as reviewed by a cryptographer.
+
+Still not claimed: private queries (PIR), proof of storage, and verifiable
+inference.
 
 ## Building toward zero-knowledge: the hash is the decision
 
@@ -303,12 +340,13 @@ blindkeep/
   attest.py     remote attestation: 5 checks, refuse on any failure
   memory_gate.py one memory layer, any model, release by PROVEN tier
   sev_snp.py    AMD SEV-SNP report verification — OFF by default, unvalidated
+  zk.py         commitments + sigma proofs: prove a property, reveal nothing
   status.py     what the repo contains, counted not claimed
   cloud_gate.py  opt-in hosted-model path — NOT PRIVATE
   vault_proxy.py reversible pseudonymisation for that path — SMALLER disclosure
   _console.py   terminal output helpers
   cli.py        command-line interface
-tests/          18 suites, 279 tests
+tests/          19 suites, 310 tests
 ```
 
 ## Replication
