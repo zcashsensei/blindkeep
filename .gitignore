@@ -68,6 +68,9 @@ data/peers.json
 *.log
 *.jsonl
 
+circuits/target/
+Cargo.lock
+
 # Python
 __pycache__/
 *.py[cod]

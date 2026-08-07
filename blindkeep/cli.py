@@ -222,6 +222,74 @@ def cmd_zk_witness(args) -> int:
     return 0
 
 
+def _find_prover(explicit=None):
+    """Locate blindkeep-prove: an explicit path, an env var, or PATH.
+
+    Returned as a path rather than invoked, so a missing prover is a message about installing one
+    binary and not a traceback from a failed subprocess.
+    """
+    import shutil
+
+    for candidate in (explicit, os.environ.get("BLINDKEEP_PROVER")):
+        if candidate:
+            if os.path.isfile(candidate):
+                return candidate
+            raise CliError(f"no prover at {candidate}")
+    found = shutil.which("blindkeep-prove") or shutil.which("blindkeep-prove.exe")
+    if found:
+        return found
+    raise CliError(
+        "blindkeep-prove was not found.\n"
+        "  It is a single binary that turns a witness into a SNARK proof. Either:\n"
+        "    put it on PATH, pass --prover /path/to/it, or set BLINDKEEP_PROVER\n"
+        "  Build it from https://github.com/zcashsensei/zk-encrypted-intelligence:\n"
+        "    cargo build --release --bin blindkeep-prove\n"
+        "  Or skip proving and export the witness alone:  blindkeep zk-witness")
+
+
+def cmd_zk_prove(args) -> int:
+    """Witness and proof in one step: export, prove, done."""
+    import subprocess
+    import tempfile
+
+    from .client import BlindkeepClient
+    from .zk_tree import export_for_circuit, write_witness
+
+    prover = _find_prover(args.prover)
+
+    key = _load_key(args.key)
+    client = BlindkeepClient(args.url, key, pin_path=args.pin)
+    bundle = export_for_circuit(client, args.index)
+
+    # The witness holds the leaf and the full path — the private half. It goes to a temporary file
+    # and is removed, so the one artefact left behind is the proof, which reveals nothing.
+    tmp = tempfile.NamedTemporaryFile("w", suffix=".json", delete=False, encoding="utf-8")
+    tmp.close()
+    try:
+        write_witness(bundle, tmp.name)
+        cmd = [prover, "prove", "--witness", tmp.name, "--out", args.out]
+        # encoding is not optional: the prover emits UTF-8, and decoding it with the system
+        # codepage turns "·" into "Â·" and "…" into "â€¦". Same class as the console guard —
+        # a child's output is UTF-8 whatever the parent's locale happens to be.
+        proc = subprocess.run(cmd, capture_output=True, text=True,
+                              encoding="utf-8", errors="replace")
+        if proc.returncode != 0:
+            print(proc.stderr.strip() or "the prover failed", file=sys.stderr)
+            return 1
+        for line in proc.stderr.strip().splitlines():
+            print(f"[{line}]", file=sys.stderr)
+    finally:
+        try:
+            os.unlink(tmp.name)
+        except OSError:
+            pass
+
+    print(f"[witness discarded — the proof reveals neither the record nor its position]",
+          file=sys.stderr)
+    print(args.out)
+    return 0
+
+
 def cmd_peers(args) -> int:
     from .discover import as_dicts, discover
 
@@ -748,6 +816,17 @@ def build_parser() -> argparse.ArgumentParser:
     zw.add_argument("--pin", default="data/client/pin.json")
     zw.add_argument("--out", default=None)
     zw.set_defaults(func=cmd_zk_witness)
+
+    zp = sub.add_parser("zk-prove",
+                        help="export a witness and prove it in one step")
+    zp.add_argument("--index", type=int, required=True)
+    zp.add_argument("--out", default="proof.json")
+    zp.add_argument("--prover", default=None,
+                    help="path to blindkeep-prove; also read from BLINDKEEP_PROVER or PATH")
+    zp.add_argument("--url", default="http://127.0.0.1:8741")
+    zp.add_argument("--key", default="data/client/master.key")
+    zp.add_argument("--pin", default="data/client/pin.json")
+    zp.set_defaults(func=cmd_zk_prove)
 
     pe = sub.add_parser("peers", help="discover and probe storage nodes")
     pe.add_argument("--file", default="data/peers.json")

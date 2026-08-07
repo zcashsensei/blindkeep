@@ -256,6 +256,40 @@ def test_gate_chat_requires_an_endpoint_above_local():
         "the refusal did not explain the reason")
 
 
+def test_zk_prove_explains_a_missing_prover():
+    """The proving binary is optional; not having it must read as a next step.
+
+    A user who has never installed it should get one paragraph telling them what it is and three
+    ways to get it -- not a traceback from a failed subprocess, and not silence.
+    """
+    err, out = io.StringIO(), io.StringIO()
+    with redirect_stderr(err), redirect_stdout(out):
+        code = main(["zk-prove", "--index", "0", "--prover", "/definitely/not/here"])
+    assert code != 0, "zk-prove succeeded without a prover"
+    msg = err.getvalue() + out.getvalue()
+    assert "no prover at" in msg, msg
+
+
+def test_zk_prove_names_the_env_var_and_the_build_command():
+    """With nothing on PATH either, the message must be actionable rather than merely true."""
+    import os as _os
+    saved = _os.environ.pop("BLINDKEEP_PROVER", None)
+    saved_path = _os.environ.get("PATH", "")
+    _os.environ["PATH"] = ""
+    try:
+        err, out = io.StringIO(), io.StringIO()
+        with redirect_stderr(err), redirect_stdout(out):
+            code = main(["zk-prove", "--index", "0"])
+        msg = err.getvalue() + out.getvalue()
+        assert code != 0
+        for expected in ("BLINDKEEP_PROVER", "cargo build", "zk-witness"):
+            assert expected in msg, f"the refusal never mentions {expected!r}: {msg}"
+    finally:
+        _os.environ["PATH"] = saved_path
+        if saved is not None:
+            _os.environ["BLINDKEEP_PROVER"] = saved
+
+
 def run():
     tests = [(k, v) for k, v in sorted(globals().items()) if k.startswith("test_")]
     passed, failed = [], []

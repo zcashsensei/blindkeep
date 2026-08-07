@@ -188,8 +188,8 @@ one is built, and the whole chain has been run:
   a record in the keep
     → Poseidon tree over the same committed leaves   blindkeep/zk_tree.py
     → witness (leaf + path private, root public)     blindkeep zk-witness
-    → halo2 circuit                                  halo2/src/merkle.rs
-    → 3,040-byte SNARK proof, verified
+    → halo2 circuit                                  circuits/src/merkle.rs
+    → 3,040-byte SNARK proof, verified               blindkeep-prove
 ```
 
 | Records | Sigma OR-proof | halo2 Merkle proof |
@@ -224,11 +224,28 @@ parameters are *generated* from `halo2_gadgets` rather than transcribed, and
 padding rule is most likely to drift.** A test on the Rust side then takes a
 witness produced by the CLI above and proves it for real.
 
+One step, and the private half never touches disk:
+
 ```bash
-blindkeep zk-witness --index 5 --out w.json
-# [depth 3 · poseidon root 06d0810a5af04edd… · anchored to signed head 34c97cf4…]
-# [the leaf and path are PRIVATE inputs; only the root is public]
+blindkeep zk-prove --index 5 --out proof.json
+# [proving membership · depth 3 · root 1d5e3e4a5fb29328…]
+# [proof written to proof.json (3040 bytes of proof)]
+# [witness discarded — the proof reveals neither the record nor its position]
+
+blindkeep-prove verify --proof proof.json
+# VERIFIED: the prover holds a record under root 1d5e3e4a5fb29328…
+#           depth 3 — which record is not revealed.
 ```
+
+The prover is one binary, built from `circuits/` in this repository:
+
+```bash
+cd circuits && cargo build --release --bin blindkeep-prove
+```
+
+`zk-prove` finds it on `PATH`, via `BLINDKEEP_PROVER`, or with `--prover`. Without
+it you still get `blindkeep zk-witness`, which exports the witness for proving
+elsewhere — and the refusal says exactly that rather than failing obscurely.
 
 ## Making the proofs succinct: the hash is the decision
 
@@ -432,6 +449,7 @@ blindkeep/
   zk_keep.py    prove you hold a record here, without saying which
   poseidon.py   Poseidon over Pallas — the hash a circuit can afford
   zk_tree.py    the circuit-compatible tree, and witness export
+circuits/       halo2 membership circuit + the blindkeep-prove binary (Rust)
   sev_snp.py    AMD SEV-SNP report verification — OFF by default, unvalidated
   status.py     what the repo contains, counted not claimed
   cloud_gate.py  opt-in hosted-model path — NOT PRIVATE
@@ -689,8 +707,8 @@ beyond an equality check.
    different clients is not yet detectable
 2. Proof of *storage* rather than retrieval, so a node must hold data rather
    than merely obtain it
-3. Ship the succinct path as the default: a prover binary users can run without
-   a Rust toolchain, so `zk-witness` → proof is one step rather than two
+3. Prebuilt `blindkeep-prove` binaries per platform, so proving needs no Rust
+   toolchain at all — the source builds today, the release artefacts do not exist
 4. Validate the SEV-SNP verifier against real hardware and enable it
 5. Sharded model-weight distribution (hash-addressed)
 6. Optional paid capacity above a free quota — only once the free path is real
