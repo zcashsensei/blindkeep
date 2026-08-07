@@ -58,6 +58,69 @@ models are reachable through paths requiring two acknowledgements that say
 plainly what they disclose, and **no default path imports them** — a constraint
 a test verifies.
 
+## The zero-knowledge layer
+
+Every claim a holder makes about their own records is proven in zero knowledge:
+
+| Claim | Mechanism | Reveals |
+|-------|-----------|---------|
+| **"I hold a record in this keep"** | **ZK membership, bound to a signed head** | **not which record** |
+| "this committed value is within a bound" | ZK range proof | nothing but the bound |
+| "these two commitments match" | ZK equality proof | nothing |
+| "the value is one of these" | ZK set membership | not which one |
+| "I know what this commits to" | ZK proof of opening | nothing |
+
+Proofs are used **where they are the only thing that works**, and cheaper
+primitives carry the rest — a design choice, not a shortfall. Encryption already
+makes a record unreadable and a Merkle log already makes it unalterable; wrapping
+either in a proof would cost orders of magnitude and prove nothing extra:
+
+| Property | Mechanism | Why not a proof |
+|----------|-----------|-----------------|
+| Node cannot read a record | AES-256-GCM | A cipher already does this, in microseconds |
+| Node cannot alter a record | Merkle leaf + signed head | Tamper-evidence needs a hash, not a circuit |
+| History cannot be rewritten | Consistency proof vs. a pin | Same |
+
+**The half a cipher cannot reach** is what the proofs are for. The log
+proves the *node* honest. It does nothing for the *holder*, who cannot say
+anything about a record without naming it — `get(index)` names the index, and an
+inclusion proof reveals the leaf and its whole sibling path. So:
+
+```bash
+# prove you hold a record in this keep, without revealing which
+blindkeep prove-in-keep --index 1 --out p.json
+blindkeep verify-in-keep --proof p.json
+# VERIFIED: the prover holds one of the 4 records in this keep.
+#           Which one is not revealed.
+```
+
+The proof carries no index, and every record produces a proof of identical
+shape. It is bound to a **signed tree head**, so a proof about a keep of 4
+records does not verify against the same keep at 5, and never against a
+different keep — the proof system and the transparency log are one mechanism,
+not two.
+
+Pedersen commitments and sigma protocols (Schnorr, OR-composition) made
+non-interactive by Fiat-Shamir, over RFC 3526 MODP Group 14 — built from `int`
+arithmetic and `hashlib`, so **the dependency count is still one.**
+
+**The invariant that makes them proofs rather than theatre:** the Fiat-Shamir
+challenge binds the entire statement — group, generators, commitments, tree head
+— length-prefixed so no two statements serialise alike. This project's oldest
+lesson, in its fourth register: *a valid proof is not an answer to your
+question.*
+
+**Honest costs.** These are **not SNARKs**: a fixed set of algebraic predicates,
+not arbitrary computation, and no zkML. Keep membership is an OR-proof across
+every leaf, so proofs are **O(n)** — about 1 KB per record, fine at 40 records
+and impractical at 40,000, and `keep_leaves` refuses rather than hanging. Making
+it O(log n) means proving a Merkle path inside a circuit, which needs a SNARK
+and a ZK-friendly hash — the decision the next section is about. The code is
+standard, carefully written, adversarially tested, and **unaudited**, which is
+not the same as reviewed by a cryptographer.
+
+Still not claimed: private queries (PIR), proof of storage, verifiable inference.
+
 ## What you get today
 
 Verified by cloning this repository fresh and running it with nothing else
@@ -97,10 +160,12 @@ hostile, the cryptography is standard, and the adversarial tests are real — bu
 guarantee holds against a stranger's node is argued, not yet observed. Changing
 that is the next milestone, and it cannot be done alone.
 
-## The guarantee
+## The storage guarantee
 
-A Blindkeep node is untrusted for both confidentiality and integrity. Every value
-the client returns has passed five independent checks:
+The proofs above are what *you* can assert. This is the half the *node* is held
+to, and it needs no zero-knowledge at all: a Blindkeep node is untrusted for both
+confidentiality and integrity, and every value the client returns has passed five
+independent checks:
 
 | # | Check | Defeats |
 |---|-------|---------|
@@ -114,73 +179,12 @@ Any one failing raises instead of returning data. These are enforced by
 [`tests/test_adversarial.py`](tests/test_adversarial.py), which stands up **real
 malicious nodes** and asserts the client refuses them.
 
-## Zero-knowledge, where it earns its cost
+## Making the proofs succinct: the hash is the decision
 
-Integrity and confidentiality of stored memory do not require ZK, and using
-proofs for them would be expensive decoration:
-
-| Goal | Tempting default | What Blindkeep uses |
-|------|------------------|---------------------|
-| Record untampered | ZK proof | Content hash / Merkle leaf |
-| Correct retrieval | ZK proof | Inclusion proof vs. signed root |
-| Node cannot read data | ZK proof | Client-side AES-256-GCM |
-| Append-only history | Trust | Consistency proof + pinned head |
-
-**Where ZK is irreplaceable is the other side of the relationship.** The log
-proves the *node* honest. It does nothing for the *holder*, who cannot say
-anything about a record without naming it — `get(index)` names the index, and an
-inclusion proof reveals the leaf and its whole sibling path. So:
-
-```bash
-# prove you hold a record in this keep, without revealing which
-blindkeep prove-in-keep --index 1 --out p.json
-blindkeep verify-in-keep --proof p.json
-# VERIFIED: the prover holds one of the 4 records in this keep.
-#           Which one is not revealed.
-```
-
-The proof carries no index, and every record produces a proof of identical
-shape. It is bound to a **signed tree head**, so a proof about a keep of 4
-records does not verify against the same keep at 5, and never against a
-different keep — the proof system and the transparency log are one mechanism,
-not two.
-
-Alongside it, four predicates about committed values:
-
-| Proof | Statement | Reveals |
-|-------|-----------|---------|
-| Opening | "I know what this commits to" | nothing |
-| Equality | "these two commit to the same value" | nothing |
-| Membership | "the value is one of *these*" | not which one |
-| Range | "0 ≤ value < 2ⁿ" | nothing but the bound |
-
-Pedersen commitments and sigma protocols (Schnorr, OR-composition) made
-non-interactive by Fiat-Shamir, over RFC 3526 MODP Group 14 — built from `int`
-arithmetic and `hashlib`, so **the dependency count is still one.**
-
-**The invariant that makes them proofs rather than theatre:** the Fiat-Shamir
-challenge binds the entire statement — group, generators, commitments, tree head
-— length-prefixed so no two statements serialise alike. This project's oldest
-lesson, in its fourth register: *a valid proof is not an answer to your
-question.*
-
-**Honest costs.** These are **not SNARKs**: a fixed set of algebraic predicates,
-not arbitrary computation, and no zkML. Keep membership is an OR-proof across
-every leaf, so proofs are **O(n)** — about 1 KB per record, fine at 40 records
-and impractical at 40,000, and `keep_leaves` refuses rather than hanging. Making
-it O(log n) means proving a Merkle path inside a circuit, which needs a SNARK
-and a ZK-friendly hash — the decision the next section is about. The code is
-standard, carefully written, adversarially tested, and **unaudited**, which is
-not the same as reviewed by a cryptographer.
-
-Still not claimed: private queries (PIR), proof of storage, verifiable inference.
-
-## Building toward zero-knowledge: the hash is the decision
-
-The long-term aim is for proving to become the heart of the system rather than a
-layer on top — private queries and continuous storage proofs, not just a
-tamper-evident log. The proofs above are real and they are sigma protocols:
-**there is no SNARK in the code today**, and keep membership pays O(n) for it.
+The proofs above are real, and they are sigma protocols — **there is no SNARK in
+the code today**, and keep membership pays O(n) for it. Succinctness is the next
+step, not zero-knowledge itself; the aim is private queries and continuous
+storage proofs on top of what already works.
 
 One decision has to be made before any circuit is written, because it cannot be
 retrofitted once heads are published.
@@ -632,10 +636,12 @@ beyond an equality check.
    different clients is not yet detectable
 2. Proof of *storage* rather than retrieval, so a node must hold data rather
    than merely obtain it
-3. Validate the SEV-SNP verifier against real hardware and enable it
-4. Sharded model-weight distribution (hash-addressed)
-5. Optional paid capacity above a free quota — only once the free path is real
-6. Specification written *from* the running code
+3. **Succinct membership** — a halo2 Merkle-path circuit to take keep membership
+   from O(n) to O(log n), against the ZK-friendly tree the next section sizes
+4. Validate the SEV-SNP verifier against real hardware and enable it
+5. Sharded model-weight distribution (hash-addressed)
+6. Optional paid capacity above a free quota — only once the free path is real
+7. Specification written *from* the running code
 
 ## License
 

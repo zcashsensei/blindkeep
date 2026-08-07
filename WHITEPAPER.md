@@ -103,9 +103,11 @@ client verified a response was internally self-consistent but never that it was
 *responsive* — a node asked for index 0 could return index 1 together with index
 1's authentic proof, and every cryptographic check passed. See `SECURITY.md`.
 
-### 3.4 Privacy and proof are separate mechanisms
+### 3.4 Which properties need a proof, and which need only a cipher
 
-This distinction is worth stating explicitly, because it is commonly collapsed.
+Both are used here, and the split is deliberate rather than a shortfall — a
+proof is reached for where nothing cheaper works, and not where a cipher already
+settles the question.
 
 | Mechanism | Prevents | Property |
 |-----------|----------|----------|
