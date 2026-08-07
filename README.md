@@ -9,13 +9,13 @@
 <p align="center">
   <img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License: MIT">
   <img src="https://img.shields.io/badge/python-3.10%2B-blue.svg" alt="Python 3.10+">
-  <img src="https://img.shields.io/badge/tests-244%20passing-brightgreen.svg" alt="244 tests passing">
+  <img src="https://img.shields.io/badge/tests-263%20passing-brightgreen.svg" alt="263 tests passing">
   <img src="https://img.shields.io/badge/status-v0%20alpha-orange.svg" alt="v0 alpha">
   <img src="https://img.shields.io/badge/dependencies-1-lightgrey.svg" alt="1 dependency">
 </p>
 
 <p align="center">
-  <sub><b>Status as of 2026-08-06</b> · v0 alpha · 244 tests passing · replication,
+  <sub><b>Status as of 2026-08-06</b> · v0 alpha · 263 tests passing · replication,
   peer discovery, retrieval audits, key recovery and local-model memory
   implemented · no proving system implemented · not yet run by anyone but the author</sub>
 </p>
@@ -244,11 +244,12 @@ blindkeep/
   ollama_mem.py local-model memory loop (loopback enforced)
   attest.py     remote attestation: 5 checks, refuse on any failure
   memory_gate.py one memory layer, any model, release by PROVEN tier
+  sev_snp.py    AMD SEV-SNP report verification — OFF by default, unvalidated
   cloud_gate.py  opt-in hosted-model path — NOT PRIVATE
   vault_proxy.py reversible pseudonymisation for that path — SMALLER disclosure
   _console.py   terminal output helpers
   cli.py        command-line interface
-tests/          16 suites, 244 tests
+tests/          17 suites, 263 tests
 ```
 
 ## Replication
@@ -434,16 +435,42 @@ unexpired report proves something about *some* machine; without binding it to a
 nonce this client just generated, a host can replay a report captured from a
 genuinely confidential machine and process your request somewhere else.
 
-**What is not implemented, stated plainly:** this ships **no hardware vendor
-root certificates** and **no parser for real SEV-SNP, TDX or NVIDIA GPU
-attestation binaries**. Those formats are registered as *unimplemented*, which
-means requesting one **refuses** — it does not mean the check is skipped. An
-unrecognised format must refuse, never pass silently, because callers read the
-absence of an error as success. What is implemented and fully tested is the
-verification framework and an Ed25519 reference format that exercises every
-check with real cryptography. Wiring a real vendor verifier means implementing
-`Verifier` for that format and supplying its roots; the surrounding logic does
-not change.
+**What is not implemented, stated plainly:** `tdx` and `nvidia-gpu` are
+registered as *unimplemented*, which means requesting one **refuses** — it does
+not mean the check is skipped. An unrecognised format must refuse, never pass
+silently, because callers read the absence of an error as success.
+
+### SEV-SNP: implemented, and off by default
+
+`sev_snp.py` implements the AMD SEV-SNP report for real — the 1184-byte layout
+from the Firmware ABI spec, ECDSA P-384 over SHA-384, AMD's little-endian
+signature encoding, and the ARK → ASK → VCEK chain. 19 tests.
+
+**It has never seen a report from real hardware, so it is not in the default
+registry and `sev-snp` still refuses on the default path.** Enabling it is a
+deliberate act:
+
+```python
+from blindkeep.attest import default_registry          # sev-snp REFUSES
+from blindkeep.sev_snp import registry_with_sev_snp    # deliberate opt-in
+
+registry = registry_with_sev_snp(ark_pem, ask_pem, vcek_pem)
+```
+
+The reasoning is the same one the rest of the project runs on. An unvalidated
+parser fails in one of two ways: it always errors, which is merely useless, or
+it reads the wrong 48 bytes as the measurement and **passes** — which is the
+worst thing this codebase could ship, because the entire value of attestation is
+that passing means something.
+
+Validating it is not a coding task. It needs one report captured from a real
+SEV-SNP guest (Azure DCasv5/DCadsv5, AWS SEV-SNP instances or GCP N2D
+confidential VMs), its VCEK from AMD's KDS, and that report added to
+`tests/test_sev_snp.py` as a known-answer vector — confirming specifically that
+`MEASUREMENT` begins at `0x090`, that the signature covers exactly the first
+`0x2A0` bytes, and that `r`/`s` really are 72-byte little-endian fields. Still
+out of scope after that: VCEK fetch from AMD's KDS, revocation, and TCB policy
+beyond an equality check.
 
 ## Roadmap
 

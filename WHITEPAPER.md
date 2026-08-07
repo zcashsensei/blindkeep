@@ -145,8 +145,8 @@ The verification layer does not become the bottleneck at any realistic scale.
 
 ## 4. What is verified — as of 2026-08-06
 
-Implemented, running, and covered by tests in this repository. **244 tests
-across 16 suites**, plus an end-to-end demonstration.
+Implemented, running, and covered by tests in this repository. **263 tests
+across 17 suites**, plus an end-to-end demonstration.
 
 | Component | Status | Evidence |
 |-----------|--------|----------|

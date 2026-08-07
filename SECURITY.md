@@ -243,12 +243,30 @@ prove it is trustworthy is by definition not yet trusted.
 call cannot be made without having attested first. An ordering that matters is
 not left to a caller remembering it.
 
-**Explicit non-claims.** No hardware vendor root certificates are bundled and no
-real SEV-SNP, TDX or NVIDIA attestation binary is parsed. Those formats are
-registered as unimplemented and **refuse**; the reference `ed25519-ref` format
-exists so every check is exercised against genuine cryptography. Attestation
-also shifts trust to the silicon vendor and the attestation chain — it narrows
-who must be trusted, it does not eliminate trust.
+**Explicit non-claims.** `tdx` and `nvidia-gpu` are registered as unimplemented
+and **refuse**. Attestation also shifts trust to the silicon vendor and the
+attestation chain — it narrows who must be trusted, it does not eliminate trust.
+
+### SEV-SNP, implemented and disabled
+
+`sev_snp.py` parses the real 1184-byte report, verifies ECDSA P-384 over
+SHA-384 against a VCEK, walks ARK → ASK → VCEK, and handles AMD's little-endian
+`r`/`s` encoding. It is **not** in `attest.default_registry()`, and `sev-snp`
+refuses on the default path, because **no report from real hardware has ever
+been run through it**.
+
+An unvalidated parser fails one of two ways: it always errors, or it reads the
+wrong 48 bytes as the measurement and passes. The second is unacceptable in a
+component whose only job is that passing means something, so the code stays
+unreachable until a known-answer vector from a real machine exists. A test
+asserts it is absent from the default registry; if that test ever fails,
+something was enabled without being validated.
+
+The verifier also refuses when the envelope disagrees with the signed report —
+measurement, debug flag, or nonce binding — so the outer checks cannot verify
+one thing while the signature covers another. `report_data` must carry the
+32-byte nonce hash and nothing else; bytes hidden in the remaining 32 are
+refused.
 
 ### Release policy across model tiers
 
