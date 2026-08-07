@@ -1,6 +1,6 @@
 # Blindkeep — Architecture and Feasibility
 
-**Version 0.4 · 2026-08-07 · zcashsensei**
+**Version 0.5 · 2026-08-07 · zcashsensei**
 *v0.1 2026-08-05: initial. v0.2: peer discovery, retrieval auditing,
 local-model memory and a gated hosted-model path implemented; limits revised.
 v0.3: pseudonymisation, an attestation framework and a tiered release policy
@@ -9,8 +9,9 @@ state the load-bearing limit first — no node has ever been run by anyone but t
 author, and no public network exists.
 v0.4: §3.4 clarified — "confidentiality needs no ZK" is a claim about
 confidentiality, not a claim that this design never needs proving; access-pattern
-privacy and proof of storage still do. Proving research moved to a separate
-project and is not imported here.*
+privacy and proof of storage still do.
+v0.5: zero-knowledge membership implemented — a holder proves they hold a record
+without naming it, bound to a signed head. Sigma protocols, O(n), no SNARK.*
 
 ---
 
@@ -132,10 +133,15 @@ this roadmap for the things a cipher cannot do, and is deliberately absent from
 the things it can — which is the whole of the argument in §3.4, not a rejection
 of proving.
 
-Proving research for this stack is carried out in a separate project,
-[zk-encrypted-intelligence](https://github.com/zcashsensei/zk-encrypted-intelligence)
-— halo2 circuits and sigma protocols — so that this repository can keep a single
-dependency and a narrow, checkable claim. No proof system is imported here.
+What IS implemented here is the third thing, and it is the reason this is a
+zero-knowledge project: **a holder can prove a statement about a record without
+naming the record.** The log constrains the node; these proofs let the holder
+speak. Membership is bound to a signed tree head, so a proof is about a specific
+keep in a specific state and transfers nowhere else.
+
+They are sigma protocols, not SNARKs — which costs O(n) proof size for keep
+membership and is exactly why §5.7's hash decision matters before circuits are
+written, not after.
 
 What encryption cannot do is hide *behaviour*. The node still observes which
 record is requested and when. Closing that gap requires private information
@@ -173,8 +179,8 @@ The verification layer does not become the bottleneck at any realistic scale.
 
 ## 4. What is verified — as of 2026-08-07
 
-Implemented, running, and covered by tests in this repository. **279 tests
-across 18 suites**, plus an end-to-end demonstration.
+Implemented, running, and covered by tests in this repository. **322 tests
+across 20 suites**, plus an end-to-end demonstration.
 
 | Component | Status | Evidence |
 |-----------|--------|----------|
@@ -476,7 +482,7 @@ their data here.
 | Distributed model weights | Achievable — with a real speed penalty |
 | Private queries (PIR) | Achievable — expensive, scope carefully |
 | Verifiable inference (zkML) | Research. Roadmap only. Never a shipping claim |
-| Proving research (halo2, sigma protocols) | Separate project; **not imported here** |
+| ZK property proofs + keep membership | **Built and verified** — sigma protocols, O(n), unaudited |
 | Distributed KV cache | **Withdrawn — ruled out by bandwidth arithmetic** |
 | **External validation** | **None. Every claim is self-verified** |
 | Sustainable economics | **Unverified. The principal risk** |

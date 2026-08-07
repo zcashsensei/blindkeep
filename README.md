@@ -9,16 +9,16 @@
 <p align="center">
   <img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License: MIT">
   <img src="https://img.shields.io/badge/python-3.10%2B-blue.svg" alt="Python 3.10+">
-  <img src="https://img.shields.io/badge/tests-279%20passing-brightgreen.svg" alt="279 tests passing">
+  <img src="https://img.shields.io/badge/tests-322%20passing-brightgreen.svg" alt="322 tests passing">
   <img src="https://img.shields.io/badge/status-v0%20alpha-orange.svg" alt="v0 alpha">
   <img src="https://img.shields.io/badge/dependencies-1-lightgrey.svg" alt="1 dependency">
 </p>
 
 <p align="center">
-  <sub><b>Status as of 2026-08-07</b> · v0 alpha · 279 tests passing ·
+  <sub><b>Status as of 2026-08-07</b> · v0 alpha · 322 tests passing ·
   replication, peer discovery, retrieval audits, key recovery, local-model
-  memory, pseudonymisation and an attestation framework implemented · <b>no
-  proving system here by design — see zk-encrypted-intelligence</b> ·
+  memory, pseudonymisation, an attestation framework and <b>zero-knowledge
+  membership</b> implemented · sigma protocols, not SNARKs — no zkML ·
   <b>runs on one machine today — no public node
   network exists, and no node has ever been run by anyone but the author</b> ·
   run <code>blindkeep status</code> for a count computed from the source</sub>
@@ -91,9 +91,9 @@ Any one failing raises instead of returning data. These are enforced by
 [`tests/test_adversarial.py`](tests/test_adversarial.py), which stands up **real
 malicious nodes** and asserts the client refuses them.
 
-## Where zero-knowledge belongs, and where it does not
+## Zero-knowledge, where it earns its cost
 
-Integrity and confidentiality of stored memory do not require ZK at all. Using
+Integrity and confidentiality of stored memory do not require ZK, and using
 proofs for them would be expensive decoration:
 
 | Goal | Tempting default | What Blindkeep uses |
@@ -103,31 +103,64 @@ proofs for them would be expensive decoration:
 | Node cannot read data | ZK proof | Client-side AES-256-GCM |
 | Append-only history | Trust | Consistency proof + pinned head |
 
-**There is no zero-knowledge proving in this repository, and that is deliberate.**
-Every property Blindkeep claims — the node cannot read a record, cannot alter
-one, cannot rewrite history — is achieved with a cipher and a transparency log,
-which are cheaper, auditable, and already standard.
+**Where ZK is irreplaceable is the other side of the relationship.** The log
+proves the *node* honest. It does nothing for the *holder*, who cannot say
+anything about a record without naming it — `get(index)` names the index, and an
+inclusion proof reveals the leaf and its whole sibling path. So:
 
-Where ZK genuinely earns its cost is a different question: proving a property of
-data *without disclosing the data*. That work lives in a separate project,
-[zk-encrypted-intelligence](https://github.com/zcashsensei/zk-encrypted-intelligence)
-— halo2 circuits and pure-Python sigma protocols — so this repository keeps its
-single dependency and its narrow claim.
+```bash
+# prove you hold a record in this keep, without revealing which
+blindkeep prove-in-keep --index 1 --out p.json
+blindkeep verify-in-keep --proof p.json
+# VERIFIED: the prover holds one of the 4 records in this keep.
+#           Which one is not revealed.
+```
 
-Still not claimed here: private queries (PIR), proof of storage, and verifiable
-inference.
+The proof carries no index, and every record produces a proof of identical
+shape. It is bound to a **signed tree head**, so a proof about a keep of 4
+records does not verify against the same keep at 5, and never against a
+different keep — the proof system and the transparency log are one mechanism,
+not two.
+
+Alongside it, four predicates about committed values:
+
+| Proof | Statement | Reveals |
+|-------|-----------|---------|
+| Opening | "I know what this commits to" | nothing |
+| Equality | "these two commit to the same value" | nothing |
+| Membership | "the value is one of *these*" | not which one |
+| Range | "0 ≤ value < 2ⁿ" | nothing but the bound |
+
+Pedersen commitments and sigma protocols (Schnorr, OR-composition) made
+non-interactive by Fiat-Shamir, over RFC 3526 MODP Group 14 — built from `int`
+arithmetic and `hashlib`, so **the dependency count is still one.**
+
+**The invariant that makes them proofs rather than theatre:** the Fiat-Shamir
+challenge binds the entire statement — group, generators, commitments, tree head
+— length-prefixed so no two statements serialise alike. This project's oldest
+lesson, in its fourth register: *a valid proof is not an answer to your
+question.*
+
+**Honest costs.** These are **not SNARKs**: a fixed set of algebraic predicates,
+not arbitrary computation, and no zkML. Keep membership is an OR-proof across
+every leaf, so proofs are **O(n)** — about 1 KB per record, fine at 40 records
+and impractical at 40,000, and `keep_leaves` refuses rather than hanging. Making
+it O(log n) means proving a Merkle path inside a circuit, which needs a SNARK
+and a ZK-friendly hash — the decision the next section is about. The code is
+standard, carefully written, adversarially tested, and **unaudited**, which is
+not the same as reviewed by a cryptographer.
+
+Still not claimed: private queries (PIR), proof of storage, verifiable inference.
 
 ## Building toward zero-knowledge: the hash is the decision
 
 The long-term aim is for proving to become the heart of the system rather than a
 layer on top — private queries and continuous storage proofs, not just a
-tamper-evident log. That direction is a bet, not a claim: **there is no proof
-system in this repository at all**, and the circuits it would eventually use are
-being built and tested separately, in
-[zk-encrypted-intelligence](https://github.com/zcashsensei/zk-encrypted-intelligence).
+tamper-evident log. The proofs above are real and they are sigma protocols:
+**there is no SNARK in the code today**, and keep membership pays O(n) for it.
 
-But one decision has to be made *here*, before any circuit is written, because it
-cannot be retrofitted once heads are published.
+One decision has to be made before any circuit is written, because it cannot be
+retrofitted once heads are published.
 
 **Inside a SNARK, the hash function dominates the cost.** Proving a Merkle
 inclusion path means re-executing every hash on that path as arithmetic
@@ -317,13 +350,15 @@ blindkeep/
   ollama_mem.py local-model memory loop (loopback enforced)
   attest.py     remote attestation: 5 checks, refuse on any failure
   memory_gate.py one memory layer, any model, release by PROVEN tier
+  zk.py         commitments + sigma proofs: prove a property, reveal nothing
+  zk_keep.py    prove you hold a record here, without saying which
   sev_snp.py    AMD SEV-SNP report verification — OFF by default, unvalidated
   status.py     what the repo contains, counted not claimed
   cloud_gate.py  opt-in hosted-model path — NOT PRIVATE
   vault_proxy.py reversible pseudonymisation for that path — SMALLER disclosure
   _console.py   terminal output helpers
   cli.py        command-line interface
-tests/          18 suites, 279 tests
+tests/          20 suites, 322 tests
 ```
 
 ## Replication
