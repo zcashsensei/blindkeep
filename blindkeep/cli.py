@@ -248,6 +248,17 @@ def _gate_backend(args, client):
                                             recall=0),
             prover=loopback_prover(args.ollama_base))
 
+    # Every tier above local sends somewhere, and Blindkeep does not pick the
+    # somewhere. A shipped default endpoint is an endorsement, and on the paths
+    # that disclose it is the one choice the user must make consciously.
+    if not args.api_base:
+        raise CliError(
+            f"--api-base is required for --tier {tier.label}\n"
+            f"  Blindkeep does not choose a provider for you. Any endpoint "
+            f"speaking the /v1/chat/completions format works, e.g.\n"
+            f"    --api-base https://api.x.ai --model grok-4.3\n"
+            f"    --api-base http://127.0.0.1:8000 --model <self-hosted>")
+
     api_key = args.api_key or os.environ.get("BLINDKEEP_CLOUD_KEY", "")
 
     if tier is Tier.ATTESTED:
@@ -599,10 +610,11 @@ def build_parser() -> argparse.ArgumentParser:
     cc = sub.add_parser("cloud-chat",
                         help="send a prompt to a hosted model — NOT PRIVATE")
     cc.add_argument("--text", required=True)
-    cc.add_argument("--api-base", default="https://api.openai.com")
+    cc.add_argument("--api-base", required=True,
+                    help="required: Blindkeep does not choose a provider for you")
     cc.add_argument("--api-key", default=None,
                     help="or set BLINDKEEP_CLOUD_KEY; a flag is visible in shell history")
-    cc.add_argument("--model", default="gpt-4o-mini")
+    cc.add_argument("--model", required=True)
     cc.add_argument("--system", default=None)
     cc.add_argument("--redact", action="store_true",
                     help="best-effort secret removal; NOT a privacy guarantee")
@@ -625,10 +637,11 @@ def build_parser() -> argparse.ArgumentParser:
                     help="a value to pseudonymise as PERSON (repeatable)")
     pc.add_argument("--declare-as", action="append", default=[],
                     help="KIND:VALUE, e.g. ORG:Acme (repeatable)")
-    pc.add_argument("--api-base", default="https://api.openai.com")
+    pc.add_argument("--api-base", required=True,
+                    help="required: Blindkeep does not choose a provider for you")
     pc.add_argument("--api-key", default=None,
                     help="or set BLINDKEEP_CLOUD_KEY; a flag is visible in shell history")
-    pc.add_argument("--model", default="gpt-4o-mini")
+    pc.add_argument("--model", required=True)
     pc.add_argument("--system", default=None)
     pc.add_argument("--enable-cloud", action="store_true")
     pc.add_argument("--i-accept-not-private", action="store_true")
@@ -666,7 +679,8 @@ def build_parser() -> argparse.ArgumentParser:
     gc.add_argument("--system", default=None)
     gc.add_argument("--model", default="llama3.2")
     gc.add_argument("--ollama-base", default="http://127.0.0.1:11434")
-    gc.add_argument("--api-base", default="https://api.openai.com")
+    gc.add_argument("--api-base", default=None,
+                    help="required for every tier except local: Blindkeep does not choose a provider for you")
     gc.add_argument("--api-key", default=None,
                     help="or set BLINDKEEP_CLOUD_KEY; a flag is visible in shell history")
     gc.add_argument("--attest-url", default=None,

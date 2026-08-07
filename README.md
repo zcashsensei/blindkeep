@@ -9,13 +9,13 @@
 <p align="center">
   <img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License: MIT">
   <img src="https://img.shields.io/badge/python-3.10%2B-blue.svg" alt="Python 3.10+">
-  <img src="https://img.shields.io/badge/tests-263%20passing-brightgreen.svg" alt="263 tests passing">
+  <img src="https://img.shields.io/badge/tests-265%20passing-brightgreen.svg" alt="265 tests passing">
   <img src="https://img.shields.io/badge/status-v0%20alpha-orange.svg" alt="v0 alpha">
   <img src="https://img.shields.io/badge/dependencies-1-lightgrey.svg" alt="1 dependency">
 </p>
 
 <p align="center">
-  <sub><b>Status as of 2026-08-06</b> · v0 alpha · 263 tests passing · replication,
+  <sub><b>Status as of 2026-08-06</b> · v0 alpha · 265 tests passing · replication,
   peer discovery, retrieval audits, key recovery and local-model memory
   implemented · no proving system implemented · not yet run by anyone but the author</sub>
 </p>
@@ -249,7 +249,7 @@ blindkeep/
   vault_proxy.py reversible pseudonymisation for that path — SMALLER disclosure
   _console.py   terminal output helpers
   cli.py        command-line interface
-tests/          17 suites, 263 tests
+tests/          17 suites, 265 tests
 ```
 
 ## Replication
@@ -329,8 +329,13 @@ two separate acknowledgements and cannot be entered by accident:
 
 ```bash
 python -m blindkeep cloud-chat --enable-cloud --i-accept-not-private \
-  --model gpt-4o-mini --text "..." --redact
+  --api-base https://api.x.ai --model grok-4.3 --text "..." --redact
 ```
+
+`--api-base` and `--model` are **required, with no default**. Any endpoint
+speaking the `/v1/chat/completions` format works — xAI, a self-hosted vLLM, or
+anything else — because Blindkeep does not choose a provider for you, and on a
+path that discloses, that is the one choice you should make consciously.
 
 Nothing in the default paths imports it — enforced by a test. `--redact` removes
 obvious secrets on a best-effort basis and is **not** a privacy control: pattern
@@ -348,6 +353,7 @@ without the identities in it:
 
 ```bash
 python -m blindkeep private-chat --enable-cloud --i-accept-not-private \
+  --api-base https://api.x.ai --model grok-4.3 \
   --declare "Sarah Whitfield" --declare-as "ORG:Acme Holdings" \
   --text "Sarah Whitfield at Acme Holdings owes 4000"
 # on the wire: <PERSON_0_b75298> at <ORG_0_b75298> owes 4000
@@ -388,8 +394,12 @@ decides which memories may cross to which tier.
 ```bash
 blindkeep gate-chat --tier attested --text "what do you know about me?" \
   --attest-url https://host.example/attest \
+  --api-base https://host.example --model <model> \
   --measurement <approved-code-hash> --root <vendor-key>
 ```
+
+`--tier local` needs no endpoint. Every tier that sends somewhere requires
+`--api-base` explicitly — there is no default provider, by design.
 
 | Sensitivity | Minimum tier | Reaches an open hosted model? |
 |-------------|--------------|-------------------------------|

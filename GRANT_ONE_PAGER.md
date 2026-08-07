@@ -49,7 +49,7 @@ The missing layer is memory that is **durable**, **structurally private** (opera
 | Ed25519 signed tree heads | crypto + client verification |
 | Full client verify pipeline (5 checks) | `blindkeep/client.py`, 9 adversarial tests with malicious HTTP nodes |
 | Single-node HTTP API + CLI | `node.py`, `demo.py` |
-| Command-line surface, no implicit key creation | `cli.py`, 13 tests |
+| Command-line surface, no implicit key creation | `cli.py`, 15 tests |
 | Multi-node replication + quorum reads | `replica.py`, 12 tests |
 | Metadata minimisation (encrypted labels, padded sizes) | `store.py`, 8 tests |
 | Key recovery: codes, passphrase backups, k-of-n Shamir shares | `recovery.py`, 21 tests |
@@ -65,7 +65,7 @@ The missing layer is memory that is **durable**, **structurally private** (opera
 | Security write-up of fixed bugs | `SECURITY.md` |
 | Cryptographic claim boundaries | `CRYPTO_FOUNDATIONS.md` |
 
-**Automated suite (2026-08-06):** **263 tests** across 17 suites + end-to-end demo — Merkle 13 · store 5 · metadata 8 · adversarial 9 · replication 12 · recovery 21 · hardening 12 · discovery 18 · audit 10 · local-model memory 13 · cloud gate 13 · CLI 13 · console 8 · vault proxy 30 · attestation 30 · memory gate 29 · SEV-SNP 19.
+**Automated suite (2026-08-06):** **265 tests** across 17 suites + end-to-end demo — Merkle 13 · store 5 · metadata 8 · adversarial 9 · replication 12 · recovery 21 · hardening 12 · discovery 18 · audit 10 · local-model memory 13 · cloud gate 13 · CLI 15 · console 8 · vault proxy 30 · attestation 30 · memory gate 29 · SEV-SNP 19.
 
 **Not claimed as shipping:** anti-equivocation witnesses, proof of *storage* (as distinct from the retrieval auditing that is implemented), PIR, zkML, token incentives, and **validated hardware attestation**. The framework and its five checks are implemented and tested; a full SEV-SNP report parser and verifier is implemented (`sev_snp.py`, 19 tests) but has never been run against a report from real hardware, so it is deliberately excluded from the default registry and `sev-snp` refuses on the default path. TDX and NVIDIA GPU formats refuse outright. No vendor root certificates are bundled.
 
@@ -98,7 +98,7 @@ Full statement: [`CRYPTO_FOUNDATIONS.md`](CRYPTO_FOUNDATIONS.md).
 
 | Phase | Deliverable | Status |
 |-------|-------------|--------|
-| **M0** | Public MIT repo, docs, 263 tests | **done** |
+| **M0** | Public MIT repo, docs, 265 tests | **done** |
 | **M0b** | Replication, peer discovery, retrieval auditing, key recovery, local-model memory | **done** |
 | **M1** | **Three nodes operated by people who are not the applicant**, serving one client | **the next milestone** |
 | **M2** | Operator runbooks, packaging, CI, free community pool design | funded work |

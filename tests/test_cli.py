@@ -222,6 +222,40 @@ def test_roundtrip_leaves_exactly_one_key():
     assert secrets_under(work) == ["master.key"], secrets_under(work)
 
 
+def test_hosted_paths_require_an_explicit_endpoint():
+    """Blindkeep must not ship an opinion about whose cloud gets your data.
+
+    A default `--api-base` is an endorsement, and on the paths that disclose it
+    is the one choice a user has to make consciously. argparse enforces it for
+    cloud-chat and private-chat.
+    """
+    for cmd in ("cloud-chat", "private-chat"):
+        err = io.StringIO()
+        try:
+            with redirect_stderr(err), redirect_stdout(io.StringIO()):
+                main([cmd, "--text", "hi", "--enable-cloud",
+                      "--i-accept-not-private"])
+        except SystemExit as exc:
+            assert exc.code != 0, f"{cmd} accepted a missing endpoint"
+            assert "--api-base" in err.getvalue(), (
+                f"{cmd} failed without naming --api-base: {err.getvalue()}")
+            continue
+        raise AssertionError(f"{cmd} ran with no endpoint")
+
+
+def test_gate_chat_requires_an_endpoint_above_local():
+    """local needs no endpoint; every tier that sends somewhere does."""
+    err, out = io.StringIO(), io.StringIO()
+    with redirect_stderr(err), redirect_stdout(out):
+        code = main(["gate-chat", "--tier", "open", "--text", "hi",
+                     "--enable-cloud", "--i-accept-not-private"])
+    assert code != 0, "gate-chat sent to an unspecified provider"
+    msg = err.getvalue() + out.getvalue()
+    assert "--api-base is required" in msg, msg
+    assert "does not choose a provider for you" in msg, (
+        "the refusal did not explain the reason")
+
+
 def run():
     tests = [(k, v) for k, v in sorted(globals().items()) if k.startswith("test_")]
     passed, failed = [], []
