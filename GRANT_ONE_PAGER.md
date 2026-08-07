@@ -72,7 +72,7 @@ The missing layer is memory that is **durable**, **structurally private** (opera
 | Security write-up of fixed bugs | `SECURITY.md` |
 | Cryptographic claim boundaries | `CRYPTO_FOUNDATIONS.md` |
 
-**Automated suite (2026-08-07):** **389 tests** across 23 suites + end-to-end demo — Merkle 13 · store 5 · metadata 8 · adversarial 9 · replication 12 · recovery 21 · hardening 12 · discovery 18 · audit 10 · local-model memory 13 · cloud gate 13 · CLI 15 · console 8 · vault proxy 30 · attestation 30 · memory gate 29 · SEV-SNP 19 · status 14 · zk 31 · zk-keep 12 · poseidon 15 · delegate 17 · sealed-tier composition · anon-token 15.
+**Automated suite (2026-08-07):** **391 tests** across 23 suites + end-to-end demo — Merkle 13 · store 5 · metadata 8 · adversarial 9 · replication 12 · recovery 21 · hardening 12 · discovery 18 · audit 10 · local-model memory 13 · cloud gate 13 · CLI 15 · console 8 · vault proxy 30 · attestation 30 · memory gate 29 · SEV-SNP 19 · status 14 · zk 31 · zk-keep 12 · poseidon 15 · delegate 17 · sealed-tier composition · anon-token 15.
 
 **Not claimed as shipping:** anti-equivocation witnesses, proof of *storage* (as distinct from the retrieval auditing that is implemented), PIR, general-purpose proving and zkML, token incentives, and **validated hardware attestation**. The framework and its five checks are implemented and tested; a full SEV-SNP report parser and verifier is implemented (`sev_snp.py`, 19 tests) but has never been run against a report from real hardware, so it is deliberately excluded from the default registry and `sev-snp` refuses on the default path. TDX and NVIDIA GPU formats refuse outright. No vendor root certificates are bundled.
 
@@ -105,7 +105,7 @@ Full statement: [`CRYPTO_FOUNDATIONS.md`](CRYPTO_FOUNDATIONS.md).
 
 | Phase | Deliverable | Status |
 |-------|-------------|--------|
-| **M0** | Public MIT repo, docs, 389 tests | **done** |
+| **M0** | Public MIT repo, docs, 391 tests | **done** |
 | **M0b** | Replication, peer discovery, retrieval auditing, key recovery, local-model memory | **done** |
 | **M1** | **Three nodes operated by people who are not the applicant**, serving one client | **the next milestone** |
 | **M2** | Operator runbooks, packaging, CI, free community pool design | funded work |

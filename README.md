@@ -10,14 +10,14 @@
 <p align="center">
   <img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License: MIT">
   <img src="https://img.shields.io/badge/python-3.10%2B-blue.svg" alt="Python 3.10+">
-  <img src="https://img.shields.io/badge/tests-389%20passing-brightgreen.svg" alt="389 tests passing">
+  <img src="https://img.shields.io/badge/tests-391%20passing-brightgreen.svg" alt="391 tests passing">
   <img src="https://img.shields.io/badge/status-v0%20alpha-orange.svg" alt="v0 alpha">
   <img src="https://img.shields.io/badge/dependencies-1-lightgrey.svg" alt="1 dependency">
   <img src="https://img.shields.io/badge/zero--knowledge-sigma%20protocols-6E4B9E.svg" alt="Zero-knowledge: sigma protocols">
 </p>
 
 <p align="center">
-  <sub><b>Status as of 2026-08-07</b> · v0 alpha · 389 tests passing ·
+  <sub><b>Status as of 2026-08-07</b> · v0 alpha · 391 tests passing ·
   replication, peer discovery, retrieval audits, key recovery, local-model
   memory, pseudonymisation, an attestation framework and <b>zero-knowledge
   membership</b> implemented · sigma protocols, not SNARKs — no zkML ·
@@ -458,7 +458,7 @@ circuits/       halo2 membership circuit + the blindkeep-prove binary (Rust)
   anon_token.py blind-signed entitlement: prove you may ask, not who you are
   _console.py   terminal output helpers
   cli.py        command-line interface
-tests/          23 suites, 389 tests
+tests/          23 suites, 391 tests
 ```
 
 ## Replication
@@ -700,6 +700,18 @@ keep, every backend sits on a **trust tier it has to prove**, and a policy
 decides which memories may cross to which tier.
 
 ```bash
+# strongest tier that still uses somebody else's compute
+blindkeep token issue --out token.json
+blindkeep gate-chat --tier sealed --text "what do you know about me?" \
+  --local-model llama3.2 --anon-token token.json \
+  --attest-url https://host.example/attest \
+  --api-base https://host.example --model <model> \
+  --measurement <approved-code-hash> --root <vendor-key>
+
+# no special hardware needed — abstraction only, any provider
+blindkeep gate-chat --tier delegated --text "..." --local-model llama3.2 \
+  --api-base https://api.x.ai --model grok-4.3 --anon-token token.json
+
 blindkeep gate-chat --tier attested --text "what do you know about me?" \
   --attest-url https://host.example/attest \
   --api-base https://host.example --model <model> \
