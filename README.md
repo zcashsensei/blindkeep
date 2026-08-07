@@ -121,9 +121,13 @@ inference.
 
 The long-term aim is for proving to become the heart of the system rather than a
 layer on top — private queries and continuous storage proofs, not just a
-tamper-evident log. That direction is a bet, not a claim: **there is no SNARK in
-the code today.** But one decision has to be made before circuits are written,
-because it cannot be retrofitted after heads are published.
+tamper-evident log. That direction is a bet, not a claim: **there is no proof
+system in this repository at all**, and the circuits it would eventually use are
+being built and tested separately, in
+[zk-encrypted-intelligence](https://github.com/zcashsensei/zk-encrypted-intelligence).
+
+But one decision has to be made *here*, before any circuit is written, because it
+cannot be retrofitted once heads are published.
 
 **Inside a SNARK, the hash function dominates the cost.** Proving a Merkle
 inclusion path means re-executing every hash on that path as arithmetic

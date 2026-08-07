@@ -1,12 +1,16 @@
 # Blindkeep — Architecture and Feasibility
 
-**Version 0.3 · 2026-08-07 · zcashsensei**
+**Version 0.4 · 2026-08-07 · zcashsensei**
 *v0.1 2026-08-05: initial. v0.2: peer discovery, retrieval auditing,
 local-model memory and a gated hosted-model path implemented; limits revised.
 v0.3: pseudonymisation, an attestation framework and a tiered release policy
 implemented; a SEV-SNP verifier written but deliberately disabled; §7 revised to
 state the load-bearing limit first — no node has ever been run by anyone but the
-author, and no public network exists.*
+author, and no public network exists.
+v0.4: §3.4 clarified — "confidentiality needs no ZK" is a claim about
+confidentiality, not a claim that this design never needs proving; access-pattern
+privacy and proof of storage still do. Proving research moved to a separate
+project and is not imported here.*
 
 ---
 
@@ -110,8 +114,28 @@ verifiability without the proof system needing to conceal anything, which is why
 the design achieves both properties without a proving system in the critical
 path.
 
-The practical consequence: the confidentiality guarantee does not depend on any
-future zero-knowledge work. It holds today.
+The practical consequence, stated precisely because the loose version is
+misleading: **the confidentiality guarantee does not depend on any future
+zero-knowledge work.** It holds today, from a cipher.
+
+That is a claim about confidentiality alone. It is *not* a claim that this
+design never needs zero-knowledge. Two properties it does not have require
+exactly that, and no amount of encryption substitutes:
+
+- **access-pattern privacy** — hiding *which* record was read, which needs PIR
+  (§5.4), and
+- **proof of storage** — compelling a node to actually hold data rather than
+  fetch it on demand (§5.2).
+
+Both are open. Neither is bluffed here. Zero-knowledge work therefore belongs on
+this roadmap for the things a cipher cannot do, and is deliberately absent from
+the things it can — which is the whole of the argument in §3.4, not a rejection
+of proving.
+
+Proving research for this stack is carried out in a separate project,
+[zk-encrypted-intelligence](https://github.com/zcashsensei/zk-encrypted-intelligence)
+— halo2 circuits and sigma protocols — so that this repository can keep a single
+dependency and a narrow, checkable claim. No proof system is imported here.
 
 What encryption cannot do is hide *behaviour*. The node still observes which
 record is requested and when. Closing that gap requires private information
@@ -452,6 +476,7 @@ their data here.
 | Distributed model weights | Achievable — with a real speed penalty |
 | Private queries (PIR) | Achievable — expensive, scope carefully |
 | Verifiable inference (zkML) | Research. Roadmap only. Never a shipping claim |
+| Proving research (halo2, sigma protocols) | Separate project; **not imported here** |
 | Distributed KV cache | **Withdrawn — ruled out by bandwidth arithmetic** |
 | **External validation** | **None. Every claim is self-verified** |
 | Sustainable economics | **Unverified. The principal risk** |
