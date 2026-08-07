@@ -46,7 +46,11 @@ These are **not** Blindkeep’s inventions. Their security arguments live in the
 
 **What this proves (informally):** an adversary without the client key cannot recover plaintext from stored blobs (computational security of AES-GCM).
 
-**What it does not prove:** metadata privacy (sizes, access patterns, labels).
+**What it does not prove:** metadata privacy — access pattern, record count and
+timing. Labels are no longer among these: they are encrypted with the record and
+bound as AAD, so the node receives an empty label field
+(`blindkeep/client.py`). Sizes are padded to fixed buckets, which reveals a
+bucket rather than an exact length.
 
 ### 2.2 Authenticity of tree heads — Ed25519
 
@@ -88,7 +92,7 @@ These are **not** Blindkeep’s inventions. Their security arguments live in the
 If assumptions hold and a client has pinned head \(H_m = (\mathsf{size}=m, \mathsf{root}=R_m)\) with a valid signature, then any later head \(H_n\) (\(n \ge m\)) that verifies as a consistent extension, together with an inclusion proof for leaf \(\ell\) at index \(i < n\), implies: \(\ell\) was in the append-only sequence of leaves committed by that node’s signed history from \(m\) onward. Altering, reordering, or dropping an earlier leaf breaks consistency or inclusion against \(R_m\) / \(R_n\).
 
 **Informal theorem (confidentiality).**  
-If assumptions hold and the master key never leaves the client, the node’s view (ciphertext, ids, sizes, optional plaintext labels) does not reveal record contents (except via metadata side channels and label misuse).
+If assumptions hold and the master key never leaves the client, the node’s view (ciphertext, record ids, padded sizes, and timing) does not reveal record contents, except via those metadata side channels. Labels are inside the AEAD and bound as AAD, so they are neither readable by the node nor substitutable between records.
 
 These are **standard composition arguments**, not a new complexity-theoretic breakthrough. They are the correct level of rigor for a CT-style storage log.
 

@@ -91,8 +91,10 @@ accurate as the code changes:
 
 - **What is protected** — currently confidentiality of record contents, and
   detection of tampering, reordering, dropping and substitution.
-- **What is not** — currently metadata: record counts, ciphertext sizes,
-  timestamps, access patterns, and plaintext labels.
+- **What is not** — currently metadata: record counts, bucketed ciphertext
+  sizes, timestamps, and access patterns. Labels used to be on this list and no
+  longer are: they travel inside the AEAD, so the node stores an empty label
+  field.
 
 If a change alters either list, the README changes in the same pull request.
 

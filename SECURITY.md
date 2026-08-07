@@ -1,6 +1,6 @@
 # Security
 
-**Version 0.2 · 2026-08-06 · applies to Blindkeep v0 alpha**
+**Version 0.3 · 2026-08-07 · applies to Blindkeep v0 alpha**
 
 ## Threat model
 

@@ -1,8 +1,12 @@
 # Blindkeep — Architecture and Feasibility
 
-**Version 0.2 · 2026-08-06 · zcashsensei**
+**Version 0.3 · 2026-08-07 · zcashsensei**
 *v0.1 2026-08-05: initial. v0.2: peer discovery, retrieval auditing,
-local-model memory and a gated hosted-model path implemented; limits revised.*
+local-model memory and a gated hosted-model path implemented; limits revised.
+v0.3: pseudonymisation, an attestation framework and a tiered release policy
+implemented; a SEV-SNP verifier written but deliberately disabled; §7 revised to
+state the load-bearing limit first — no node has ever been run by anyone but the
+author, and no public network exists.*
 
 ---
 
@@ -143,7 +147,7 @@ The verification layer does not become the bottleneck at any realistic scale.
 
 ---
 
-## 4. What is verified — as of 2026-08-06
+## 4. What is verified — as of 2026-08-07
 
 Implemented, running, and covered by tests in this repository. **279 tests
 across 18 suites**, plus an end-to-end demonstration.
@@ -163,7 +167,12 @@ across 18 suites**, plus an end-to-end demonstration.
 | Retrieval auditing | Complete | 10 tests separating offline, lost-data and dishonest nodes |
 | Local-model memory loop | Complete | 13 tests, loopback enforced, no hosted-provider path |
 | Gated hosted-model path | Complete | 13 tests asserting it stays closed by default |
-| Command-line surface | Complete | 13 tests, including that no command creates a master key as a side effect |
+| Reversible pseudonymisation on that path | Complete | 30 tests, four of which pass by demonstrating the limits |
+| Attestation framework | Complete | 30 tests; a replayed but genuine report is refused |
+| Release policy across model tiers | Complete | 29 tests; an unproven tier claim is demoted, not honoured |
+| SEV-SNP report verification | **Written, disabled** | 19 tests, all against synthetic reports; never run against real hardware, so it is excluded from the default registry |
+| Self-reporting inventory | Complete | 14 tests; counts computed from source, non-claims listed |
+| Command-line surface | Complete | 15 tests, including that no command creates a master key as a side effect |
 
 The adversarial suites are the substantive claim. They stand up nodes that
 substitute records, fork history at equal length, forge heads, tamper with
@@ -381,7 +390,22 @@ Stated plainly:
 - **The hosted-model path discloses.** It is opt-in, requires two separate
   acknowledgements, and is imported by no default code path — but a user who
   chooses it has disclosed that prompt. Redaction is best-effort pattern
-  matching and is not a privacy control.
+  matching and is not a privacy control. Pseudonymisation narrows the
+  disclosure and does not remove it: it substitutes identifiers, not
+  identifiability.
+- **No node has ever been run by anyone but the author.** This is the load-
+  bearing limit and it is not technical. Every result in §4 was produced against
+  nodes the author operates, while the entire design assumes a node is hostile.
+  The cryptography is standard and the adversarial tests stand up genuinely
+  malicious nodes, but "this survives a stranger's node" remains argued rather
+  than observed. There is also no public node network, so a user today stores on
+  hardware they own — which makes the accurate present description *encrypted,
+  tamper-evident memory on your own machine*, not a distributed one.
+- **Attestation is implemented, not validated.** The framework and its five
+  checks are tested, and a full SEV-SNP report verifier exists — but it has
+  never parsed a report from real hardware, so it is deliberately excluded from
+  the default registry and that format refuses. Attestation would also shift
+  trust to a silicon vendor rather than remove it.
 
 ---
 

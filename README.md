@@ -15,9 +15,12 @@
 </p>
 
 <p align="center">
-  <sub><b>Status as of 2026-08-06</b> · v0 alpha · 279 tests passing · replication,
-  peer discovery, retrieval audits, key recovery and local-model memory
-  implemented · no proving system implemented · not yet run by anyone but the author</sub>
+  <sub><b>Status as of 2026-08-07</b> · v0 alpha · 279 tests passing ·
+  replication, peer discovery, retrieval audits, key recovery, local-model
+  memory, pseudonymisation and an attestation framework implemented · no
+  proving system implemented · <b>runs on one machine today — no public node
+  network exists, and no node has ever been run by anyone but the author</b> ·
+  run <code>blindkeep status</code> for a count computed from the source</sub>
 </p>
 
 ---
@@ -28,8 +31,47 @@ Blindkeep is privacy-preserving infrastructure for AI memory. Clients encrypt
 everything locally; storage nodes hold **ciphertext they have no key for**,
 committed to an **append-only Merkle log** they cannot alter undetected.
 
-v0 ships the memory layer. There is no token, no chain, no SNARK, and **no calls
-to any cloud LLM provider** — a design constraint, verified by a test.
+v0 ships the memory layer. There is no token, no chain and no SNARK. Hosted
+models *are* reachable, through paths that require two separate
+acknowledgements and say plainly what they disclose — but **no default path
+imports them**, and that is the constraint a test actually verifies.
+
+## What you get today
+
+Verified by cloning this repository fresh and running it with nothing else
+present, so the list below is what actually happens rather than what is
+intended.
+
+**Works immediately** — one dependency, no account, no server of ours involved:
+
+- run a node, store a memory, read it back, see a signed Merkle root
+- confirm the node cannot read what it holds. Search its storage files for what
+  you typed: neither the **contents** nor the **labels** are there
+- back up your key as a written code, a passphrase file, or k-of-n shares
+- run the adversarial suite, which stands up genuinely malicious nodes and
+  asserts the client refuses them
+- `blindkeep status` — every capability detected from source, including what is
+  *not* done
+
+**Needs one more thing:**
+
+| To do this | You need |
+|------------|----------|
+| `chat` — an AI that remembers you, nothing leaving the machine | Ollama installed |
+| `private-chat` — a hosted model with identities substituted | an API key, and `--api-base` |
+| `gate-chat --tier attested` | an enclave speaking the attestation protocol — **nobody runs one** |
+| replication, `peers`, `audit` | more than one node, meaning a second machine |
+
+**Expect these limits, stated plainly.** There is no public node network, so
+`peers` finds nothing and you are storing on hardware you own. That makes the
+honest description of Blindkeep today *encrypted, tamper-evident memory on your
+own machine* — a real thing, and a smaller one than "distributed network".
+
+And the headline property deserves the same honesty: the design treats a node as
+hostile, the cryptography is standard, and the adversarial tests are real — but
+**every node that has ever run Blindkeep was operated by its author.** That the
+guarantee holds against a stranger's node is argued, not yet observed. Changing
+that is the next milestone, and it cannot be done alone.
 
 ## The guarantee
 
@@ -129,6 +171,9 @@ pip install -e .
 Either one installs a `blindkeep` command. From a clone you can equally skip
 installing and use `python -m blindkeep ...` with `pip install -r
 requirements.txt`; the two forms are interchangeable everywhere below.
+
+<sub>Not on PyPI yet, which is why the install line points at the repository.
+`pip install blindkeep` does not work.</sub>
 
 ## Quick start
 
@@ -302,6 +347,13 @@ A peer list supplies candidate addresses only. Every node is still verified
 independently on use, so an entry grants no trust. URLs are validated before
 contact — cloud metadata addresses are refused outright, and a bootstrap
 endpoint cannot displace a locally pinned public key.
+
+**There is no public node network, so this finds nothing unless you point it at
+nodes you run.** The discovery, replication and audit machinery is implemented
+and tested against nodes on one machine; what has not happened is anyone else
+running one. If you stand up a node and are willing to be a stranger to the
+author, that is the single most useful contribution this project can receive —
+see [Contributing](#contributing).
 
 ### Auditing nodes
 
@@ -498,21 +550,28 @@ beyond an equality check.
 
 ## Roadmap
 
+0. **Nodes run by people who are not the author.** Listed first and numbered
+   zero because everything below is code one person can write alone, and all of
+   it is already written. What has not been shown is that the untrusted-node
+   design survives contact with an actual stranger's node — and that is the only
+   thing separating this from a well-tested single-user tool.
 1. Witnessing against equivocation — a node showing different histories to
    different clients is not yet detectable
 2. Proof of *storage* rather than retrieval, so a node must hold data rather
    than merely obtain it
-3. Sharded model-weight distribution (hash-addressed)
-4. Optional paid capacity above a free quota — only once the free path is real
-5. Specification written *from* the running code
+3. Validate the SEV-SNP verifier against real hardware and enable it
+4. Sharded model-weight distribution (hash-addressed)
+5. Optional paid capacity above a free quota — only once the free path is real
+6. Specification written *from* the running code
 
 ## License
 
 **MIT** — see [`LICENSE`](LICENSE). Copyright © 2026 zcashsensei.
 
 Anyone may use, modify and **self-host free of charge, permanently**. The
-**Blindkeep** name and the public network are operated by the author; optional
-paid capacity may apply above free quotas.
+**Blindkeep** name is the author's, as would be any public network operated
+under it; optional paid capacity may apply above free quotas. No such network
+runs today.
 
 ## Documentation
 
@@ -535,6 +594,11 @@ it records the non-negotiable design constraints. Two rules matter most:
 
 1. **Never regress `tests/test_adversarial.py`.**
 2. **Never add a default code path that sends user data to a third party.**
+
+**The most valuable contribution is not code.** Run a node on hardware the
+author does not control and point a client at it. That single act tests the
+assumption the whole design rests on and cannot be performed by the author —
+open an issue if you do, including anything that broke.
 
 ---
 

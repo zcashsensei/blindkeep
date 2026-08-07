@@ -4,7 +4,7 @@
 **Applicant / maintainer:** zcashsensei ([GitHub](https://github.com/zcashsensei))  
 **Repository:** https://github.com/zcashsensei/blindkeep  
 **License:** MIT  
-**Date:** 2026-08-06 (v0.2)  
+**Date:** 2026-08-07 (v0.3)  
 **Status:** Runnable open-source reference implementation (v0 alpha)
 
 *One page for Zcash Community Grants / Zcash Foundation-style review. Full technical detail: [`WHITEPAPER.md`](WHITEPAPER.md), [`CRYPTO_FOUNDATIONS.md`](CRYPTO_FOUNDATIONS.md), [`SECURITY.md`](SECURITY.md).*
@@ -40,7 +40,7 @@ The missing layer is memory that is **durable**, **structurally private** (opera
 
 ---
 
-## 4. What is implemented — as of 2026-08-06 (evidence)
+## 4. What is implemented — as of 2026-08-07 (evidence)
 
 | Capability | Evidence in repo |
 |------------|------------------|
@@ -66,7 +66,7 @@ The missing layer is memory that is **durable**, **structurally private** (opera
 | Security write-up of fixed bugs | `SECURITY.md` |
 | Cryptographic claim boundaries | `CRYPTO_FOUNDATIONS.md` |
 
-**Automated suite (2026-08-06):** **279 tests** across 18 suites + end-to-end demo — Merkle 13 · store 5 · metadata 8 · adversarial 9 · replication 12 · recovery 21 · hardening 12 · discovery 18 · audit 10 · local-model memory 13 · cloud gate 13 · CLI 15 · console 8 · vault proxy 30 · attestation 30 · memory gate 29 · SEV-SNP 19 · status 14.
+**Automated suite (2026-08-07):** **279 tests** across 18 suites + end-to-end demo — Merkle 13 · store 5 · metadata 8 · adversarial 9 · replication 12 · recovery 21 · hardening 12 · discovery 18 · audit 10 · local-model memory 13 · cloud gate 13 · CLI 15 · console 8 · vault proxy 30 · attestation 30 · memory gate 29 · SEV-SNP 19 · status 14.
 
 **Not claimed as shipping:** anti-equivocation witnesses, proof of *storage* (as distinct from the retrieval auditing that is implemented), PIR, zkML, token incentives, and **validated hardware attestation**. The framework and its five checks are implemented and tested; a full SEV-SNP report parser and verifier is implemented (`sev_snp.py`, 19 tests) but has never been run against a report from real hardware, so it is deliberately excluded from the default registry and `sev-snp` refuses on the default path. TDX and NVIDIA GPU formats refuse outright. No vendor root certificates are bundled.
 
