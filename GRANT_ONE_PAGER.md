@@ -61,7 +61,7 @@ The missing layer is memory that is **durable**, **structurally private** (opera
 | Security write-up of fixed bugs | `SECURITY.md` |
 | Cryptographic claim boundaries | `CRYPTO_FOUNDATIONS.md` |
 
-**Automated suite (2026-08-06):** **147 tests** across 12 suites + end-to-end demo — Merkle 13 · store 5 · metadata 8 · adversarial 9 · replication 12 · recovery 21 · hardening 12 · discovery 18 · audit 10 · local-model memory 13 · cloud gate 13 · CLI 13.
+**Automated suite (2026-08-06):** **185 tests** across 14 suites + end-to-end demo — Merkle 13 · store 5 · metadata 8 · adversarial 9 · replication 12 · recovery 21 · hardening 12 · discovery 18 · audit 10 · local-model memory 13 · cloud gate 13 · CLI 13 · console 8 · vault proxy 30.
 
 **Not claimed as shipping:** anti-equivocation witnesses, proof of *storage* (as distinct from the retrieval auditing that is implemented), PIR, zkML, token incentives.
 
@@ -94,7 +94,7 @@ Full statement: [`CRYPTO_FOUNDATIONS.md`](CRYPTO_FOUNDATIONS.md).
 
 | Phase | Deliverable | Status |
 |-------|-------------|--------|
-| **M0** | Public MIT repo, docs, 147 tests | **done** |
+| **M0** | Public MIT repo, docs, 185 tests | **done** |
 | **M0b** | Replication, peer discovery, retrieval auditing, key recovery, local-model memory | **done** |
 | **M1** | **Three nodes operated by people who are not the applicant**, serving one client | **the next milestone** |
 | **M2** | Operator runbooks, packaging, CI, free community pool design | funded work |

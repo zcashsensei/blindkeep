@@ -191,6 +191,47 @@ in prose. A test asserts that `"my daughter attends St Mary's primary school"`
 passes through **unchanged**, so the limitation is enforced rather than merely
 documented. Treat anything sent through this path as disclosed.
 
+### Pseudonymisation proxy
+
+`vault_proxy.py` narrows what the gated path discloses: declared and detected
+values are swapped for placeholders before the request leaves and restored in
+the reply. **This reduces disclosure. It does not prevent it**, and it is not
+comparable to the local-model path or to attested confidential inference.
+
+Enforced properties:
+
+- A declared value that survives substitution raises `LeakError` instead of
+  being transmitted — a partial substitution reads as protected and is not.
+- The leak check uses the *same* matcher as substitution. A guard that matches
+  more loosely than the action it guards fires on correct input, and a guard
+  that cries wolf gets switched off.
+- Placeholders carry a per-vault random tag, so text arriving from elsewhere
+  cannot forge one and have it expand into a real value on the way back.
+- No default module imports it. That test enumerates the package rather than
+  listing filenames, so a module added later is covered without anyone
+  remembering to update the list.
+
+Asserted limitations — these tests pass by demonstrating failure, so the claim
+here cannot quietly outgrow the code:
+
+- **Undeclared prose entities are transmitted verbatim.** Detection is
+  deterministic patterns plus declared values; a regex cannot do named-entity
+  recognition. `declare()` is the load-bearing part.
+- **Quasi-identifiers survive and still identify.** Removing the name from
+  "the only paediatric cardiologist in Truro" removes nothing.
+- **Stable placeholders are a persistent pseudonym.** The provider can link
+  every session mentioning `<PERSON_0>` without knowing who that is.
+- **It is pseudonymisation, not anonymisation.** The mapping exists, so the
+  data remains personal data under GDPR.
+
+### Not a privacy control: sending embeddings or hidden states
+
+A recurring suggestion is to send vectors or intermediate activations instead of
+text, on the intuition that they are opaque. They are not: embedding-inversion
+attacks reconstruct source text from embeddings with high fidelity, and
+intermediate activations leak at least as much. Split inference relocates the
+disclosure; it does not reduce it. No path in this project does this.
+
 ### Deployment note
 
 The reference node uses Python's `http.server` and has **no transport security

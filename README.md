@@ -9,13 +9,13 @@
 <p align="center">
   <img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License: MIT">
   <img src="https://img.shields.io/badge/python-3.10%2B-blue.svg" alt="Python 3.10+">
-  <img src="https://img.shields.io/badge/tests-147%20passing-brightgreen.svg" alt="147 tests passing">
+  <img src="https://img.shields.io/badge/tests-185%20passing-brightgreen.svg" alt="185 tests passing">
   <img src="https://img.shields.io/badge/status-v0%20alpha-orange.svg" alt="v0 alpha">
   <img src="https://img.shields.io/badge/dependencies-1-lightgrey.svg" alt="1 dependency">
 </p>
 
 <p align="center">
-  <sub><b>Status as of 2026-08-06</b> · v0 alpha · 147 tests passing · replication,
+  <sub><b>Status as of 2026-08-06</b> · v0 alpha · 185 tests passing · replication,
   peer discovery, retrieval audits, key recovery and local-model memory
   implemented · no proving system implemented · not yet run by anyone but the author</sub>
 </p>
@@ -242,9 +242,11 @@ blindkeep/
   discover.py   peer discovery with URL validation
   audit.py      retrieval audits: offline vs lost vs dishonest
   ollama_mem.py local-model memory loop (loopback enforced)
-  cloud_gate.py opt-in hosted-model path — NOT PRIVATE
+  cloud_gate.py  opt-in hosted-model path — NOT PRIVATE
+  vault_proxy.py reversible pseudonymisation for that path — SMALLER disclosure
+  _console.py   terminal output helpers
   cli.py        command-line interface
-tests/          12 suites, 147 tests
+tests/          14 suites, 185 tests
 ```
 
 ## Replication
@@ -333,6 +335,48 @@ matching catches an API key and misses "my daughter's school". Treat anything
 sent this way as disclosed.
 
 </details>
+
+<details>
+<summary>Optional: a hosted model with pseudonymised values — <b>smaller disclosure, still a disclosure</b></summary>
+
+Values you declare are swapped for stable placeholders before the request leaves
+and restored in the reply, so the provider sees the shape of the question
+without the identities in it:
+
+```bash
+python -m blindkeep private-chat --enable-cloud --i-accept-not-private \
+  --declare "Sarah Whitfield" --declare-as "ORG:Acme Holdings" \
+  --text "Sarah Whitfield at Acme Holdings owes 4000"
+# on the wire: <PERSON_0_b75298> at <ORG_0_b75298> owes 4000
+```
+
+The mapping is stored as a Blindkeep record, so the table that re-identifies
+everything inherits encryption, a Merkle commitment and key recovery rather than
+living in a session cache. Pass `--vault-record` to reuse it and keep
+placeholders stable across sessions.
+
+**What this does not do.** It removes identifiers, not identifiability: a
+placeholder for the only paediatric cardiologist in Truro still names one
+person. Undeclared entities in prose are sent verbatim — detection is patterns
+plus what you declare, and `declare()` is the load-bearing part. Stable
+placeholders are a persistent pseudonym the provider can link across sessions.
+Each of these limits has a test that passes by demonstrating the failure.
+
+</details>
+
+### Which path is actually private
+
+| Path | Provider sees | Trust required |
+|------|---------------|----------------|
+| `chat` — local model | nothing; no provider exists | none beyond your own machine |
+| `private-chat` — pseudonymised | the question, minus declared identities | provider not to correlate what remains |
+| `cloud-chat` — gated | everything you send | provider's policy and retention terms |
+
+Storage trust is unchanged in all three: the node never holds plaintext. Only
+the *model* side differs. Attested confidential inference — where the operator
+is cryptographically prevented from reading rather than trusted not to — is the
+route that would make a hosted model genuinely private, and is not implemented
+here.
 
 ## Roadmap
 

@@ -8,6 +8,8 @@ import os
 import sys
 from pathlib import Path
 
+from ._console import use_utf8_stdout
+
 # The dashboard and progress board are local working tools, not part of the
 # published project. Their subcommands are registered only when the files are
 # actually present, so a clone never advertises a command it cannot run.
@@ -166,6 +168,47 @@ def cmd_cloud_chat(args) -> int:
     if result["redacted"]:
         print(f"[redacted before sending: {', '.join(result['redacted'])}]",
               file=sys.stderr)
+    print(result["reply"])
+    return 0
+
+
+def cmd_private_chat(args) -> int:
+    """Pseudonymised cloud path. Smaller disclosure — still a disclosure."""
+    from .client import BlindkeepClient
+    from .vault_proxy import EntityVault, private_cloud_complete
+
+    key = _load_key(args.key)
+    client = BlindkeepClient(args.url, key, pin_path=args.pin)
+
+    if args.vault_record:
+        vault = EntityVault.load(client, args.vault_record)
+    else:
+        vault = EntityVault()
+
+    for value in args.declare or []:
+        vault.declare(value)
+    for pair in args.declare_as or []:
+        kind, _, value = pair.partition(":")
+        if not value:
+            raise ValueError(f"--declare-as expects KIND:VALUE, got {pair!r}")
+        vault.declare(value, kind=kind)
+
+    api_key = args.api_key or os.environ.get("BLINDKEEP_CLOUD_KEY", "")
+    result = private_cloud_complete(
+        args.text, vault=vault, api_base=args.api_base, api_key=api_key,
+        model=args.model, enable_cloud=args.enable_cloud,
+        accept_not_private=args.i_accept_not_private, system=args.system)
+
+    # Persist the mapping through the encrypted path so the next call reuses the
+    # same placeholders. Without this the pseudonyms change every run and the
+    # model loses the thread it was given the vault to keep.
+    ref = vault.save(client)
+
+    print(f"[{result['notice']}]", file=sys.stderr)
+    print(f"[sent: {result['sent']}]", file=sys.stderr)
+    print(f"[{result['residual_risk']}]", file=sys.stderr)
+    print(f"[vault record: {ref['record_id']} — pass --vault-record to reuse]",
+          file=sys.stderr)
     print(result["reply"])
     return 0
 
@@ -466,10 +509,35 @@ def build_parser() -> argparse.ArgumentParser:
     cc.add_argument("--i-accept-not-private", action="store_true")
     cc.set_defaults(func=cmd_cloud_chat)
 
+    pc = sub.add_parser(
+        "private-chat",
+        help="hosted model with pseudonymised values — SMALLER disclosure, "
+             "not a private one")
+    pc.add_argument("--text", required=True)
+    pc.add_argument("--url", default="http://127.0.0.1:8741")
+    pc.add_argument("--key", default="data/client/master.key")
+    pc.add_argument("--pin", default="data/client/pin.json")
+    pc.add_argument("--vault-record", default=None,
+                    help="record id of a stored entity vault; a new one is "
+                         "created and saved if omitted")
+    pc.add_argument("--declare", action="append", default=[],
+                    help="a value to pseudonymise as PERSON (repeatable)")
+    pc.add_argument("--declare-as", action="append", default=[],
+                    help="KIND:VALUE, e.g. ORG:Acme (repeatable)")
+    pc.add_argument("--api-base", default="https://api.openai.com")
+    pc.add_argument("--api-key", default=None,
+                    help="or set BLINDKEEP_CLOUD_KEY; a flag is visible in shell history")
+    pc.add_argument("--model", default="gpt-4o-mini")
+    pc.add_argument("--system", default=None)
+    pc.add_argument("--enable-cloud", action="store_true")
+    pc.add_argument("--i-accept-not-private", action="store_true")
+    pc.set_defaults(func=cmd_private_chat)
+
     return p
 
 
 def main(argv=None) -> int:
+    use_utf8_stdout()
     parser = build_parser()
     args = parser.parse_args(argv)
     try:
