@@ -107,58 +107,6 @@ def cmd_status(args) -> int:
     return status_main(["--json"] if args.json else [])
 
 
-def cmd_prove(args) -> int:
-    """Prove a value is within a range, disclosing nothing about it."""
-    from .zk import ProofError, commit, prove_range
-
-    try:
-        _, blinding = commit(args.value)
-        commitment, proof = prove_range(
-            args.value, blinding, bits=args.bits,
-            context=(args.context or "").encode("utf-8"))
-    except ProofError as exc:
-        print(f"error: {exc}", file=sys.stderr)
-        return 1
-
-    out = {"commitment_hex": commitment.value_hex, "bits": args.bits,
-           "context": args.context or "", "proof": proof.as_dict()}
-    text = json.dumps(out, indent=2)
-    if args.out:
-        with open(args.out, "w", encoding="utf-8") as f:
-            f.write(text)
-        print(f"proof written to {args.out}", file=sys.stderr)
-        print(f"commitment: {commitment.value_hex}")
-    else:
-        print(text)
-    # The blinding factor is the secret half. Printing it to stdout beside the
-    # proof would put it in the same place the proof is about to be shared.
-    print(f"[keep this secret to prove anything further about the same value: "
-          f"blinding={blinding:x}]", file=sys.stderr)
-    return 0
-
-
-def cmd_verify_proof(args) -> int:
-    """Verify a range proof. Exit 0 only if it holds for THIS statement."""
-    from .zk import Commitment, Proof, verify_range
-
-    with open(args.proof, "r", encoding="utf-8") as f:
-        blob = json.load(f)
-
-    commitment = Commitment(args.commitment or blob["commitment_hex"])
-    bits = args.bits if args.bits is not None else int(blob["bits"])
-    context = (args.context if args.context is not None
-               else blob.get("context", "")) or ""
-
-    ok = verify_range(commitment, Proof.from_dict(blob["proof"]), bits=bits,
-                      context=context.encode("utf-8"))
-    if ok:
-        print(f"VERIFIED: the committed value is in [0, 2^{bits}) "
-              f"for context {context!r}")
-        return 0
-    print("REFUSED: the proof does not hold for this statement", file=sys.stderr)
-    return 1
-
-
 def cmd_peers(args) -> int:
     from .discover import as_dicts, discover
 
@@ -638,26 +586,6 @@ def build_parser() -> argparse.ArgumentParser:
                         help="what this repo contains — tests counted, not stated")
     st.add_argument("--json", action="store_true")
     st.set_defaults(func=cmd_status)
-
-    pr = sub.add_parser("prove",
-                        help="prove a value is within a range, revealing nothing")
-    pr.add_argument("--value", type=int, required=True)
-    pr.add_argument("--bits", type=int, default=32,
-                    help="prove 0 <= value < 2^bits")
-    pr.add_argument("--context", default=None,
-                    help="the statement this proof is bound to, e.g. "
-                         "'desk:kage|limit:1024'; a proof does not transfer to "
-                         "another context")
-    pr.add_argument("--out", default=None, help="write the proof to a file")
-    pr.set_defaults(func=cmd_prove)
-
-    vp = sub.add_parser("verify-proof", help="verify a range proof")
-    vp.add_argument("--proof", required=True)
-    vp.add_argument("--commitment", default=None,
-                    help="override the commitment in the proof file")
-    vp.add_argument("--bits", type=int, default=None)
-    vp.add_argument("--context", default=None)
-    vp.set_defaults(func=cmd_verify_proof)
 
     pe = sub.add_parser("peers", help="discover and probe storage nodes")
     pe.add_argument("--file", default="data/peers.json")

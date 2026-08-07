@@ -99,7 +99,6 @@ def capabilities(root: Optional[Path] = None) -> list[dict[str, Any]]:
         ("Pseudonymisation proxy", mod("vault_proxy.py") and suite("test_vault_proxy.py")),
         ("Attestation (5 checks)", mod("attest.py") and suite("test_attest.py")),
         ("Memory gate (tiers)", mod("memory_gate.py") and suite("test_memory_gate.py")),
-        ("ZK property proofs (sigma)", mod("zk.py") and suite("test_zk.py")),
         ("SEV-SNP verifier written", mod("sev_snp.py") and suite("test_sev_snp.py")),
         ("SEV-SNP enabled by default", _sev_snp_enabled()),
     ]
