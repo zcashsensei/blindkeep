@@ -14,7 +14,7 @@ Blindkeep is the **privacy answer for AI memory**: sensitive context stays insid
 |--------|----------|
 | Primary | Zero-knowledge memory infrastructure for AI — the operator is blind, and the holder can prove without disclosing |
 | Network | DePIN — user-controlled nodes, no central data harvest |
-| Now | Sigma-protocol proofs: keep membership, range, equality, opening (**not SNARKs**, O(n)) **and** a halo2 Poseidon membership circuit — real proving, 3,040 bytes independent of tree size |
+| Now | **Two proving layers, both implemented.** A **halo2 SNARK** (no trusted setup) proves Poseidon Merkle membership in a **constant 3,040 bytes** — measured at 8 leaves and at 128. Sigma-protocol proofs cover keep membership, range, equality and opening with no toolchain at all, at O(n) |
 | Later | Succinct proofs wired into the default read path, not an optional binary; verifiable inference (ZKML) only where cost is justified |
 | Not | Public cloud AI SaaS, grid/power product, or coin-first launch |
 
@@ -73,7 +73,7 @@ If the software ever forwards real user inputs to third-party LLM APIs, those pr
 | ZKML | Not shipped | Optional where justified |
 | Token / incentives | Parked | Only after free path is real |
 
-**Doctrine:** for integrity and “node cannot read contents,” use hashes, AEAD, and signed logs—not SNARKs by default. Reserve ZKML for proving inference without revealing inputs.
+**Doctrine:** reach for the cheapest primitive that delivers the property. Integrity and “node cannot read contents” are settled by hashes, AEAD and signed logs, so those do not get a circuit. What a cipher cannot do — letting a holder prove something about a record without naming it — is what the proofs are for, and both layers ship: sigma protocols for the toolchain-free path, and a halo2 circuit for succinct membership. ZKML stays reserved for proving inference without revealing inputs, and is not implemented.
 
 ---
 

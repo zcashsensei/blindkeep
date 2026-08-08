@@ -46,6 +46,7 @@ for that format and supplying its roots — the surrounding logic does not chang
 from __future__ import annotations
 
 import hashlib
+import hmac
 import json
 import secrets
 import time
@@ -275,7 +276,7 @@ def verify_attestation(att: Attestation, *,
     # 3 -- bound to THIS request. The check that stops a replayed-but-genuine
     # report from a machine that is not the one about to see the data.
     expected = expected_report_data(nonce)
-    if att.report_data_hex != expected:
+    if not hmac.compare_digest(att.report_data_hex, expected):
         raise Unverified(
             "report_data does not bind this client's nonce — the report may be "
             "genuine and still describe a different machine or session")

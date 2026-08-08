@@ -72,7 +72,7 @@ The missing layer is memory that is **durable**, **structurally private** (opera
 | Security write-up of fixed bugs | `SECURITY.md` |
 | Cryptographic claim boundaries | `CRYPTO_FOUNDATIONS.md` |
 
-**Automated suite (2026-08-07):** **423 tests** across 25 suites + end-to-end demo — adversarial 9 · anon-token 16 · attestation 30 · audit 10 · CLI 19 · cloud gate 14 · console 8 · delegate 22 · discovery 18 · hardening 12 · local-model memory 13 · memory gate 42 · Merkle 13 · metadata 8 · poseidon 15 · private read 12 · recovery 25 · replication 12 · SEV-SNP 19 · status 15 · store 5 · vault proxy 30 · witness 13 · zk 31 · zk-keep 12 · sealed-tier composition.
+**Automated suite (2026-08-07):** **430 tests** across 25 suites + end-to-end demo — adversarial 9 · anon-token 16 · attestation 30 · audit 10 · CLI 19 · cloud gate 14 · console 8 · delegate 22 · discovery 23 · hardening 14 · local-model memory 13 · memory gate 42 · Merkle 13 · metadata 8 · poseidon 15 · private read 12 · recovery 25 · replication 12 · SEV-SNP 19 · status 15 · store 5 · vault proxy 30 · witness 13 · zk 31 · zk-keep 12 · sealed-tier composition.
 
 **Not claimed as shipping:** anti-equivocation witnesses, proof of *storage* (as distinct from the retrieval auditing that is implemented), PIR, general-purpose proving and zkML, token incentives, and **validated hardware attestation**. The framework and its five checks are implemented and tested; a full SEV-SNP report parser and verifier is implemented (`sev_snp.py`, 19 tests) but has never been run against a report from real hardware, so it is deliberately excluded from the default registry and `sev-snp` refuses on the default path. TDX and NVIDIA GPU formats refuse outright. No vendor root certificates are bundled.
 
@@ -91,7 +91,7 @@ Blindkeep does **not** invent a new zero-knowledge proving system.
 | **Authentic log tips** | Ed25519 over `(tree_size, root)` | RFC 8032 |
 | **Tamper evidence** | RFC 6962 Merkle inclusion + consistency | Same family as Certificate Transparency; SHA-256 collision resistance |
 
-**Proofs in production path are hash proofs** (\(O(\log n)\) SHA-256 operations per verify), not SNARK proofs. Python with the `cryptography` library is an appropriate reference implementation for this cost model.
+**The read path verifies with hash proofs** (\(O(\log n)\) SHA-256 operations per verify), which is why Python with the `cryptography` library is an appropriate reference implementation for that cost model. **Zero-knowledge is implemented in two layers on top of it:** sigma protocols in Python for range, equality, opening and keep membership, and a **halo2 SNARK** (`circuits/`, no trusted setup) proving Poseidon Merkle membership in a **constant 3,040 bytes** — measured at 8 leaves and at 128.
 
 **Explicit non-claims:** formal machine-checked verification of the entire codebase; **access-pattern privacy** — the node still observes which record is read and when, which requires PIR and is not implemented; availability if a node withholds data; single-node anti-equivocation without witnesses; proof that a node *stores* data rather than obtaining it on demand.
 
@@ -105,7 +105,7 @@ Full statement: [`CRYPTO_FOUNDATIONS.md`](CRYPTO_FOUNDATIONS.md).
 
 | Phase | Deliverable | Status |
 |-------|-------------|--------|
-| **M0** | Public MIT repo, docs, 423 tests | **done** |
+| **M0** | Public MIT repo, docs, 430 tests | **done** |
 | **M0b** | Replication, peer discovery, retrieval auditing, key recovery, local-model memory | **done** |
 | **M1** | **Three nodes operated by people who are not the applicant**, serving one client | **the next milestone** |
 | **M2** | Operator runbooks, packaging, CI, free community pool design | funded work |

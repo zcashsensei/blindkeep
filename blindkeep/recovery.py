@@ -27,6 +27,7 @@ from __future__ import annotations
 
 import base64
 import hashlib
+import hmac
 import os
 import secrets
 from dataclasses import dataclass
@@ -98,7 +99,10 @@ def from_recovery_code(code: str) -> bytes:
             "recovery code is not in canonical form — the final character carries bits that "
             "belong to no byte. It was mistyped. The key is NOT recovered.")
     key, check = blob[:KEY_LEN], blob[KEY_LEN:]
-    if _checksum(key) != check:
+    # compare_digest, not !=: the comparison is against a value derived from the key.
+    # Local and offline, so this is hygiene rather than a live exploit — but the rule
+    # "never branch on a secret in variable time" is cheaper to keep than to argue.
+    if not hmac.compare_digest(_checksum(key), check):
         raise RecoveryError(
             "recovery code failed its checksum — it was mistyped. "
             "The key is NOT recovered; check the code and try again.")
@@ -212,7 +216,7 @@ class Share:
                 "share is not in canonical form — the final character carries bits that "
                 "belong to no byte. It was mistyped.")
         body, check = blob[:-_CHECKSUM_LEN], blob[-_CHECKSUM_LEN:]
-        if _checksum_share(body) != check:
+        if not hmac.compare_digest(_checksum_share(body), check):
             raise RecoveryError("share failed its checksum — it was mistyped")
         # The index is printed in front of the payload and was previously read from the
         # payload alone, so a share whose visible label disagreed with its contents was

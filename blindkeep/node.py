@@ -8,6 +8,7 @@ one independent node with its own identity and log.
 from __future__ import annotations
 
 import base64
+import ipaddress
 import json
 import sys
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -157,7 +158,54 @@ class _Handler(BaseHTTPRequestHandler):
             self._fail(e)
 
 
-def serve(data_dir: str, host: str = "127.0.0.1", port: int = 8741) -> None:
+class ExposureRefused(Exception):
+    """Refused to bind a public interface without an explicit acknowledgement."""
+
+
+def _is_loopback(host: str) -> bool:
+    """True for addresses reachable only from this machine.
+
+    The empty string is NOT loopback: passing "" to bind() means INADDR_ANY, which is
+    every interface — the same exposure as 0.0.0.0 wearing a friendlier spelling. An
+    earlier version of this function grouped it with "localhost" and would have waved
+    through the exact case the gate exists to catch.
+
+    Anything unrecognised is treated as public. A gate that fails open is not a gate.
+    """
+    if host == "localhost":
+        return True
+    try:
+        return ipaddress.ip_address(host).is_loopback
+    except ValueError:
+        return False        # a hostname, or "": assume it reaches further than this box
+
+
+def serve(data_dir: str, host: str = "127.0.0.1", port: int = 8741,
+          accept_no_auth: bool = False) -> None:
+    """Run a node. Binding beyond loopback requires saying so out loud.
+
+    This node has no authentication and no transport security — by design at this stage,
+    and documented in SECURITY.md. On loopback that is fine: the only reachable clients
+    are already on the machine. On any other interface it means every peer who can route
+    to the port may append records to the log and read the ciphertext it holds. Appends
+    are what hurt: the log is append-only, so there is no supported way to remove what a
+    stranger wrote into it, and nothing bounds how much they write.
+
+    `--host 0.0.0.0` was one keystroke away from that, with nothing in between. So the
+    gate is the same shape the cloud path already uses: the dangerous thing stays
+    available, and choosing it has to be deliberate and legible in the command that did
+    it. It is not a security control — anyone can pass the flag — it is a control against
+    doing this by accident, which is how it would actually happen.
+    """
+    if not _is_loopback(host) and not accept_no_auth:
+        raise ExposureRefused(
+            f"refusing to bind {host}:{port} — this node has NO authentication and NO "
+            f"TLS, so anyone who can reach that address can append records to your log "
+            f"and read the ciphertext it stores. Appends cannot be removed: the log is "
+            f"append-only.\n"
+            f"  keep it private : --host 127.0.0.1  (the default)\n"
+            f"  expose it anyway: --accept-no-auth, and put a reverse proxy in front of "
+            f"it that provides TLS, authentication and rate limiting.")
     store = MemoryStore(data_dir)
     handler = type("Handler", (_Handler,), {"store": store})
     httpd = ThreadingHTTPServer((host, port), handler)
@@ -181,8 +229,16 @@ def main(argv: Optional[list[str]] = None) -> int:
     p.add_argument("--data-dir", default="data/node", help="persistent store directory")
     p.add_argument("--host", default="127.0.0.1")
     p.add_argument("--port", type=int, default=8741)
+    p.add_argument("--accept-no-auth", action="store_true",
+                   help="bind a non-loopback address despite there being no "
+                        "authentication or TLS on this node")
     args = p.parse_args(argv)
-    serve(args.data_dir, host=args.host, port=args.port)
+    try:
+        serve(args.data_dir, host=args.host, port=args.port,
+              accept_no_auth=args.accept_no_auth)
+    except ExposureRefused as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
     return 0
 
 

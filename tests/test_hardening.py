@@ -236,6 +236,40 @@ def test_record_lookup_is_indexed_not_scanned():
     raise AssertionError("unknown record_id did not raise")
 
 
+
+# --- exposure gate ----------------------------------------------------------
+
+def test_public_bind_is_refused_without_acknowledgement():
+    """The node has no auth. Reaching a public interface must be deliberate.
+
+    Every one of these is INADDR_ANY or a routable address by another spelling. The
+    empty string is the interesting one: it means "all interfaces" to bind(), and a
+    check that grouped it with "localhost" would wave through the exact case this
+    gate exists to catch.
+    """
+    from blindkeep.node import ExposureRefused, serve
+
+    for host in ("0.0.0.0", "", "::", "192.168.1.50", "example.com"):
+        try:
+            serve("data/does-not-matter", host=host, port=0)
+        except ExposureRefused as exc:
+            msg = str(exc)
+            assert "NO authentication" in msg
+            assert "--accept-no-auth" in msg, "the refusal must name the way through"
+            continue
+        raise AssertionError(f"binding {host!r} was allowed without acknowledgement")
+
+
+def test_loopback_is_not_gated():
+    """The default must stay frictionless, or the gate gets removed instead of used."""
+    from blindkeep.node import _is_loopback
+
+    for host in ("127.0.0.1", "localhost", "::1", "127.0.0.5"):
+        assert _is_loopback(host), f"{host!r} should be treated as loopback"
+    for host in ("0.0.0.0", "", "::", "10.0.0.1", "example.com"):
+        assert not _is_loopback(host), f"{host!r} must NOT be treated as loopback"
+
+
 def run():
     tests = [(k, v) for k, v in sorted(globals().items()) if k.startswith("test_")]
     passed, failed = [], []

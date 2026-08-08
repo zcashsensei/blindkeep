@@ -43,6 +43,16 @@ MAX_BOOTSTRAP_BYTES = 1 * 1024 * 1024
 # can name these can make a client read its own host's credentials endpoint.
 _METADATA_HOSTS = {"169.254.169.254", "metadata.google.internal", "100.100.100.200"}
 
+# The same services as addresses, for checking what a NAME resolves to. Blocking the
+# literal and the well-known hostname is not enough on its own: an attacker controls
+# their own DNS, so `peer.attacker.example` answering 169.254.169.254 walked straight
+# past a check that only ever looked at the spelling of the host.
+_METADATA_ADDRS = frozenset({
+    "169.254.169.254",          # AWS, Azure, GCP, DigitalOcean, Oracle
+    "100.100.100.200",          # Alibaba Cloud
+    "fd00:ec2::254",            # AWS IMDS over IPv6
+})
+
 
 class DiscoveryError(Exception):
     """The peer list could not be loaded, or contained nothing usable."""
@@ -66,8 +76,37 @@ class _NoRedirect(urllib.request.HTTPRedirectHandler):
 _OPENER = urllib.request.build_opener(_NoRedirect())
 
 
-def normalise_url(url: str) -> str:
-    """Validate and canonicalise a peer URL, or raise."""
+def _refuse_if_metadata(addr: str, shown_as: str) -> None:
+    """Raise if an address is a link-local or instance-metadata endpoint."""
+    try:
+        ip = ipaddress.ip_address(addr)
+    except ValueError:
+        return
+    # ipv4_mapped exists only on IPv6Address, so ask for it rather than assume it. An
+    # IPv6-mapped form (::ffff:169.254.169.254) is the same endpoint by another spelling.
+    mapped = getattr(ip, "ipv4_mapped", None)
+    if str(ip) in _METADATA_ADDRS or (mapped is not None and str(mapped) in _METADATA_ADDRS):
+        raise DiscoveryError(
+            f"refusing cloud metadata address {addr} (via {shown_as})"
+            if addr != shown_as else f"refusing cloud metadata address {addr}")
+    if ip.is_link_local:
+        raise DiscoveryError(
+            f"refusing link-local address {addr} (via {shown_as})"
+            if addr != shown_as else f"refusing link-local address {addr}")
+
+
+def normalise_url(url: str, resolve: bool = True) -> str:
+    """Validate and canonicalise a peer URL, or raise.
+
+    Loopback and private addresses are deliberately allowed: the default node listens on
+    127.0.0.1 and LAN peers are a supported deployment, so blocking them would break the
+    normal case to defend against nothing. What is refused is link-local and the cloud
+    instance-metadata endpoints, which exist only to be read by the host itself.
+
+    `resolve` controls whether hostnames are looked up and their answers checked. Set it
+    False only where no lookup is wanted (offline validation, tests); the literal checks
+    still run either way.
+    """
     if not isinstance(url, str) or not url.strip():
         raise DiscoveryError("peer url must be a non-empty string")
     u = url.strip().rstrip("/")
@@ -81,12 +120,22 @@ def normalise_url(url: str) -> str:
     host = parsed.hostname.lower()
     if host in _METADATA_HOSTS:
         raise DiscoveryError(f"refusing cloud metadata address {host}")
-    try:
-        ip = ipaddress.ip_address(host)
-        if ip.is_link_local:
-            raise DiscoveryError(f"refusing link-local address {host}")
-    except ValueError:
-        pass          # a hostname, not a literal address
+    _refuse_if_metadata(host, host)
+
+    # A name is only as trustworthy as what it answers with, and the attacker owns the
+    # zone for their own name. Check every address the host resolves to, not the string.
+    #
+    # This does not defeat DNS rebinding: a name that answers honestly here and with a
+    # metadata address at connect time still wins, because validation and connection are
+    # two separate lookups. Closing that needs the check at socket level, which is a
+    # larger change than this function. Stated rather than implied — see SECURITY.md.
+    if resolve:
+        try:
+            infos = socket.getaddrinfo(host, parsed.port or 80, proto=socket.IPPROTO_TCP)
+        except (socket.gaierror, UnicodeError, ValueError):
+            infos = []      # unresolvable: the connection will fail on its own merits
+        for info in infos:
+            _refuse_if_metadata(info[4][0], host)
     return u
 
 

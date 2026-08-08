@@ -57,8 +57,12 @@ def _client_from_args(args, need_key: bool = True):
 
 
 def cmd_node(args) -> int:
-    from .node import serve
-    serve(args.data_dir, host=args.host, port=args.port)
+    from .node import ExposureRefused, serve
+    try:
+        serve(args.data_dir, host=args.host, port=args.port,
+              accept_no_auth=getattr(args, "accept_no_auth", False))
+    except ExposureRefused as exc:
+        raise CliError(str(exc))
     return 0
 
 
@@ -839,6 +843,9 @@ def build_parser() -> argparse.ArgumentParser:
     n.add_argument("--data-dir", default="data/node")
     n.add_argument("--host", default="127.0.0.1")
     n.add_argument("--port", type=int, default=8741)
+    n.add_argument("--accept-no-auth", action="store_true",
+                   help="bind a non-loopback address despite there being no "
+                        "authentication or TLS on this node")
     n.set_defaults(func=cmd_node)
 
     if _HAS_PROGRESS:

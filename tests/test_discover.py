@@ -182,6 +182,88 @@ def test_bootstrap_supplies_candidates():
     assert urls(discover(bootstrap_url=boot, timeout=1.0)) == [up]
 
 
+def test_a_hostname_that_RESOLVES_to_metadata_is_refused():
+    """The bypass the name-based check could not see.
+
+    Blocking the literal 169.254.169.254 and the string "metadata.google.internal" stops
+    the careless case. It does not stop the deliberate one: an attacker controls the DNS
+    for their own domain, so `peer.attacker.example` answering 169.254.169.254 passed
+    every check and pointed the client at its own host's credentials endpoint.
+    """
+    import socket as _socket
+
+    real = _socket.getaddrinfo
+    for metadata_ip in ("169.254.169.254", "100.100.100.200"):
+        def fake(host, port, *a, **k):
+            if host == "peer.attacker.example":
+                return [(_socket.AF_INET, _socket.SOCK_STREAM, 6, "", (metadata_ip, 80))]
+            return real(host, port, *a, **k)
+        _socket.getaddrinfo = fake
+        try:
+            normalise_url("http://peer.attacker.example")
+        except DiscoveryError as exc:
+            assert "metadata" in str(exc), f"refused for the wrong reason: {exc}"
+        else:
+            raise AssertionError(f"a name resolving to {metadata_ip} was accepted")
+        finally:
+            _socket.getaddrinfo = real
+
+
+def test_a_hostname_resolving_to_link_local_is_refused():
+    import socket as _socket
+
+    real = _socket.getaddrinfo
+
+    def fake(host, port, *a, **k):
+        if host == "rebind.example":
+            return [(_socket.AF_INET, _socket.SOCK_STREAM, 6, "", ("169.254.13.37", 80))]
+        return real(host, port, *a, **k)
+
+    _socket.getaddrinfo = fake
+    try:
+        normalise_url("http://rebind.example")
+    except DiscoveryError as exc:
+        assert "link-local" in str(exc)
+    else:
+        raise AssertionError("a name resolving to a link-local address was accepted")
+    finally:
+        _socket.getaddrinfo = real
+
+
+def test_loopback_and_private_peers_are_still_allowed():
+    """The default node listens on 127.0.0.1. Blocking these would break the normal case."""
+    import socket as _socket
+
+    real = _socket.getaddrinfo
+
+    def fake(host, port, *a, **k):
+        if host == "nas.local":
+            return [(_socket.AF_INET, _socket.SOCK_STREAM, 6, "", ("192.168.1.20", 80))]
+        return real(host, port, *a, **k)
+
+    _socket.getaddrinfo = fake
+    try:
+        assert normalise_url("http://127.0.0.1:8741") == "http://127.0.0.1:8741"
+        assert normalise_url("http://10.0.0.5:8741") == "http://10.0.0.5:8741"
+        assert normalise_url("http://nas.local") == "http://nas.local"
+    finally:
+        _socket.getaddrinfo = real
+
+
+def test_an_unresolvable_host_does_not_crash_validation():
+    """Offline, or a typo. The connection fails later on its own merits."""
+    assert normalise_url("http://no-such-host.invalid") == "http://no-such-host.invalid"
+
+
+def test_resolution_can_be_skipped_but_literals_are_still_checked():
+    for bad in ("http://169.254.169.254", "http://169.254.13.37"):
+        try:
+            normalise_url(bad, resolve=False)
+        except DiscoveryError:
+            continue
+        raise AssertionError(f"{bad} accepted with resolve=False")
+
+
 def test_bootstrap_cannot_inject_metadata_addresses():
     """The attack: a bootstrap points clients at cloud credentials endpoints."""
     up, _ = live_node()
