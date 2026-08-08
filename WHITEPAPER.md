@@ -1,6 +1,6 @@
 # Blindkeep — Architecture and Feasibility
 
-**Version 0.5 · 2026-08-07 · zcashsensei**
+**Version 0.7 · 2026-08-08 · zcashsensei**
 *v0.1 2026-08-05: initial. v0.2: peer discovery, retrieval auditing,
 local-model memory and a gated hosted-model path implemented; limits revised.
 v0.3: pseudonymisation, an attestation framework and a tiered release policy
@@ -14,7 +14,12 @@ v0.5: zero-knowledge membership implemented — a holder proves they hold a reco
 without naming it, bound to a signed head. Sigma protocols, O(n).
 v0.6: succinct membership implemented — a halo2 (no trusted setup) Poseidon
 Merkle circuit in `circuits/`, proving and verifying, 3,040 bytes independent of
-tree size. Still not zkML: this proves membership, never inference.*
+tree size. Still not zkML: this proves membership, never inference.
+v0.7: access-pattern privacy implemented in its trivial single-server form,
+equivocation detection, HPKE and Oblivious HTTP, and constant-rate dispatch.
+§3.4 and §7 revised accordingly — several properties this document listed as
+open had shipped and were still being disclaimed. Counts are now computed from
+source and enforced at push time (`tools/check_counts.py`).*
 
 ---
 
@@ -135,12 +140,18 @@ That is a claim about confidentiality alone. It is *not* a claim that this
 design never needs zero-knowledge. Two properties it does not have require
 exactly that, and no amount of encryption substitutes:
 
-- **access-pattern privacy** — hiding *which* record was read, which needs PIR
-  (§5.4), and
+- **access-pattern privacy** — hiding *which* record was read. This is now
+  implemented (§5.4), but only in its trivial single-server form: `read_private`
+  fetches the whole log and selects locally, so the node learns nothing beyond
+  *that* a read happened, at O(n) bandwidth. The default `get(index)` still
+  names the index. Sub-linear private retrieval is not claimed, and for one
+  server it is not achievable — Chor's bound makes transferring the whole
+  database optimal, not lazy.
 - **proof of storage** — compelling a node to actually hold data rather than
-  fetch it on demand (§5.2).
+  fetch it on demand (§5.2). Still not implemented.
 
-Both are open. Neither is bluffed here. Zero-knowledge work therefore belongs on
+One is now closed at linear cost and the other is still open; neither is bluffed
+here. Zero-knowledge work therefore belongs on
 this roadmap for the things a cipher cannot do, and is deliberately absent from
 the things it can — which is the whole of the argument in §3.4, not a rejection
 of proving.
@@ -179,8 +190,13 @@ by framing rather than by adding a proof system:
   reveals a bucket rather than an exact size, at bounded overhead.
 
 The distinction is worth noting for scoping: of the metadata originally exposed,
-the portion removable by better framing has been removed, and what remains —
-access pattern, record count, timing — is precisely the portion that needs PIR.
+the portion removable by better framing has been removed. Of what remained,
+**access pattern** is now closed on an opt-in path by trivial PIR (§5.4), at the
+cost of reading the whole keep. **Record count and write timing are not
+access-pattern leaks and PIR does not touch them**; they are addressed
+separately and partially — by `pad_writes`, which writes records that mean
+nothing, and by constant-rate dispatch, which sends on a clock rather than when
+you happened to type.
 
 **Cryptographic status of these claims** is spelled out in
 [`CRYPTO_FOUNDATIONS.md`](CRYPTO_FOUNDATIONS.md): security reduces to standard
@@ -212,7 +228,7 @@ document by `tools/check_counts.py`; none of them is typed by hand.
 | Signed tree heads | Complete | Signature verified against on-disk state |
 | Client verification pipeline | Complete | 9 adversarial tests running genuinely malicious HTTP nodes |
 | Single-node HTTP service + CLI | Complete | End-to-end demo |
-| Metadata minimisation | Complete | 8 tests: encrypted labels, padded sizes, access pattern asserted still open |
+| Metadata minimisation | Complete | 8 tests: encrypted labels, padded sizes; a test asserts access pattern stays visible on the default `get()` path |
 | Multi-node replication, quorum reads | Complete | 12 tests: offline, tampered and dishonest nodes |
 | Key recovery | Complete | 25 tests: codes, passphrase backups, k-of-n Shamir shares |
 | Node resource and disclosure hardening | Complete | 14 tests: bounded bodies, paginated listing, no path disclosure |
@@ -248,12 +264,16 @@ or excludes each one.
 
 A recurring pattern in these suites is worth naming: several tests assert a
 **limitation** rather than a capability. One asserts that access patterns remain
-visible; another that redaction leaves sensitive prose untouched. If either
+visible **on the default `get()` path** — it guards the boundary between the
+cheap read and the private one, and its failure message says so; another that
+redaction leaves sensitive prose untouched. If either
 property ever changes, the test fails and forces the documentation to be
 updated. A limitation that is only written down decays into an assumption.
 
-**Not implemented:** witnessing against equivocation, proof of *storage* as
-distinct from retrieval, incentives, private queries, verifiable inference.
+**Not implemented:** equivocation *prevention* (detection and proof are
+implemented — `witness.py`; stopping it needs consensus), proof of *storage* as
+distinct from retrieval, incentives, *sub-linear* private queries (the trivial
+linear-cost form is implemented), verifiable inference.
 
 ---
 
