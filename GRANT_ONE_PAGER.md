@@ -4,7 +4,7 @@
 **Applicant / maintainer:** zcashsensei ([GitHub](https://github.com/zcashsensei))  
 **Repository:** https://github.com/zcashsensei/blindkeep  
 **License:** MIT  
-**Date:** 2026-08-07 (v0.3)  
+**Date:** 2026-08-08 (v0.4)  
 **Status:** Runnable open-source reference implementation (v0 alpha)
 
 *One page for Zcash Community Grants / Zcash Foundation-style review. Full technical detail: [`WHITEPAPER.md`](WHITEPAPER.md), [`CRYPTO_FOUNDATIONS.md`](CRYPTO_FOUNDATIONS.md), [`SECURITY.md`](SECURITY.md).*
@@ -40,7 +40,7 @@ The missing layer is memory that is **durable**, **structurally private** (opera
 
 ---
 
-## 4. What is implemented — as of 2026-08-07 (evidence)
+## 4. What is implemented — as of 2026-08-08 (evidence)
 
 | Capability | Evidence in repo |
 |------------|------------------|
@@ -49,32 +49,48 @@ The missing layer is memory that is **durable**, **structurally private** (opera
 | Ed25519 signed tree heads | crypto + client verification |
 | Full client verify pipeline (5 checks) | `blindkeep/client.py`, 9 adversarial tests with malicious HTTP nodes |
 | Single-node HTTP API + CLI | `node.py`, `demo.py` |
-| Command-line surface, no implicit key creation | `cli.py`, 15 tests |
+| Command-line surface, no implicit key creation | `cli.py`, 19 tests |
 | Multi-node replication + quorum reads | `replica.py`, 12 tests |
 | Metadata minimisation (encrypted labels, padded sizes) | `store.py`, 8 tests |
-| Key recovery: codes, passphrase backups, k-of-n Shamir shares | `recovery.py`, 21 tests |
-| Node resource + disclosure hardening | `node.py`, 12 tests |
-| Peer discovery with hostile-bootstrap defences | `discover.py`, 18 tests |
+| Key recovery: codes, passphrase backups, k-of-n Shamir shares | `recovery.py`, 25 tests |
+| Node resource + disclosure hardening | `node.py`, 14 tests |
+| Peer discovery with hostile-bootstrap defences | `discover.py`, 23 tests |
 | Retrieval auditing (offline vs lost vs dishonest) | `audit.py`, 10 tests |
 | Local-model memory loop, loopback enforced | `ollama_mem.py`, 13 tests |
-| Gated hosted-model path, closed by default | `cloud_gate.py`, 13 tests |
+| Gated hosted-model path, closed by default | `cloud_gate.py`, 14 tests |
 | Reversible pseudonymisation on that path | `vault_proxy.py`, 30 tests |
 | Remote attestation framework, refuse on any failure | `attest.py`, 30 tests |
-| Release policy across model tiers, proof required | `memory_gate.py`, 29 tests |
+| Release policy across model tiers, proof required | `memory_gate.py`, 42 tests |
 | SEV-SNP report verification, **disabled pending hardware validation** | `sev_snp.py`, 19 tests |
 | ZK proofs of properties without disclosure (range, membership, equality) | `zk.py`, 31 tests |
 | **ZK membership: prove you hold a record without naming it**, bound to a signed head | `zk_keep.py`, 12 tests |
-| **Anonymous entitlement**: Chaum blind signatures — prove you may ask without saying who you are (the RFC 9578 construction) | `anon_token.py`, 15 tests |
-| **SEALED tier**: abstraction AND attestation together, degrading to the strongest that still holds | `memory_gate.py`, 42 tests |
-| **Delegated inference**: a local model abstracts, a leak gate verifies, only a question about nobody is sent | `delegate.py`, 17 tests |
+| **Anonymous entitlement**: Chaum blind signatures — prove you may ask without saying who you are (the RFC 9578 construction) | `anon_token.py`, 16 tests |
+| **SEALED tier**: abstraction AND attestation together, degrading to the strongest that still holds | `memory_gate.py`, same 42-test suite |
+| **Delegated inference**: a local model abstracts, a leak gate verifies, only a question about nobody is sent | `delegate.py`, 22 tests |
 | **Poseidon tree matching the halo2 circuit**, cross-checked against Rust known-answer vectors | `poseidon.py`, `zk_tree.py`, 15 tests |
-| Self-reporting inventory — counts computed, non-claims listed | `status.py`, 14 tests (`blindkeep status`) |
+| **HPKE (RFC 9180)**, verified against the RFC's own test vectors | `hpke.py`, 10 tests |
+| **Oblivious HTTP (RFC 9458)**: who is asking is split from what is asked, across two independent operators | `oblivious.py`, 15 tests |
+| **Timing and size privacy**: a constant-rate clock, not jitter; padding in a header, not the prompt | `dispatch.py`, 20 tests |
+| Access-pattern privacy (trivial PIR) and equivocation detection | `private_read.py` 12 tests, `witness.py` 13 tests |
+| Self-reporting inventory — counts computed, non-claims listed | `status.py`, 15 tests (`blindkeep status`) |
+| Counts in these documents enforced against source at push time | `tools/check_counts.py` |
 | Security write-up of fixed bugs | `SECURITY.md` |
 | Cryptographic claim boundaries | `CRYPTO_FOUNDATIONS.md` |
 
-**Automated suite (2026-08-07):** **430 tests** across 25 suites + end-to-end demo — adversarial 9 · anon-token 16 · attestation 30 · audit 10 · CLI 19 · cloud gate 14 · console 8 · delegate 22 · discovery 23 · hardening 14 · local-model memory 13 · memory gate 42 · Merkle 13 · metadata 8 · poseidon 15 · private read 12 · recovery 25 · replication 12 · SEV-SNP 19 · status 15 · store 5 · vault proxy 30 · witness 13 · zk 31 · zk-keep 12 · sealed-tier composition.
+**Automated suite (2026-08-08):** **475 tests** across 28 suites + end-to-end demo. Counts are computed from source by `blindkeep status`, and `tools/check_counts.py` blocks a push that would leave this line stale:
 
-**Not claimed as shipping:** anti-equivocation witnesses, proof of *storage* (as distinct from the retrieval auditing that is implemented), PIR, general-purpose proving and zkML, token incentives, and **validated hardware attestation**. The framework and its five checks are implemented and tested; a full SEV-SNP report parser and verifier is implemented (`sev_snp.py`, 19 tests) but has never been run against a report from real hardware, so it is deliberately excluded from the default registry and `sev-snp` refuses on the default path. TDX and NVIDIA GPU formats refuse outright. No vendor root certificates are bundled.
+<!-- roster --> adversarial 9 · anon-token 16 · attestation 30 · audit 10 · CLI 19 · cloud gate 14 · console 8 · delegate 22 · discovery 23 · dispatch 20 · hardening 14 · HPKE 10 · local-model memory 13 · memory gate 42 · Merkle 13 · metadata 8 · oblivious HTTP 15 · poseidon 15 · private read 12 · recovery 25 · replication 12 · SEV-SNP 19 · status 15 · store 5 · vault proxy 30 · witness 13 · zk 31 · zk-keep 12
+
+**Not claimed as shipping** (this list is kept in step with `blindkeep status`, which prints the same disclaimers):
+
+- **Validated hardware attestation.** The framework and its five checks are implemented and tested; a full SEV-SNP report parser and verifier is implemented (`sev_snp.py`, 19 tests) but has never been run against a report from real hardware, so it is deliberately excluded from the default registry and `sev-snp` refuses on the default path. TDX and NVIDIA GPU formats refuse outright. No vendor root certificates are bundled.
+- **Equivocation *prevention*.** Detection and proof exist (`witness.py`); stopping it needs consensus.
+- **Sub-linear private retrieval.** Trivial PIR works and costs the whole keep on every read.
+- **Proof of storage**, as distinct from the retrieval auditing that is implemented.
+- **Independent relay and gateway operators** — the single assumption OHTTP rests on. Run both yourself and every anonymity property in `oblivious.py` is void, not weakened.
+- **Interoperability with a real OHTTP deployment.** The HPKE layer matches RFC 9180's vectors; the RFC 9458 framing has never been run against a production relay.
+- **Sender anonymity on the direct path** — unchanged and unfixable there; a provider API key is an account identity.
+- **General-purpose proving and zkML**, and token incentives.
 
 **Not yet demonstrated:** every result above was produced by the author against nodes the author operates. The design assumes a node is untrusted; that assumption has not been tested against a node run by anyone else. Establishing that is milestone M1 below, and it is deliberately written so it cannot be satisfied alone.
 
@@ -105,7 +121,7 @@ Full statement: [`CRYPTO_FOUNDATIONS.md`](CRYPTO_FOUNDATIONS.md).
 
 | Phase | Deliverable | Status |
 |-------|-------------|--------|
-| **M0** | Public MIT repo, docs, 430 tests | **done** |
+| **M0** | Public MIT repo, docs, 475 tests | **done** |
 | **M0b** | Replication, peer discovery, retrieval auditing, key recovery, local-model memory | **done** |
 | **M1** | **Three nodes operated by people who are not the applicant**, serving one client | **the next milestone** |
 | **M2** | Operator runbooks, packaging, CI, free community pool design | funded work |

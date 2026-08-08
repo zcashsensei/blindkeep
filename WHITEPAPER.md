@@ -198,10 +198,12 @@ The verification layer does not become the bottleneck at any realistic scale.
 
 ---
 
-## 4. What is verified — as of 2026-08-07
+## 4. What is verified — as of 2026-08-08
 
-Implemented, running, and covered by tests in this repository. **430 tests
-across 25 suites**, plus an end-to-end demonstration.
+Implemented, running, and covered by tests in this repository. **475 tests
+across 28 suites**, plus an end-to-end demonstration. Every number in this
+section is computed from source by `blindkeep status` and enforced against this
+document by `tools/check_counts.py`; none of them is typed by hand.
 
 | Component | Status | Evidence |
 |-----------|--------|----------|
@@ -212,18 +214,31 @@ across 25 suites**, plus an end-to-end demonstration.
 | Single-node HTTP service + CLI | Complete | End-to-end demo |
 | Metadata minimisation | Complete | 8 tests: encrypted labels, padded sizes, access pattern asserted still open |
 | Multi-node replication, quorum reads | Complete | 12 tests: offline, tampered and dishonest nodes |
-| Key recovery | Complete | 21 tests: codes, passphrase backups, k-of-n Shamir shares |
-| Node resource and disclosure hardening | Complete | 12 tests: bounded bodies, paginated listing, no path disclosure |
-| Peer discovery | Complete | 18 tests, including a hostile bootstrap endpoint |
+| Key recovery | Complete | 25 tests: codes, passphrase backups, k-of-n Shamir shares |
+| Node resource and disclosure hardening | Complete | 14 tests: bounded bodies, paginated listing, no path disclosure |
+| Peer discovery | Complete | 23 tests, including a hostile bootstrap endpoint |
 | Retrieval auditing | Complete | 10 tests separating offline, lost-data and dishonest nodes |
 | Local-model memory loop | Complete | 13 tests, loopback enforced, no hosted-provider path |
-| Gated hosted-model path | Complete | 13 tests asserting it stays closed by default |
+| Gated hosted-model path | Complete | 14 tests asserting it stays closed by default |
 | Reversible pseudonymisation on that path | Complete | 30 tests, four of which pass by demonstrating the limits |
 | Attestation framework | Complete | 30 tests; a replayed but genuine report is refused |
-| Release policy across model tiers | Complete | 29 tests; an unproven tier claim is demoted, not honoured |
+| Release policy across model tiers, including the SEALED tier | Complete | 42 tests; an unproven tier claim is demoted, not honoured |
+| Delegated inference: abstract locally, verify, send a question about nobody | Complete | 22 tests; the leak gate refuses rather than redacts |
+| Anonymous entitlement (Chaum blind signatures, RFC 9578) | Complete | 16 tests; proves you may ask without saying who is asking |
+| ZK property proofs — range, membership, equality, without disclosure | Complete | 31 tests; Fiat–Shamir binds the whole statement |
+| ZK membership in the keep, bound to a signed head | Complete | 12 tests |
+| Poseidon tree matching the halo2 circuit | Complete | 15 tests, cross-checked against Rust known-answer vectors |
+| Access-pattern privacy (trivial PIR) | Complete | 12 tests; costs the whole keep, and says so |
+| Equivocation detection + gossip | Complete | 13 tests; detection and proof, not prevention |
+| HPKE (RFC 9180) | Complete | 10 tests against the RFC's own vectors |
+| Oblivious HTTP (RFC 9458) | Complete | 15 tests; identity split across two operators |
+| Timing and size privacy (constant-rate dispatch) | Complete | 20 tests; a clock, not jitter |
 | SEV-SNP report verification | **Written, disabled** | 19 tests, all against synthetic reports; never run against real hardware, so it is excluded from the default registry |
-| Self-reporting inventory | Complete | 14 tests; counts computed from source, non-claims listed |
-| Command-line surface | Complete | 15 tests, including that no command creates a master key as a side effect |
+| Self-reporting inventory | Complete | 15 tests; counts computed from source, non-claims listed |
+| Terminal output encoding guard | Complete | 8 tests |
+| Command-line surface | Complete | 19 tests, including that no command creates a master key as a side effect |
+
+<!-- roster --> adversarial 9 · anon-token 16 · attestation 30 · audit 10 · CLI 19 · cloud gate 14 · console 8 · delegate 22 · discovery 23 · dispatch 20 · hardening 14 · HPKE 10 · local-model memory 13 · memory gate 42 · Merkle 13 · metadata 8 · oblivious HTTP 15 · poseidon 15 · private read 12 · recovery 25 · replication 12 · SEV-SNP 19 · status 15 · store 5 · vault proxy 30 · witness 13 · zk 31 · zk-keep 12
 
 The adversarial suites are the substantive claim. They stand up nodes that
 substitute records, fork history at equal length, forge heads, tamper with

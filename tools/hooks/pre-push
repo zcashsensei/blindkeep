@@ -1,0 +1,31 @@
+#!/bin/sh
+# Blindkeep pre-push hook.
+#
+# Five times, a commit shipped a test suite and left the counts in the documents
+# behind it. The counts are computable, so this refuses the push instead.
+#
+# Install:  py -3 tools/install_hooks.py
+# Bypass:   git push --no-verify   (the documents will be wrong)
+#
+# This runs the fast check only -- counts and roster, about a second. It does
+# not run the suites; that takes roughly seven minutes and belongs in CI:
+#   py -3 tools/check_counts.py --run-tests
+
+set -e
+
+ROOT=$(git rev-parse --show-toplevel)
+
+for PY in py python3 python; do
+    if command -v "$PY" >/dev/null 2>&1; then
+        # `py` needs -3; the others must not receive it.
+        if [ "$PY" = "py" ]; then
+            exec "$PY" -3 "$ROOT/tools/check_counts.py"
+        else
+            exec "$PY" "$ROOT/tools/check_counts.py"
+        fi
+    fi
+done
+
+echo "pre-push: no Python interpreter found; cannot verify counts." >&2
+echo "Install Python or push with --no-verify." >&2
+exit 1

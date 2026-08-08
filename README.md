@@ -10,7 +10,7 @@
 <p align="center">
   <img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License: MIT">
   <img src="https://img.shields.io/badge/python-3.10%2B-blue.svg" alt="Python 3.10+">
-  <img src="https://img.shields.io/badge/tests-430%20passing-brightgreen.svg" alt="430 tests passing">
+  <img src="https://img.shields.io/badge/tests-475%20passing-brightgreen.svg" alt="475 tests passing">
   <img src="https://img.shields.io/badge/status-v0%20alpha-orange.svg" alt="v0 alpha">
   <img src="https://img.shields.io/badge/dependencies-1-lightgrey.svg" alt="1 dependency">
   <img src="https://img.shields.io/badge/zero--knowledge-sigma%20protocols%20%2B%20halo2-6E4B9E.svg" alt="Zero-knowledge: sigma protocols and a halo2 SNARK">
@@ -18,7 +18,7 @@
 </p>
 
 <p align="center">
-  <sub><b>Status as of 2026-08-07</b> · v0 alpha · 430 tests passing ·
+  <sub><b>Status as of 2026-08-08</b> · v0 alpha · 475 tests passing ·
   replication, peer discovery, retrieval audits, key recovery, local-model
   memory, pseudonymisation, an attestation framework and <b>zero-knowledge
   membership</b> implemented · sigma protocols <i>and</i> a halo2 SNARK
@@ -130,7 +130,8 @@ end to end**, and the next section is the measurement. The code is
 standard, carefully written, adversarially tested, and **unaudited**, which is
 not the same as reviewed by a cryptographer.
 
-Still not claimed: private queries (PIR), proof of storage, verifiable inference.
+Still not claimed: *sub-linear* private queries (trivial PIR works, and reads the
+whole keep to do it), proof of storage, verifiable inference.
 
 ## What you get today
 
@@ -489,7 +490,7 @@ circuits/       halo2 membership circuit + the blindkeep-prove binary (Rust)
   anon_token.py blind-signed entitlement: prove you may ask, not who you are
   _console.py   terminal output helpers
   cli.py        command-line interface
-tests/          25 suites, 430 tests
+tests/          28 suites, 475 tests
 ```
 
 ## Replication

@@ -98,6 +98,42 @@ accurate as the code changes:
 
 If a change alters either list, the README changes in the same pull request.
 
+### Test counts are computed, never typed
+
+Five separate times, a commit shipped a test suite and left the totals in the
+documents behind it — twice in the files a grant reviewer reads first. The
+numbers are derivable from the source, so no one should be retyping them.
+
+Install the hook once per clone:
+
+```
+py -3 tools/install_hooks.py
+```
+
+`pre-push` then runs `tools/check_counts.py`, which fails the push if any
+document states a total, a suite count, or a per-suite roster entry that the
+source does not support. It takes about a second. To regenerate the roster
+after adding a suite:
+
+```
+py -3 tools/check_counts.py --print-roster
+```
+
+Adding a suite therefore requires one deliberate step — a label in
+`tools/check_counts.py` — and the checker refuses until it is there, so a new
+suite cannot be silently left out of the documentation. To run every suite as
+well (about seven minutes, and what CI should do):
+
+```
+py -3 tools/check_counts.py --run-tests
+```
+
+Note that `blindkeep status` **counts** tests by reading the source; it does not
+run them. A green count is not a green run. Only `--run-tests` executes them,
+and it trusts exit codes rather than output text — the suites print `ok`,
+`PASS`, `N passed` and `13 merkle tests passed`, so any parser of that text
+mislabels healthy suites as failures.
+
 ## Licensing
 
 Contributions are accepted under the MIT license in [`LICENSE`](LICENSE). By
