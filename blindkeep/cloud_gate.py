@@ -72,6 +72,17 @@ _PATTERNS: list[tuple[str, re.Pattern[str]]] = [
 ]
 
 
+def _scrub(text: str) -> str:
+    """Strip anything credential-shaped from a provider's error text.
+
+    Unlike `redact`, this is not a privacy control and makes no claim to
+    completeness -- it guards one narrow case: a provider that quotes part of
+    the request back in its error message. Best-effort is the right bar here,
+    because the alternative being weighed is showing the message unexamined.
+    """
+    return re.sub(r"(sk-[A-Za-z0-9_-]{8,}|Bearer\s+\S+)", "***", text)
+
+
 def redact(text: str) -> tuple[str, list[str]]:
     """Best-effort removal of obvious secrets. NOT a privacy guarantee.
 
@@ -142,19 +153,37 @@ def cloud_complete(prompt: str, *,
         with urllib.request.urlopen(req, timeout=timeout) as resp:
             data = json.loads(resp.read(MAX_REPLY_BYTES).decode("utf-8"))
     except urllib.error.HTTPError as exc:
-        # Never echo the request: it carries the API key.
-        # A 404 here is nearly always the wrong dialect rather than a dead
-        # endpoint -- each provider puts its completion route at a different
-        # path, so the request never reaches a handler. Say so, because
-        # "HTTP 404" sends the user to check their URL, which is fine, and not
-        # to check which API they are speaking, which is usually the fault.
+        # The REQUEST carries the key and must never be echoed. The RESPONSE
+        # does not -- it carries the provider's explanation, which is the only
+        # thing that can tell a user what to actually do. Suppressing it bought
+        # no safety and cost the diagnosis: a real 400 here said "your credit
+        # balance is too low", and the caller saw only "HTTP 400" and went
+        # looking for a bug in the request.
+        #
+        # Scrubbed anyway, because "the response cannot contain a credential"
+        # is an assumption about someone else's server, and a cheap belt is
+        # worth more than a confident argument.
+        detail = ""
+        try:
+            body = exc.read(MAX_REPLY_BYTES).decode("utf-8", "replace")
+            msg = json.loads(body).get("error", {}).get("message", "")
+            if msg:
+                detail = f": {_scrub(msg)[:300]}"
+        except Exception:
+            pass
+
+        # A 404 is nearly always the wrong dialect rather than a dead endpoint --
+        # each provider routes completions at a different path, so the request
+        # never reaches a handler. "HTTP 404" sends the user to check their URL,
+        # which is fine and not the fault.
         hint = ""
         if exc.code == 404:
-            hint = (f"; no route at {spoken.path} -- if this endpoint speaks a "
-                    f"different API, pass another dialect "
-                    f"({', '.join(sorted(dialects.DIALECTS))})")
+            hint = (f" (no route at {spoken.path} -- if this endpoint speaks a "
+                    f"different API, pass another dialect: "
+                    f"{', '.join(sorted(dialects.DIALECTS))})")
         raise CloudGateError(
-            f"provider returned HTTP {exc.code} for the {spoken.name} dialect{hint}") from exc
+            f"provider returned HTTP {exc.code} for the {spoken.name} "
+            f"dialect{detail}{hint}") from exc
     except (urllib.error.URLError, OSError) as exc:
         raise CloudGateError(f"provider unreachable: {exc}") from exc
 

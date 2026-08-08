@@ -250,6 +250,61 @@ def test_importing_the_package_does_not_load_any_cloud_module():
         assert not loaded, f"import {entry} loaded a cloud path: {loaded}"
 
 
+def _error_provider(status, message):
+    """A provider that answers with a real error envelope rather than a body."""
+    class H(BaseHTTPRequestHandler):
+        def log_message(self, *a, **k):
+            pass
+
+        def do_POST(self):
+            self.rfile.read(int(self.headers.get("Content-Length", 0)) or 0)
+            body = json.dumps({"type": "error",
+                               "error": {"type": "invalid_request_error",
+                                         "message": message}}).encode()
+            self.send_response(status)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+
+    httpd = ThreadingHTTPServer(("127.0.0.1", 0), H)
+    threading.Thread(target=httpd.serve_forever, daemon=True).start()
+    SERVERS.append(httpd)
+    return f"http://127.0.0.1:{httpd.server_address[1]}"
+
+
+def test_provider_error_message_reaches_the_user():
+    """Found against the live API: a 400 said only "HTTP 400".
+
+    The real cause was "your credit balance is too low" -- nothing to do with
+    the request -- and hiding it sent the search for a bug that did not exist.
+    The request carries the key and must never be echoed; the response carries
+    the provider's explanation and is the only thing that can say what to do.
+    """
+    base = _error_provider(400, "Your credit balance is too low to access the API.")
+    try:
+        cloud_complete("x", api_base=base, api_key="k", model="m",
+                       enable_cloud=True, accept_not_private=True, dialect="anthropic")
+        raise AssertionError("a 400 did not raise")
+    except CloudGateError as exc:
+        assert "credit balance" in str(exc), f"provider's reason was swallowed: {exc}"
+        assert "400" in str(exc), f"status code lost: {exc}"
+
+
+def test_a_credential_in_a_provider_error_is_scrubbed():
+    """The response should not contain a key -- but that is a claim about
+    someone else's server, so it is not relied upon."""
+    base = _error_provider(400, "bad token sk-ant-abcdefghijklmnop1234 supplied")
+    try:
+        cloud_complete("x", api_base=base, api_key="k", model="m",
+                       enable_cloud=True, accept_not_private=True, dialect="anthropic")
+        raise AssertionError("a 400 did not raise")
+    except CloudGateError as exc:
+        assert "sk-ant-abcdefghijklmnop1234" not in str(exc), \
+            f"a credential-shaped string survived scrubbing: {exc}"
+        assert "***" in str(exc), f"scrub left no marker: {exc}"
+
+
 def test_a_404_blames_the_dialect_not_just_the_url():
     """Found by driving a real endpoint: the wrong dialect 404s, and used to say
     only "provider returned HTTP 404".
