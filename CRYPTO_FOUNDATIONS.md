@@ -16,7 +16,7 @@
 | Are those primitives mathematically / cryptographically established? | **Yes** — under standard assumptions (below). |
 | Is the *composition* “proven in a theorem prover”? | **No** (not Coq/Lean formal verification today). |
 | Is the *composition* sound if primitives are used correctly? | **Yes** — integrity and confidentiality reduce to known properties. |
-| Does “millions of proofs” require ZK Rust circuits? | **No** for v0. Proofs are **Merkle / hash proofs**, not SNARKs. **Python is appropriate.** |
+| Does “millions of proofs” require ZK Rust circuits? | **No.** The read-path proofs are **Merkle / hash proofs**, not SNARKs, and **Python is appropriate** for them. The Rust circuit in `circuits/` is for succinct *membership*, a different statement, and is optional. |
 | When would Rust / ZK languages matter? | Later: PIR, zkML, high-QPS edge services — optional, not v0. |
 
 **Grant-safe claim:**
@@ -116,7 +116,7 @@ That is **empirical verification of the implementation**, not a machine-checked 
 | Claim | Status |
 |-------|--------|
 | Coq/Lean/Isabelle formalization of the full protocol | **Not done** |
-| Novel ZK soundness proof | **N/A** — no SNARK circuit in critical path |
+| Novel ZK soundness proof | **Not claimed.** `circuits/` is a halo2 SNARK, but its soundness rests on halo2 and Poseidon as published — nothing here is a new proving system, and the circuit is optional: the keep verifies without it |
 | Constant-time side-channel proof of Python crypto | **Not claimed** (uses `cryptography` / OpenSSL for AEAD & Ed25519) |
 | Perfect metadata privacy | **Not claimed** |
 
@@ -132,7 +132,10 @@ Current Merkle `root()` over a full leaf list is a recursive recompute — fine 
 
 Each **read** produces a **Merkle inclusion proof** (sibling hashes).  
 Each **log growth** can produce a **consistency proof**.  
-These are **hash computations**, not ZK proving systems.
+These are **hash computations**, not ZK proving systems — a statement about
+inclusion and consistency proofs specifically, not about the repository. The
+zero-knowledge work is separate: sigma protocols in `blindkeep/zk.py`, and a
+halo2 membership circuit in `circuits/` (§3.2).
 
 | Scale | Work per proof | Language recommendation |
 |-------|----------------|-------------------------|

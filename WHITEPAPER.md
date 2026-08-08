@@ -11,7 +11,10 @@ v0.4: §3.4 clarified — "confidentiality needs no ZK" is a claim about
 confidentiality, not a claim that this design never needs proving; access-pattern
 privacy and proof of storage still do.
 v0.5: zero-knowledge membership implemented — a holder proves they hold a record
-without naming it, bound to a signed head. Sigma protocols, O(n), no SNARK.*
+without naming it, bound to a signed head. Sigma protocols, O(n).
+v0.6: succinct membership implemented — a halo2 (no trusted setup) Poseidon
+Merkle circuit in `circuits/`, proving and verifying, 3,040 bytes independent of
+tree size. Still not zkML: this proves membership, never inference.*
 
 ---
 
@@ -148,9 +151,18 @@ naming the record.** The log constrains the node; these proofs let the holder
 speak. Membership is bound to a signed tree head, so a proof is about a specific
 keep in a specific state and transfers nowhere else.
 
-They are sigma protocols, not SNARKs — which costs O(n) proof size for keep
-membership and is exactly why §5.7's hash decision matters before circuits are
-written, not after.
+These particular proofs are sigma protocols, which costs O(n) proof size for keep
+membership. That is no longer the only path: `circuits/` implements the same
+membership statement as a halo2 circuit over a Poseidon tree, producing a
+constant-size proof — 3,040 bytes whether the tree holds 8 leaves or 128 — with
+real proof generation and verification, and a proof that does not transfer to a
+different root. §5.7's hash decision was made rather than deferred; Poseidon is
+what the circuit hashes with, and the Python tree is checked against it rather
+than trusted to agree.
+
+The two are kept separate on purpose. Sigma protocols need nothing but Python and
+work on any machine; the SNARK needs a Rust toolchain and buys succinctness. The
+keep's guarantees do not depend on the circuit being present.
 
 What encryption cannot do is hide *behaviour*. The node still observes which
 record is requested and when. Closing that gap requires private information

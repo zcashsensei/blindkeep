@@ -112,10 +112,29 @@ def capabilities(root: Optional[Path] = None) -> list[dict[str, Any]]:
          and suite("test_private_read.py")),
         ("Equivocation detection + gossip", mod("witness.py")
          and suite("test_witness.py")),
+        # The SNARK had no row here for as long as it existed, and the documentation drifted
+        # into saying there was no SNARK in the repository while the circuit was proving and
+        # verifying in CI. What the status report cannot see, the docs eventually contradict.
+        ("Succinct membership circuit (halo2)", _circuit_present(r)),
         ("SEV-SNP verifier written", mod("sev_snp.py") and suite("test_sev_snp.py")),
         ("SEV-SNP enabled by default", _sev_snp_enabled()),
     ]
     return [{"label": label, "ok": bool(ok)} for label, ok in rows]
+
+
+def _circuit_present(root: Path) -> bool:
+    """True when the halo2 crate is on disk and actually proves, rather than merely existing.
+
+    Detected, not asserted: a `merkle.rs` that never calls `create_proof` is a circuit you can
+    only run under `MockProver`, which checks constraint satisfaction and generates no proof.
+    That distinction is the whole claim, so it is the thing checked.
+    """
+    src = root / "circuits" / "src"
+    merkle = src / "merkle.rs"
+    if not merkle.is_file() or not (root / "circuits" / "Cargo.toml").is_file():
+        return False
+    text = merkle.read_text(encoding="utf-8", errors="replace")
+    return "create_proof" in text and "verify_proof" in text
 
 
 # Milestones that no file can prove. Kept deliberately short and next to the

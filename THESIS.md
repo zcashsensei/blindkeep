@@ -14,8 +14,8 @@ Blindkeep is the **privacy answer for AI memory**: sensitive context stays insid
 |--------|----------|
 | Primary | Zero-knowledge memory infrastructure for AI — the operator is blind, and the holder can prove without disclosing |
 | Network | DePIN — user-controlled nodes, no central data harvest |
-| Now | Sigma-protocol proofs: keep membership, range, equality, opening. **Not SNARKs** |
-| Later | Succinct proofs (halo2) to make membership O(log n); verifiable inference (ZKML) only where cost is justified |
+| Now | Sigma-protocol proofs: keep membership, range, equality, opening (**not SNARKs**, O(n)) **and** a halo2 Poseidon membership circuit — real proving, 3,040 bytes independent of tree size |
+| Later | Succinct proofs wired into the default read path, not an optional binary; verifiable inference (ZKML) only where cost is justified |
 | Not | Public cloud AI SaaS, grid/power product, or coin-first launch |
 
 Build sequence: encrypted verifiable memory → multi-node mesh → optional local inference glue → advanced proofs only when they earn their cost. Do not claim unshipped capabilities.

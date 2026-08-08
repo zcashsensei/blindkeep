@@ -13,14 +13,16 @@
   <img src="https://img.shields.io/badge/tests-422%20passing-brightgreen.svg" alt="422 tests passing">
   <img src="https://img.shields.io/badge/status-v0%20alpha-orange.svg" alt="v0 alpha">
   <img src="https://img.shields.io/badge/dependencies-1-lightgrey.svg" alt="1 dependency">
-  <img src="https://img.shields.io/badge/zero--knowledge-sigma%20protocols-6E4B9E.svg" alt="Zero-knowledge: sigma protocols">
+  <img src="https://img.shields.io/badge/zero--knowledge-sigma%20protocols%20%2B%20halo2-6E4B9E.svg" alt="Zero-knowledge: sigma protocols and a halo2 SNARK">
+  <img src="https://img.shields.io/badge/SNARK-halo2%20%C2%B7%20no%20trusted%20setup-6E4B9E.svg" alt="halo2 SNARK, no trusted setup">
 </p>
 
 <p align="center">
   <sub><b>Status as of 2026-08-07</b> · v0 alpha · 422 tests passing ·
   replication, peer discovery, retrieval audits, key recovery, local-model
   memory, pseudonymisation, an attestation framework and <b>zero-knowledge
-  membership</b> implemented · sigma protocols, not SNARKs — no zkML ·
+  membership</b> implemented · sigma protocols <i>and</i> a halo2 SNARK
+  (3,040-byte constant-size membership proof) — no zkML ·
   <b>runs on one machine today — no public node
   network exists, and no node has ever been run by anyone but the author</b> ·
   run <code>blindkeep status</code> for a count computed from the source</sub>
@@ -52,8 +54,11 @@ blindkeep verify-in-keep --proof p.json
 Pedersen commitments and sigma protocols, bound to a signed tree head, in **one
 dependency**. Range, membership, equality and opening are proven the same way.
 
-**Not SNARKs**, and no zkML — a fixed set of algebraic predicates, kilobyte
-proofs, honestly priced further down. There is no token and no chain. Hosted
+**These** are not SNARKs, and nothing here is zkML — a fixed set of algebraic
+predicates, kilobyte proofs, honestly priced further down. A halo2 SNARK does
+exist alongside them in `circuits/`, proving the same membership statement in a
+constant 3,040 bytes; it needs a Rust toolchain, and the keep works without it.
+There is no token and no chain. Hosted
 models are reachable through paths requiring two acknowledgements that say
 plainly what they disclose, and **no default path imports them** — a constraint
 a test verifies.
@@ -110,8 +115,10 @@ challenge binds the entire statement — group, generators, commitments, tree he
 lesson, in its fourth register: *a valid proof is not an answer to your
 question.*
 
-**Honest costs.** These are **not SNARKs**: a fixed set of algebraic predicates,
-not arbitrary computation, and no zkML. Keep membership is an OR-proof across
+**Honest costs.** These particular proofs are **not SNARKs**: a fixed set of
+algebraic predicates, not arbitrary computation, and no zkML. (The halo2 circuit
+in `circuits/` is a SNARK, and pays a different price — a Rust toolchain and
+seconds of proving — for a proof that stops growing.) Keep membership is an OR-proof across
 every leaf, so proofs are **O(n)** — about 1 KB per record, fine at 40 records
 and impractical at 40,000, and `keep_leaves` refuses rather than hanging. Making
 it O(log n) means proving a Merkle path inside a circuit. **That path now works
@@ -249,10 +256,30 @@ elsewhere — and the refusal says exactly that rather than failing obscurely.
 
 ## Making the proofs succinct: the hash is the decision
 
-The proofs above are real, and they are sigma protocols — **there is no SNARK in
-the code today**, and keep membership pays O(n) for it. Succinctness is the next
-step, not zero-knowledge itself; the aim is private queries and continuous
-storage proofs on top of what already works.
+The proofs above are sigma protocols, and keep membership through them pays O(n).
+That is not the whole story any more: **there is a SNARK in this repository, and
+it proves and verifies.** `circuits/` is a halo2 crate holding a Poseidon Merkle
+membership circuit — a holder proves a leaf sits under a published root without
+revealing the leaf or the path.
+
+Measured, not asserted (`cargo test --release -p blindkeep-circuits`, 14 tests):
+
+| | |
+|---|---|
+| Proving system | halo2 (PLONKish, **no trusted setup**), Pallas/Vesta |
+| In-circuit hash | Poseidon `P128Pow5T3`, checked against the Python tree |
+| Proof size | **3,040 bytes at 8 leaves, 3,040 bytes at 128 leaves** — constant |
+| Generation | real `keygen_vk → keygen_pk → create_proof → verify_proof`, not `MockProver` |
+| Bound to its root | a proof against another root fails |
+
+The two halves are deliberately separate. The sigma protocols run anywhere Python
+runs, with no toolchain; the SNARK needs Rust and buys succinctness. The keep
+verifies without the circuit — it is an addition, not a dependency, which is why
+`zk-prove` refuses clearly when the prover binary is absent rather than failing
+obscurely.
+
+Still true, and not softened by any of the above: this proves **membership**, not
+inference. Nothing here proves a model did anything — there is no zkML.
 
 One decision has to be made before any circuit is written, because it cannot be
 retrofitted once heads are published.
