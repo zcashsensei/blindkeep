@@ -110,6 +110,8 @@ def capabilities(root: Optional[Path] = None) -> list[dict[str, Any]]:
          and suite("test_poseidon.py")),
         ("Access-pattern privacy (trivial PIR)", mod("private_read.py")
          and suite("test_private_read.py")),
+        ("Timing + size privacy (constant-rate dispatch)", mod("dispatch.py")
+         and suite("test_dispatch.py")),
         ("Equivocation detection + gossip", mod("witness.py")
          and suite("test_witness.py")),
         # The SNARK had no row here for as long as it existed, and the documentation drifted
@@ -148,6 +150,11 @@ NOT_CLAIMED = [
     "Proof of storage, as distinct from retrieval auditing",
     "Sub-linear private retrieval — trivial PIR works and costs the whole keep",
     "Integrity of the client's own machine — no server-side measure reaches it",
+    "Sender anonymity when sending DIRECT — the provider's API key is an account identity, "
+    "and constant-rate dispatch hides when and which, never whose key",
+    "Network-layer identity — dispatch does not touch IP or TLS fingerprint",
+    "An independent relay — a relay you operate yourself sees both IP and timing, "
+    "so it correlates rather than separates them",
 ]
 
 
