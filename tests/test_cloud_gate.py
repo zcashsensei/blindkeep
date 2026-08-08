@@ -195,11 +195,24 @@ def test_no_default_module_imports_the_cloud_gate():
     import ast
 
     root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    for name in ("client.py", "store.py", "node.py", "replica.py",
-                 "merkle.py", "crypto.py", "recovery.py", "ollama_mem.py",
-                 "discover.py", "audit.py", "cli.py"):
-        path = os.path.join(root, "blindkeep", name)
-        if not os.path.exists(path):
+
+    # ENUMERATED, not listed. This guard protects the project's headline privacy claim, and
+    # for most of its life it named eleven modules while the package held thirty — so a new
+    # module could import the cloud gate and this test would still pass. Worse, the omitted
+    # nineteen included `__init__.py`, which is what runs on `import blindkeep`: the single
+    # most default path there is was the one path never checked.
+    #
+    # Two modules are allowed to reach the gate, and both are opt-in by construction:
+    #   cli.py         imports it lazily, inside the one command that offers the cloud path
+    #   vault_proxy.py IS the pseudonymising cloud path; importing it is choosing it
+    allowed = {"cli.py", "vault_proxy.py", "cloud_gate.py"}
+    pkg = os.path.join(root, "blindkeep")
+    names = sorted(f for f in os.listdir(pkg) if f.endswith(".py"))
+    assert len(names) > 11, "module enumeration failed; this guard would pass vacuously"
+
+    for name in names:
+        path = os.path.join(pkg, name)
+        if not os.path.exists(path) or name in allowed:
             continue
         tree = ast.parse(open(path, encoding="utf-8").read(), filename=name)
         for node in ast.walk(tree):
@@ -208,12 +221,33 @@ def test_no_default_module_imports_the_cloud_gate():
                     assert "cloud_gate" not in a.name, f"{name} imports cloud_gate"
             elif isinstance(node, ast.ImportFrom):
                 mod = node.module or ""
-                if "cloud_gate" in mod:
-                    # cli.py may import it lazily inside its own command only
-                    assert name == "cli.py", f"{name} imports cloud_gate"
+                assert "cloud_gate" not in mod, f"{name} imports cloud_gate"
                 for a in node.names:
-                    if "cloud_gate" in a.name:
-                        assert name == "cli.py", f"{name} imports cloud_gate"
+                    assert "cloud_gate" not in a.name, f"{name} imports cloud_gate"
+
+
+def test_importing_the_package_does_not_load_any_cloud_module():
+    """The claim is about REACHABILITY, so test reachability rather than a proxy for it.
+
+    Reading imports statically cannot see a module pulled in transitively, by a lazy import
+    that runs at import time, or through a re-export. Importing the package in a clean
+    interpreter and asking what actually loaded is the claim itself, stated executably.
+    """
+    import subprocess
+    import sys
+
+    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    for entry in ("blindkeep", "blindkeep.client", "blindkeep.node", "blindkeep.store",
+                  "blindkeep.cli"):
+        code = (
+            f"import sys; sys.path.insert(0, {root!r}); import {entry}; "
+            "print(','.join(sorted(m for m in sys.modules "
+            "if 'cloud_gate' in m or 'vault_proxy' in m)))"
+        )
+        out = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True)
+        assert out.returncode == 0, f"import {entry} failed: {out.stderr[-300:]}"
+        loaded = out.stdout.strip()
+        assert not loaded, f"import {entry} loaded a cloud path: {loaded}"
 
 
 def run():

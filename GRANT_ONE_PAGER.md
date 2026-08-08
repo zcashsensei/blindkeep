@@ -72,7 +72,7 @@ The missing layer is memory that is **durable**, **structurally private** (opera
 | Security write-up of fixed bugs | `SECURITY.md` |
 | Cryptographic claim boundaries | `CRYPTO_FOUNDATIONS.md` |
 
-**Automated suite (2026-08-07):** **422 tests** across 25 suites + end-to-end demo — adversarial 9 · anon-token 16 · attestation 30 · audit 10 · CLI 19 · cloud gate 13 · console 8 · delegate 22 · discovery 18 · hardening 12 · local-model memory 13 · memory gate 42 · Merkle 13 · metadata 8 · poseidon 15 · private read 12 · recovery 25 · replication 12 · SEV-SNP 19 · status 15 · store 5 · vault proxy 30 · witness 13 · zk 31 · zk-keep 12 · sealed-tier composition.
+**Automated suite (2026-08-07):** **423 tests** across 25 suites + end-to-end demo — adversarial 9 · anon-token 16 · attestation 30 · audit 10 · CLI 19 · cloud gate 14 · console 8 · delegate 22 · discovery 18 · hardening 12 · local-model memory 13 · memory gate 42 · Merkle 13 · metadata 8 · poseidon 15 · private read 12 · recovery 25 · replication 12 · SEV-SNP 19 · status 15 · store 5 · vault proxy 30 · witness 13 · zk 31 · zk-keep 12 · sealed-tier composition.
 
 **Not claimed as shipping:** anti-equivocation witnesses, proof of *storage* (as distinct from the retrieval auditing that is implemented), PIR, general-purpose proving and zkML, token incentives, and **validated hardware attestation**. The framework and its five checks are implemented and tested; a full SEV-SNP report parser and verifier is implemented (`sev_snp.py`, 19 tests) but has never been run against a report from real hardware, so it is deliberately excluded from the default registry and `sev-snp` refuses on the default path. TDX and NVIDIA GPU formats refuse outright. No vendor root certificates are bundled.
 
@@ -105,7 +105,7 @@ Full statement: [`CRYPTO_FOUNDATIONS.md`](CRYPTO_FOUNDATIONS.md).
 
 | Phase | Deliverable | Status |
 |-------|-------------|--------|
-| **M0** | Public MIT repo, docs, 422 tests | **done** |
+| **M0** | Public MIT repo, docs, 423 tests | **done** |
 | **M0b** | Replication, peer discovery, retrieval auditing, key recovery, local-model memory | **done** |
 | **M1** | **Three nodes operated by people who are not the applicant**, serving one client | **the next milestone** |
 | **M2** | Operator runbooks, packaging, CI, free community pool design | funded work |
