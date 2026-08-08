@@ -533,6 +533,62 @@ def test_a_delegating_tier_without_a_local_model_refuses():
                    contains="requires a local model")
 
 
+# --- routing reaches the gate, and failures are not silent --------------------
+
+def test_a_general_question_is_not_abstracted_on_the_delegated_tier():
+    """The router must be reachable from the tier, not only from delegate.py.
+
+    It was written, tested and exported, and memory_gate still called delegate()
+    directly -- so every question paid the abstraction cost and no user could ever
+    reach the fast path. Tested code that nothing calls is not a shipped feature.
+    """
+    from blindkeep.memory_gate import delegation_prover
+
+    sent = {}
+
+    def local(text, system=None):
+        if system and "one word" in system:
+            return "GENERAL"
+        return "a generic rewrite"
+
+    def remote(text, system=None):
+        sent["text"] = text
+        return "an answer"
+
+    class Gate:
+        def check(self, text):
+            return None
+
+    g = fresh_gate()
+    b = backend(Tier.DELEGATED, delegation_prover(Gate()), completer=remote)
+    b.local = local
+    out = g.chat(b, "How do I write a decorator?", remember=False)
+
+    assert out["abstracted"] is False, "a general question was needlessly abstracted"
+    assert sent["text"] == "How do I write a decorator?", (
+        f"the fast path rewrote the question: {sent['text']!r}")
+
+
+def test_an_unreadable_memory_is_not_reported_as_withheld():
+    """A node that is down and a policy that refused both shrink `allowed`.
+
+    They mean opposite things -- one is the gate working, the other is the gate never
+    running -- so counting them together lets a broken keep look like a working policy.
+    """
+    g = seeded_gate()
+
+    def boom(_record_id):
+        raise ConnectionError("keep unreachable")
+
+    g._recall = boom
+    rel = g.release_for(backend(Tier.OPEN), n=10)
+
+    assert not rel.allowed, "text was released despite every read failing"
+    assert rel.unreachable, "an unreadable memory was not recorded as unreachable"
+    assert not rel.withheld, "an unreadable memory was miscounted as a policy withholding"
+    assert "WARNING" in rel.summary(), f"the summary hides a broken keep: {rel.summary()}"
+
+
 def run():
     os.makedirs(TMP, exist_ok=True)
     tests = [(k, v) for k, v in sorted(globals().items()) if k.startswith("test_")]

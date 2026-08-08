@@ -289,6 +289,10 @@ class Release:
     grant: Grant
     allowed: list[str] = field(default_factory=list)
     withheld: list[tuple[str, Sensitivity]] = field(default_factory=list)
+    # Memories that could not be read at all. Kept apart from `withheld` because the two look
+    # identical from outside — both shrink `allowed` — while meaning opposite things: withheld
+    # is the policy deciding, unreachable is the policy never getting to decide.
+    unreachable: list[tuple[str, str]] = field(default_factory=list)
 
     def context_block(self) -> str:
         if not self.allowed:
@@ -300,7 +304,13 @@ class Release:
         held = ", ".join(sorted({s.label for _, s in self.withheld}))
         base = (f"{self.grant.granted.label}: released {len(self.allowed)}, "
                 f"withheld {len(self.withheld)}")
-        return f"{base} ({held})" if held else base
+        if held:
+            base = f"{base} ({held})"
+        if self.unreachable:
+            # Loud on purpose. An answer given without memory that should have been there is
+            # wrong in a way the user cannot see from the answer itself.
+            base = f"{base} — WARNING: {len(self.unreachable)} unreadable (keep unreachable?)"
+        return base
 
 
 class MemoryGate:
@@ -368,8 +378,13 @@ class MemoryGate:
         for entry in self._index[-n:]:
             try:
                 sensitivity, text = self._recall(entry["record_id"])
-            except Exception:
-                continue                 # a node may be down; degrade, not crash
+            except Exception as exc:
+                # Degrade rather than crash, but never silently: an unreachable node and a
+                # policy refusal both shrink `allowed`, and they mean opposite things. One is
+                # the gate working; the other is the gate not running at all. Counted apart so
+                # a caller can tell "withheld 4" from "the keep was down".
+                release.unreachable.append((entry["record_id"], type(exc).__name__))
+                continue
             required = self.policy.get(sensitivity, Tier.LOCAL)
             if grant.granted < required:
                 release.withheld.append((entry["record_id"], sensitivity))
@@ -413,15 +428,19 @@ class MemoryGate:
         # stapled underneath would defeat the whole construction, and is the obvious way to get
         # this wrong.
         if granted in (Tier.DELEGATED, Tier.SEALED):
-            from .delegate import delegate as _delegate
+            # `ask`, not `delegate`: it routes first and abstracts only when there is something
+            # to protect. Calling `delegate` directly charged the abstraction cost to every
+            # question, including ones carrying no fact about anyone — which is how a private
+            # path earns a reputation for being worse and gets switched off.
+            from .delegate import ask as _ask
 
             local = getattr(backend, "local", None)
             if local is None:
                 raise PolicyRefusal(
                     f"{granted.label} requires a local model to write the abstraction; "
                     f"none was attached")
-            result = _delegate(message, local, backend.complete,
-                               context=release.allowed)
+            result = _ask(message, local, backend.complete,
+                          context=release.allowed)
             reply = result.reply
             if remember:
                 self.remember(f"user: {message}", sensitivity=sensitivity)
@@ -435,6 +454,11 @@ class MemoryGate:
                 "summary": release.summary(),
                 "sent": result.sent,
                 "attempts": result.attempts,
+                # `attempts == 0` means the router found nothing to protect and sent the
+                # question as typed. Reporting the tier alone would let a user believe their
+                # words were rewritten when they were not — the tier names the policy, this
+                # names what actually happened to this question.
+                "abstracted": result.attempts > 0,
             }
 
         vault = getattr(backend, "vault", None)

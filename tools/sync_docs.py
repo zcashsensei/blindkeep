@@ -28,33 +28,10 @@ from blindkeep.status import summary  # noqa: E402
 
 # The label each suite is called by in prose. A suite missing from here is a hard error rather
 # than a silent omission — that asymmetry is the whole point of the file.
-LABELS = {
-    "test_merkle.py": "Merkle",
-    "test_store.py": "store",
-    "test_metadata.py": "metadata",
-    "test_adversarial.py": "adversarial",
-    "test_replication.py": "replication",
-    "test_recovery.py": "recovery",
-    "test_hardening.py": "hardening",
-    "test_discover.py": "discovery",
-    "test_audit.py": "audit",
-    "test_ollama_mem.py": "local-model memory",
-    "test_cloud_gate.py": "cloud gate",
-    "test_cli.py": "CLI",
-    "test_console.py": "console",
-    "test_vault_proxy.py": "vault proxy",
-    "test_attest.py": "attestation",
-    "test_memory_gate.py": "memory gate",
-    "test_sev_snp.py": "SEV-SNP",
-    "test_status.py": "status",
-    "test_zk.py": "zk",
-    "test_zk_keep.py": "zk-keep",
-    "test_poseidon.py": "poseidon",
-    "test_delegate.py": "delegate",
-    "test_anon_token.py": "anon-token",
-    "test_private_read.py": "private read",
-    "test_witness.py": "witness",
-}
+# Imported, not re-declared. This file and check_counts.py both need to name every suite,
+# and for a while they each kept their own list -- which is two rulebooks for one fact, and
+# the reason this one silently fell four suites behind. One definition, one place to update.
+from check_counts import LABELS  # noqa: E402
 
 DOCS = ["README.md", "WHITEPAPER.md", "SECURITY.md", "COORDINATION.md",
         "GRANT_ONE_PAGER.md", "GRANT_PROPOSAL.md", "GRANT_ZCG_ZK.md",
