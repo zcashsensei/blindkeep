@@ -1,4 +1,6 @@
-<h1 align="center">Blindkeep</h1>
+<p align="center">
+  <img src="assets/blindkeep-lockup.svg" alt="Blindkeep" width="330">
+</p>
 
 <p align="center">
   <strong>Zero-knowledge memory for local and sovereign AI.</strong><br>

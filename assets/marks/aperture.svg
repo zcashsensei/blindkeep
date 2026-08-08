@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96" width="96" height="96"
+     role="img" aria-label="Aperture">
+  <title>Aperture</title>
+  <!-- Blindkeep mark, claim: cannot-read. Cut-outs use the panel colour rather than a
+       true knockout; on a light ground, convert them to fill-rule="evenodd". -->
+  <circle cx="48" cy="48" r="37" fill="none" stroke="#F4B728" stroke-width="4"/>
+            <path d="M48 15 L69 33 L48 33 Z" fill="#F4B728"/>
+            <path d="M79 39 L72 65 L61 46 Z" fill="#F4B728"/>
+            <path d="M65 76 L39 76 L58 60 Z" fill="#F4B728"/>
+            <path d="M28 79 L24 53 L42 63 Z" fill="#F4B728"/>
+            <path d="M15 45 L34 27 L36 48 Z" fill="#F4B728"/>
+            <circle cx="48" cy="48" r="7" fill="#0b0f16"/>
+</svg>

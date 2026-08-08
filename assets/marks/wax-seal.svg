@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96" width="96" height="96"
+     role="img" aria-label="Wax Seal">
+  <title>Wax Seal</title>
+  <!-- Blindkeep mark, claim: cannot-alter. Cut-outs use the panel colour rather than a
+       true knockout; on a light ground, convert them to fill-rule="evenodd". -->
+  <path d="M48 8 l7 6 9-2 4 8 9 4-2 9 6 7-6 7 2 9-9 4-4 8-9-2-7 6-7-6-9 2-4-8-9-4 2-9-6-7 6-7-2-9 9-4 4-8 9 2Z"
+                  fill="#F4B728"/>
+            <path d="M38 38 h20 l-20 18 h20" fill="none" stroke="#0b0f16"
+                  stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>
