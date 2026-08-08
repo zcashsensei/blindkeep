@@ -66,7 +66,7 @@ The missing layer is memory that is **durable**, **structurally private** (opera
 | **ZK membership: prove you hold a record without naming it**, bound to a signed head | `zk_keep.py`, 12 tests |
 | **Anonymous entitlement**: Chaum blind signatures — prove you may ask without saying who you are (the RFC 9578 construction) | `anon_token.py`, 16 tests |
 | **SEALED tier**: abstraction AND attestation together, degrading to the strongest that still holds | `memory_gate.py`, same 42-test suite |
-| **Delegated inference**: a local model abstracts, a leak gate verifies, only a question about nobody is sent | `delegate.py`, 22 tests |
+| **Delegated inference**: a local model abstracts, a leak gate verifies, only a question about nobody is sent | `delegate.py`, 31 tests |
 | **Poseidon tree matching the halo2 circuit**, cross-checked against Rust known-answer vectors | `poseidon.py`, `zk_tree.py`, 15 tests |
 | **HPKE (RFC 9180)**, verified against the RFC's own test vectors | `hpke.py`, 10 tests |
 | **Oblivious HTTP (RFC 9458)**: who is asking is split from what is asked, across two independent operators | `oblivious.py`, 15 tests |
@@ -77,9 +77,9 @@ The missing layer is memory that is **durable**, **structurally private** (opera
 | Security write-up of fixed bugs | `SECURITY.md` |
 | Cryptographic claim boundaries | `CRYPTO_FOUNDATIONS.md` |
 
-**Automated suite (2026-08-08):** **488 tests** across 29 suites + end-to-end demo. Counts are computed from source by `blindkeep status`, and `tools/check_counts.py` blocks a push that would leave this line stale:
+**Automated suite (2026-08-08):** **497 tests** across 29 suites + end-to-end demo. Counts are computed from source by `blindkeep status`, and `tools/check_counts.py` blocks a push that would leave this line stale:
 
-<!-- roster --> adversarial 9 · anon-token 16 · attestation 30 · audit 10 · CLI 19 · cloud gate 17 · console 8 · delegate 22 · dialects 10 · discovery 23 · dispatch 20 · hardening 14 · HPKE 10 · local-model memory 13 · memory gate 42 · Merkle 13 · metadata 8 · oblivious HTTP 15 · poseidon 15 · private read 12 · recovery 25 · replication 12 · SEV-SNP 19 · status 15 · store 5 · vault proxy 30 · witness 13 · zk 31 · zk-keep 12
+<!-- roster --> adversarial 9 · anon-token 16 · attestation 30 · audit 10 · CLI 19 · cloud gate 17 · console 8 · delegate 31 · dialects 10 · discovery 23 · dispatch 20 · hardening 14 · HPKE 10 · local-model memory 13 · memory gate 42 · Merkle 13 · metadata 8 · oblivious HTTP 15 · poseidon 15 · private read 12 · recovery 25 · replication 12 · SEV-SNP 19 · status 15 · store 5 · vault proxy 30 · witness 13 · zk 31 · zk-keep 12
 
 **Not claimed as shipping** (this list is kept in step with `blindkeep status`, which prints the same disclaimers):
 
@@ -121,7 +121,7 @@ Full statement: [`CRYPTO_FOUNDATIONS.md`](CRYPTO_FOUNDATIONS.md).
 
 | Phase | Deliverable | Status |
 |-------|-------------|--------|
-| **M0** | Public MIT repo, docs, 488 tests | **done** |
+| **M0** | Public MIT repo, docs, 497 tests | **done** |
 | **M0b** | Replication, peer discovery, retrieval auditing, key recovery, local-model memory | **done** |
 | **M1** | **Three nodes operated by people who are not the applicant**, serving one client | **the next milestone** |
 | **M2** | Operator runbooks, packaging, CI, free community pool design | funded work |

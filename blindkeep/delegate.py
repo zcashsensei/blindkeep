@@ -212,6 +212,102 @@ class Delegation:
                           "that you asked something, and roughly what about"}
 
 
+@dataclass(frozen=True)
+class Route:
+    """Whether a question needs abstracting, and why.
+
+    `reasons` is empty exactly when `abstract` is False, so a caller can always show the user
+    what forced the slower path instead of reporting an unexplained quality drop.
+    """
+    abstract: bool
+    reasons: list[str] = field(default_factory=list)
+    specificity: int = 0
+
+    @property
+    def direct(self) -> bool:
+        return not self.abstract
+
+    def as_dict(self) -> dict[str, Any]:
+        return {"abstract": self.abstract, "reasons": list(self.reasons),
+                "specificity": self.specificity}
+
+
+CLASSIFY_SYSTEM = (
+    "Does the question depend on private facts about the person asking — their name, their "
+    "situation, their documents, anyone they know — or does it presuppose circumstances not "
+    "stated in the question itself?\n"
+    "A question anyone in the world could have typed, whose answer does not change based on who "
+    "asked, is GENERAL.\n"
+    "Reply with exactly one word: GENERAL or PRIVATE."
+)
+
+
+def route(message: str, context: Sequence[str] = (), *,
+          classifier: Optional[Callable[[str, Optional[str]], str]] = None,
+          max_specificity: Optional[int] = None) -> Route:
+    """Decide whether this question needs abstracting at all.
+
+    Abstraction costs answer quality, and most questions have nothing to protect: "how do I write
+    a decorator" carries no fact about anyone. Paying the cost on those is a tax with no payer —
+    it makes the private path feel worse than it is, which is how people turn it off entirely.
+
+    Two checks, in order, and they are deliberately different in kind.
+
+    **First, mechanically: does the text overlap the private context?** This reuses `LeakGate`
+    unchanged rather than introducing a second rulebook — it is the identical check `delegate()`
+    applies before transmitting, so the two cannot drift apart and let stored memory take the fast
+    path. No judgement is involved and none is needed.
+
+    **Second, by judgement: is the question about the asker at all?** This one cannot be
+    mechanical, and the tempting shortcut is wrong. `identifying_terms` exists to guard the wire,
+    where a false positive costs a rewrite, so it flags anything not demonstrably ordinary —
+    every capitalised word, every number, every word over eight letters. Point it at *"How do I
+    write a Python decorator?"* and it objects to "Python" and "decorator". Reused here it would
+    abstract essentially everything, which is not caution, it is the feature not existing.
+    Distinguishing "Python" from "Sarah" is a question about meaning, so it goes to a model —
+    a **local** one, so asking costs no privacy.
+
+    **Without a classifier it abstracts.** Not as a placeholder: a router with no way to tell
+    general from private has not earned the fast path, and defaulting to "send it" would trade a
+    recoverable cost (a worse answer) for an unrecoverable one (a disclosure). Empty input
+    abstracts for the same reason.
+
+    What this is **not** is a sensitivity detector. Nothing — syntax or model — reliably tells
+    that an ordinary-sounding question names one person (see `specificity`). The claim is narrow
+    and one-directional: *a question that overlaps no stored memory and is judged to be about
+    nobody is a question abstraction would only degrade.* Everything else takes the slow path.
+    """
+    text = (message or "").strip()
+    if not text:
+        return Route(abstract=True, reasons=["empty question — nothing to reason about"])
+
+    score = specificity(text)
+
+    # 1. Mechanical, no judgement: does it carry stored private material?
+    reasons = list(LeakGate(max_specificity=max_specificity).add(*context).leaks(text))
+    if reasons:
+        return Route(abstract=True, reasons=reasons, specificity=score)
+
+    # 2. Judgement, and only a local model may make it.
+    if classifier is None:
+        return Route(abstract=True, specificity=score, reasons=[
+            "no local classifier supplied — cannot tell a general question from a private one, "
+            "so taking the safe path"])
+
+    try:
+        verdict = (classifier(text, CLASSIFY_SYSTEM) or "").strip().upper()
+    except Exception as exc:
+        return Route(abstract=True, specificity=score,
+                     reasons=[f"classifier failed ({type(exc).__name__}) — taking the safe path"])
+
+    # Anything that is not an unambiguous GENERAL is treated as private, including a model that
+    # answers with a paragraph instead of the one word it was asked for.
+    if verdict.startswith("GENERAL"):
+        return Route(abstract=False, specificity=score)
+    return Route(abstract=True, specificity=score,
+                 reasons=[f"the local model judged this question private (said {verdict[:40]!r})"])
+
+
 def delegate(message: str,
              local: Callable[[str, Optional[str]], str],
              remote: Callable[[str, Optional[str]], str],
@@ -255,3 +351,31 @@ def delegate(message: str,
         f"could not abstract this question in {attempts} attempts without leaking:\n  "
         + "\n  ".join(problems)
         + "\n  Nothing was sent. Ask the local model directly instead.")
+
+
+def ask(message: str,
+        local: Callable[[str, Optional[str]], str],
+        remote: Callable[[str, Optional[str]], str],
+        context: Sequence[str] = (),
+        *,
+        max_specificity: Optional[int] = None,
+        **kw) -> Delegation:
+    """Route first: abstract only when there is something to protect.
+
+    The privacy of this path does not come from abstracting everything. It comes from the gate,
+    which is applied either way — a question only skips abstraction by *passing* that gate, not by
+    being waved through. So the fast path is not a weaker mode with the check disabled; it is the
+    case where the check found nothing to remove and abstraction would therefore delete detail for
+    no gain.
+
+    That distinction is what makes this safe to default on. A router that guessed "this looks
+    harmless" would be a second, softer rule quietly overriding the first.
+    """
+    decision = route(message, context, classifier=local, max_specificity=max_specificity)
+
+    if decision.direct:
+        reply = remote(message, None)
+        return Delegation(reply=reply.strip(), sent=message,
+                          generic_reply=reply, attempts=0)
+
+    return delegate(message, local, remote, context=context, **kw)

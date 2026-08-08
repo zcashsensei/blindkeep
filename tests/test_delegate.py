@@ -16,8 +16,10 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from blindkeep.delegate import (
     LeakError,
     LeakGate,
+    ask,
     delegate,
     identifying_terms,
+    route,
     specificity,
 )
 
@@ -252,6 +254,98 @@ def test_the_specificity_refusal_reports_the_number():
     gate = LeakGate(max_specificity=2).add("x")
     problems = gate.leaks("recovering unpaid commercial debt quickly")
     assert any("uncommon terms" in p and "limit 2" in p for p in problems), problems
+
+
+# --- routing: abstract only when there is something to protect -----------------
+
+def _general(_text, _system=None):
+    return "GENERAL"
+
+
+def _private(_text, _system=None):
+    return "PRIVATE"
+
+
+def test_a_general_question_skips_abstraction():
+    """The whole point: a question about nobody should not pay the abstraction cost."""
+    r = route("How do I write a Python decorator?", classifier=_general)
+    assert r.direct, f"a general question was needlessly abstracted: {r.reasons}"
+    assert not r.reasons, r.reasons
+
+
+def test_stored_private_material_is_caught_mechanically():
+    """Overlap with the keep must not depend on a model's opinion."""
+    r = route("What should I do about Sarah Whitfield?", [PRIVATE], classifier=_general)
+    assert r.abstract, "a question naming stored private material took the fast path"
+    assert any("sarah" in x.lower() for x in r.reasons), r.reasons
+
+
+def test_the_mechanical_check_outranks_the_classifier():
+    """A model that says GENERAL cannot override the gate.
+
+    The classifier is a judgement; the gate is not. If a wrong judgement could release
+    stored memory, the fast path would be the weakest link rather than the same check.
+    """
+    r = route("Tell me about Basenjis in Truro", [PRIVATE], classifier=_general)
+    assert r.abstract, "the classifier overrode the leak gate"
+
+
+def test_no_classifier_means_abstract():
+    """Absent a way to tell general from private, the fast path is not earned."""
+    r = route("How do I write a Python decorator?")
+    assert r.abstract, "routed direct with no classifier at all"
+    assert any("no local classifier" in x for x in r.reasons), r.reasons
+
+
+def test_anything_but_general_is_treated_as_private():
+    for verdict in ("PRIVATE", "probably general?", "", "I think this is fine to send"):
+        r = route("Some question", classifier=lambda _t, _s=None, v=verdict: v)
+        assert r.abstract, f"verdict {verdict!r} was treated as safe"
+
+
+def test_a_broken_classifier_fails_safe():
+    def boom(_text, _system=None):
+        raise RuntimeError("model down")
+    r = route("How do I write a Python decorator?", classifier=boom)
+    assert r.abstract, "a crashed classifier let the question through"
+    assert any("classifier failed" in x for x in r.reasons), r.reasons
+
+
+def test_empty_question_abstracts():
+    assert route("", classifier=_general).abstract
+    assert route("   ", classifier=_general).abstract
+
+
+def test_ask_sends_a_general_question_verbatim():
+    """The fast path is the question itself — not a rewrite, not a redaction."""
+    seen = {}
+
+    def remote(text, _system=None):
+        seen["sent"] = text
+        return "generic answer"
+
+    out = ask("How do I write a Python decorator?", _general, remote)
+    assert seen["sent"] == "How do I write a Python decorator?", seen
+    assert out.attempts == 0, "the fast path should record no abstraction attempts"
+
+
+def test_ask_still_abstracts_a_private_question():
+    """Routing must not become a way around the gate."""
+    sent = {}
+
+    def local(text, system=None):
+        if system and "one word" in system:
+            return "GENERAL"          # a classifier that is wrong on purpose
+        return "What are the options for recovering an unpaid debt?"
+
+    def remote(text, _system=None):
+        sent["text"] = text
+        return "generic guidance"
+
+    out = ask("Sarah Whitfield owes me 4000 pounds", local, remote, context=[PRIVATE])
+    assert "Sarah" not in sent["text"], f"private name reached the wire: {sent['text']}"
+    assert "4000" not in sent["text"], f"private figure reached the wire: {sent['text']}"
+    assert out.attempts >= 1, "took the fast path on a question naming stored material"
 
 
 def run():
