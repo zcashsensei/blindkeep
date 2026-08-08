@@ -294,13 +294,17 @@ def test_provider_error_message_reaches_the_user():
 def test_a_credential_in_a_provider_error_is_scrubbed():
     """The response should not contain a key -- but that is a claim about
     someone else's server, so it is not relied upon."""
-    base = _error_provider(400, "bad token sk-ant-abcdefghijklmnop1234 supplied")
+    # Deliberately not a realistic key shape. A convincing dummy in a public
+    # repository trips GitHub's secret scanning and every gitleaks run a
+    # cloner does, and a fixture is not worth a false alarm.
+    planted = "sk-ant-EXAMPLE-NOT-A-REAL-KEY-000000"
+    base = _error_provider(400, f"bad token {planted} supplied")
     try:
         cloud_complete("x", api_base=base, api_key="k", model="m",
                        enable_cloud=True, accept_not_private=True, dialect="anthropic")
         raise AssertionError("a 400 did not raise")
     except CloudGateError as exc:
-        assert "sk-ant-abcdefghijklmnop1234" not in str(exc), \
+        assert planted not in str(exc), \
             f"a credential-shaped string survived scrubbing: {exc}"
         assert "***" in str(exc), f"scrub left no marker: {exc}"
 
