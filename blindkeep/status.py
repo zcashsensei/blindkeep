@@ -108,6 +108,10 @@ def capabilities(root: Optional[Path] = None) -> list[dict[str, Any]]:
         ("ZK membership in the keep", mod("zk_keep.py") and suite("test_zk_keep.py")),
         ("Poseidon tree (circuit-compatible)", mod("poseidon.py", "zk_tree.py")
          and suite("test_poseidon.py")),
+        ("Access-pattern privacy (trivial PIR)", mod("private_read.py")
+         and suite("test_private_read.py")),
+        ("Equivocation detection + gossip", mod("witness.py")
+         and suite("test_witness.py")),
         ("SEV-SNP verifier written", mod("sev_snp.py") and suite("test_sev_snp.py")),
         ("SEV-SNP enabled by default", _sev_snp_enabled()),
     ]
@@ -119,11 +123,12 @@ def capabilities(root: Optional[Path] = None) -> list[dict[str, Any]]:
 # says "done" is a brochure. Anything here that becomes detectable should move
 # into `capabilities()` and stop being a written line.
 NOT_CLAIMED = [
-    "SEV-SNP validated against real hardware",
+    "SEV-SNP validated against real hardware — see docs/SEV_SNP_VALIDATION.md",
     "Run by anyone other than the author (milestone M1)",
-    "Anti-equivocation witnessing",
+    "Equivocation PREVENTION — detection and proof exist; stopping it needs consensus",
     "Proof of storage, as distinct from retrieval auditing",
-    "Access-pattern privacy (PIR)",
+    "Sub-linear private retrieval — trivial PIR works and costs the whole keep",
+    "Integrity of the client's own machine — no server-side measure reaches it",
 ]
 
 

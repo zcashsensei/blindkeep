@@ -147,12 +147,45 @@ def test_many_tokens_are_all_distinct():
 # --- the hashing that makes it sound -----------------------------------------
 
 def test_the_hash_covers_the_modulus_range():
+    """A hash confined to a small range would leave the signature trivially forgeable.
+
+    This assertion used to be `max(of 32 samples) > n >> 8`, which failed roughly one run in
+    150 — and the rate depended on the *key*, because the output is one byte short of the
+    modulus (see below), so each sample clears n>>8 with probability 1 - n/2^2048. A modulus
+    with high leading bits fails it often; most keys almost never do. A test that is a
+    coin-flip against a value it does not control is not measuring the property it names.
+
+    The bound is structural, so assert it structurally.
+    """
     n = ISSUER.n
-    values = [full_domain_hash(os.urandom(32), n) for _ in range(32)]
-    assert all(0 <= v < n for v in values)
-    assert len(set(values)) == 32
-    # A hash confined to a small range would leave the signature trivially forgeable.
-    assert max(values) > n >> 8, "hash output is not spread across the modulus"
+    size = (n.bit_length() + 7) // 8
+    ceiling = 1 << (8 * (size - 1))          # what the construction can actually emit
+
+    values = [full_domain_hash(os.urandom(32), n) for _ in range(64)]
+    assert len(set(values)) == 64, "the hash repeated on distinct inputs"
+
+    # Upper bound: exact, deterministic, and the reason no rejection sampling is needed.
+    assert all(0 <= v < ceiling <= n for v in values)
+
+    # Lower bound: the output must reach the top of that range, not hug the bottom. Missing
+    # this needs all 64 samples in the bottom 1/64th, which is ~10^-115 — not a flake.
+    assert max(v.bit_length() for v in values) >= 8 * (size - 1) - 6, (
+        "hash output is not spread across the modulus")
+
+
+def test_the_hash_is_one_byte_short_of_the_modulus_and_that_is_deliberate():
+    """"Full domain" is approximate here, and the gap should be stated rather than discovered.
+
+    The output spans [0, 2^2040) against a 2048-bit modulus, so it reaches about 1/256th of the
+    way into the top byte's worth of range. That costs 8 bits of preimage space out of 2040 and
+    buys away rejection sampling entirely. It is a fine trade — but it is a trade, and the test
+    named "covers the modulus range" was quietly asserting the opposite of it.
+    """
+    n = ISSUER.n
+    size = (n.bit_length() + 7) // 8
+    ceiling = 1 << (8 * (size - 1))
+    assert ceiling <= n, "the hash can exceed the modulus; rejection sampling would be required"
+    assert ceiling * 256 > n, "the hash is more than one byte short; that is wasted range"
 
 
 def test_the_hash_is_domain_separated_and_deterministic():

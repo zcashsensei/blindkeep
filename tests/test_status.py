@@ -147,8 +147,26 @@ def test_it_reports_what_is_not_done():
     """A status report that can only say 'done' is a brochure."""
     assert NOT_CLAIMED, "nothing is listed as unclaimed"
     joined = " ".join(NOT_CLAIMED).lower()
-    for expected in ("hardware", "m1", "witnessing", "storage", "pir"):
+    # These changed once, when detection shipped and "witnessing" stopped being the honest
+    # word for what is missing — prevention is. The test failing at that moment was correct
+    # behaviour, and the fix belonged here rather than in the claim.
+    for expected in ("hardware", "m1", "equivocation", "storage", "pir", "client"):
         assert expected in joined, f"{expected!r} missing from the non-claims"
+
+
+def test_a_shipped_capability_is_not_still_listed_as_unclaimed():
+    """The failure mode this file exists to prevent: claiming less than is true is a lie too.
+
+    A non-claim left behind after the work lands makes the report wrong in the *safe* direction,
+    which is still wrong — and it is exactly the drift nobody notices, because nobody audits a
+    list of things you say you cannot do.
+    """
+    joined = " ".join(NOT_CLAIMED).lower()
+    for shipped, why in (
+        ("access-pattern privacy", "read_private ships trivial PIR"),
+        ("anti-equivocation", "witness.py detects and proves it"),
+    ):
+        assert shipped not in joined, f"{shipped!r} is still listed as unclaimed, but {why}"
 
 
 def test_render_states_the_count_and_the_rule():

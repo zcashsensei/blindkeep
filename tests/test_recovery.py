@@ -73,6 +73,50 @@ def test_mistyped_code_is_rejected_not_silently_wrong():
     assert rejected == len(body), f"only {rejected}/{len(body)} corruptions rejected"
 
 
+def test_the_final_character_has_no_spare_bits():
+    """The bug this file did not catch for its whole life, found because it flaked 1 run in 8.
+
+    A 36-byte payload is 57 base32 characters plus 3 bits, so the final character carries 3
+    real bits and 2 that decode to nothing — and `b32decode` ignores them rather than
+    objecting. Four different final characters produced byte-identical output, so a mistype
+    among them sailed past the checksum, which covers the key and not its spelling.
+
+    The old test substituted "Z" at every position and so hit this only when the final
+    character happened to be Y, Z, 2 or 3 — 4 cases in 32. An intermittent test was the only
+    evidence that a real input was silently accepted.
+    """
+    alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567"
+    for _ in range(20):
+        code = to_recovery_code(generate_master_key())
+        body = [c for c in code if c != "-"]
+        last = alphabet.index(body[-1])
+        # Every character sharing the final one's top 3 bits used to decode identically.
+        for i in range(32):
+            if i >> 2 != last >> 2 or i == last:
+                continue
+            variant = body[:-1] + [alphabet[i]]
+            try:
+                from_recovery_code("".join(variant))
+            except RecoveryError as exc:
+                assert "canonical" in str(exc).lower()
+                continue
+            raise AssertionError(
+                f"{alphabet[i]!r} in the final position decoded the same as {alphabet[last]!r}")
+
+
+def test_one_spelling_per_key():
+    """Canonicality, stated directly: a key has exactly one valid written form."""
+    for _ in range(20):
+        key = generate_master_key()
+        code = to_recovery_code(key)
+        assert to_recovery_code(from_recovery_code(code)) == code
+        # The repairs are normalisations, not alternative spellings — they must land here too.
+        for typo in (code.lower(), code.replace("-", ""), code.replace("O", "0"),
+                     code.replace("I", "1"), code.replace("B", "8")):
+            assert from_recovery_code(typo) == key
+            assert to_recovery_code(from_recovery_code(typo)) == code
+
+
 def test_truncated_code_is_rejected():
     code = to_recovery_code(generate_master_key())
     try:
@@ -173,6 +217,48 @@ def test_mistyped_share_is_rejected():
     except RecoveryError:
         return
     raise AssertionError("a corrupted share was accepted")
+
+
+def test_every_single_character_corruption_of_a_share_is_rejected():
+    """The test above corrupts position len-3, which is why it never found the hole.
+
+    A share payload is 37 bytes and ends one bit into its final base32 character, so 16 of the
+    32 characters used to decode to identical bytes. Corrupting a fixed interior position can
+    never see that; the exhaustive sweep is the only version of this test worth having.
+    """
+    alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567"
+    share = split_key(generate_master_key(), threshold=2, shares=3)[0]
+    prefix, _, rest = share.encode().partition("-")
+    rest = rest.replace("-", "")
+    for pos in range(len(rest)):
+        for repl in alphabet:
+            if repl == rest[pos]:
+                continue
+            broken = f"{prefix}-" + rest[:pos] + repl + rest[pos + 1:]
+            try:
+                Share.decode(broken)
+            except RecoveryError:
+                continue
+            raise AssertionError(
+                f"corrupting position {pos} to {repl!r} was accepted "
+                f"({'final character' if pos == len(rest) - 1 else 'interior'})")
+
+
+def test_a_share_labelled_wrongly_is_rejected():
+    """The index is printed in front of the payload and is what a person files it under.
+
+    It used to be read from the payload alone, so a share carrying one number and labelled
+    another decoded happily as the payload's — the label a human trusts was decorative.
+    """
+    shares = split_key(generate_master_key(), threshold=2, shares=3)
+    body = shares[0].encode().partition("-")[2]
+    mislabelled = shares[1].encode().split("-")[0] + "-" + body
+    try:
+        Share.decode(mislabelled)
+    except RecoveryError as exc:
+        assert "labelled" in str(exc), f"rejected for the wrong reason: {exc}"
+        return
+    raise AssertionError("a share whose label contradicts its payload was accepted")
 
 
 def test_duplicate_shares_are_rejected():

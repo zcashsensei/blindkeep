@@ -88,6 +88,15 @@ def from_recovery_code(code: str) -> bytes:
         raise RecoveryError(
             f"recovery code decodes to {len(blob)} bytes, expected "
             f"{KEY_LEN + _CHECKSUM_LEN} — it looks truncated or has extra characters")
+    # Base32 leaves spare bits in the final character, and b32decode ignores them: a 36-byte
+    # payload is 57 characters plus 3 bits, so the last character's low 2 bits decode to
+    # nothing. Four different final characters therefore produce identical bytes, and a
+    # mistype among them passed the checksum below — the checksum covers the key, not the
+    # spelling. Re-encoding is the cheapest way to demand one spelling per key.
+    if base64.b32encode(blob).decode("ascii").rstrip("=") != cleaned:
+        raise RecoveryError(
+            "recovery code is not in canonical form — the final character carries bits that "
+            "belong to no byte. It was mistyped. The key is NOT recovered.")
     key, check = blob[:KEY_LEN], blob[KEY_LEN:]
     if _checksum(key) != check:
         raise RecoveryError(
@@ -188,7 +197,7 @@ class Share:
         cleaned = text.strip().upper().replace(" ", "").replace("\n", "")
         if "-" not in cleaned:
             raise RecoveryError(f"share is malformed: {text[:24]!r}")
-        _, _, rest = cleaned.partition("-")
+        prefix, _, rest = cleaned.partition("-")
         rest = rest.replace("-", "").replace("0", "O").replace("1", "I").replace("8", "B")
         try:
             blob = base64.b32decode(rest + "=" * (-len(rest) % 8))
@@ -196,9 +205,22 @@ class Share:
             raise RecoveryError(f"share is not valid: {exc}") from exc
         if len(blob) < 1 + _CHECKSUM_LEN:
             raise RecoveryError("share is truncated")
+        # Same spare-bit hole as `from_recovery_code`, and wider here: a 37-byte payload ends
+        # 1 bit into its final character, so 16 of the 32 characters decoded identically.
+        if base64.b32encode(blob).decode("ascii").rstrip("=") != rest:
+            raise RecoveryError(
+                "share is not in canonical form — the final character carries bits that "
+                "belong to no byte. It was mistyped.")
         body, check = blob[:-_CHECKSUM_LEN], blob[-_CHECKSUM_LEN:]
         if _checksum_share(body) != check:
             raise RecoveryError("share failed its checksum — it was mistyped")
+        # The index is printed in front of the payload and was previously read from the
+        # payload alone, so a share whose visible label disagreed with its contents was
+        # accepted silently. That label is what a person sorts and refers to.
+        if prefix.isdigit() and int(prefix) != body[0]:
+            raise RecoveryError(
+                f"share is labelled {int(prefix)} but contains share {body[0]} — "
+                "the label and the payload disagree, so one of them was mistyped.")
         return cls(index=body[0], data=body[1:])
 
 

@@ -1,6 +1,6 @@
 # Security
 
-**Version 0.3 · 2026-08-07 · applies to Blindkeep v0 alpha**
+**Version 0.4 · 2026-08-07 · applies to Blindkeep v0 alpha**
 
 ## Threat model
 
@@ -44,15 +44,30 @@ indistinguishable by length.
 Stated plainly, because a security README that only lists strengths is not a
 security README:
 
-- **Access patterns.** The node observes *which* record is requested and when.
-  This is the one privacy gap that encryption cannot close; it requires private
-  information retrieval, which is not implemented.
-- **Record count and creation timestamps** remain visible.
+- **Access patterns — addressable, at a price.** The node observes *which*
+  record an ordinary `get` requests. `private_read.read_private()` closes it by
+  fetching the whole log and choosing locally. That is not a placeholder for
+  something cleverer: against a single server, any information-theoretically
+  private retrieval must move at least the whole database, so this is the
+  optimal construction rather than a crude one. It costs O(n) bandwidth and the
+  cost is reported, never hidden. `client.get()` remains for keeps where that is
+  impractical, and the trade is stated rather than chosen for you.
+- **Equivocation — detected and provable, not prevented.** A node can sign two
+  heads of the same size with different roots and hand one to each client. Both
+  verify; neither client can see it alone. `witness.py` records the heads a
+  client is given, and `gossip()` compares them with another client's — two
+  signed heads at one size with different roots is a self-contained,
+  publishable proof, checkable without the node and without trusting whoever
+  passed it along. Gossip cannot *stop* a node equivocating; it makes doing so
+  detectable by anyone who compares notes, and undeniable once detected. That is
+  the whole of what is achievable without consensus.
+- **Record count and creation timestamps** remain visible. These are properties
+  of the conversation, not its contents, and no cipher addresses them.
+  `pad_writes()` adds records that mean nothing, which raises the count and
+  blurs the timing — cover, not concealment. Padding written in a burst is worse
+  than useless, because it announces exactly when the burst was.
 - **Availability.** A node can refuse to serve data. Integrity guarantees do not
   imply retrievability.
-- **Equivocation.** A node showing different histories to different clients is
-  not yet detectable; that requires gossip between clients or independent
-  witnesses.
 - **The client's own machine.** Compromised client software or a stolen
   `master.key` defeats everything above.
 

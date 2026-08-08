@@ -328,6 +328,66 @@ def cmd_token(args) -> int:
     return 0 if len(tok.value) == 32 and tok.signature_hex else 1
 
 
+def cmd_read_private(args) -> int:
+    """Read one record without telling the node which. Costs the whole keep."""
+    from .client import BlindkeepClient
+    from .private_read import RetrievalError, read_private, visibility
+
+    key = _load_key(args.key)
+    client = BlindkeepClient(args.url, key, pin_path=args.pin)
+    try:
+        r = read_private(client, args.index, max_records=args.max_records)
+    except RetrievalError as exc:
+        raise CliError(str(exc))
+
+    print(f"[{r.cost()}]", file=sys.stderr)
+    if args.show_visibility:
+        for k, v in visibility(client).items():
+            print(f"[  {k}: {v}]", file=sys.stderr)
+    if args.raw:
+        sys.stdout.buffer.write(r.plaintext)
+    else:
+        print(r.plaintext.decode("utf-8", errors="replace"))
+    return 0
+
+
+def cmd_gossip(args) -> int:
+    """Compare signed heads with another client. Catches a node telling two stories."""
+    from .client import BlindkeepClient
+    from .witness import EquivocationError, HeadLog, SignedHead, gossip
+
+    key = _load_key(args.key)
+    client = BlindkeepClient(args.url, key, pin_path=args.pin)
+    head = client.head()
+
+    log = (HeadLog.load(args.log) if args.log and os.path.exists(args.log)
+           else HeadLog(public_key_hex=head["public_key_hex"]))
+    try:
+        log.observe(SignedHead.from_dict(head))
+        added = 0
+        if args.theirs:
+            with open(args.theirs, "r", encoding="utf-8") as f:
+                theirs = json.load(f)
+            added = gossip(log, theirs.get("heads", theirs))
+    except EquivocationError as exc:
+        # The one outcome worth shouting about: two of the node's own signatures on
+        # contradictory claims. Written out so it survives this process.
+        print(f"EQUIVOCATION DETECTED: {exc}", file=sys.stderr)
+        out = args.proof or "equivocation_proof.json"
+        with open(out, "w", encoding="utf-8") as f:
+            json.dump(exc.proof.as_dict(), f, indent=2)
+        print(f"proof written to {out} — it verifies without this node and "
+              f"without trusting you", file=sys.stderr)
+        return 1
+
+    if args.log:
+        log.save(args.log)
+    print(f"{len(log.heads)} head(s) known for this node, {added} new from gossip")
+    print("no contradiction found — which is not proof of honesty, only that "
+          "nobody comparing has seen one yet")
+    return 0
+
+
 def cmd_peers(args) -> int:
     from .discover import as_dicts, discover
 
@@ -932,6 +992,31 @@ def build_parser() -> argparse.ArgumentParser:
     tk.add_argument("--out", default=None)
     tk.add_argument("--token", default=None, help="for inspect")
     tk.set_defaults(func=cmd_token)
+
+    rp = sub.add_parser("read-private",
+                        help="read a record without revealing which one — costs the whole keep")
+    rp.add_argument("--index", type=int, required=True)
+    rp.add_argument("--url", default="http://127.0.0.1:8741")
+    rp.add_argument("--key", default="data/client/master.key")
+    rp.add_argument("--pin", default="data/client/pin.json")
+    rp.add_argument("--max-records", type=int, default=2000)
+    rp.add_argument("--raw", action="store_true")
+    rp.add_argument("--show-visibility", action="store_true",
+                    help="print what the node can still see afterwards")
+    rp.set_defaults(func=cmd_read_private)
+
+    gs = sub.add_parser("gossip",
+                        help="compare signed heads with another client; catch a split view")
+    gs.add_argument("--url", default="http://127.0.0.1:8741")
+    gs.add_argument("--key", default="data/client/master.key")
+    gs.add_argument("--pin", default="data/client/pin.json")
+    gs.add_argument("--log", default="data/client/heads.json",
+                    help="your record of heads seen from this node")
+    gs.add_argument("--theirs", default=None,
+                    help="another client's exported heads")
+    gs.add_argument("--proof", default=None,
+                    help="where to write an equivocation proof if one is found")
+    gs.set_defaults(func=cmd_gossip)
 
     pe = sub.add_parser("peers", help="discover and probe storage nodes")
     pe.add_argument("--file", default="data/peers.json")
