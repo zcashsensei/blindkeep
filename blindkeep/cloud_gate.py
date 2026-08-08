@@ -142,9 +142,19 @@ def cloud_complete(prompt: str, *,
         with urllib.request.urlopen(req, timeout=timeout) as resp:
             data = json.loads(resp.read(MAX_REPLY_BYTES).decode("utf-8"))
     except urllib.error.HTTPError as exc:
-        # Never echo the request: it carries the bearer token.
+        # Never echo the request: it carries the API key.
+        # A 404 here is nearly always the wrong dialect rather than a dead
+        # endpoint -- each provider puts its completion route at a different
+        # path, so the request never reaches a handler. Say so, because
+        # "HTTP 404" sends the user to check their URL, which is fine, and not
+        # to check which API they are speaking, which is usually the fault.
+        hint = ""
+        if exc.code == 404:
+            hint = (f"; no route at {spoken.path} -- if this endpoint speaks a "
+                    f"different API, pass another dialect "
+                    f"({', '.join(sorted(dialects.DIALECTS))})")
         raise CloudGateError(
-            f"provider returned HTTP {exc.code}") from exc
+            f"provider returned HTTP {exc.code} for the {spoken.name} dialect{hint}") from exc
     except (urllib.error.URLError, OSError) as exc:
         raise CloudGateError(f"provider unreachable: {exc}") from exc
 

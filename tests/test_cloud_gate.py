@@ -250,6 +250,28 @@ def test_importing_the_package_does_not_load_any_cloud_module():
         assert not loaded, f"import {entry} loaded a cloud path: {loaded}"
 
 
+def test_a_404_blames_the_dialect_not_just_the_url():
+    """Found by driving a real endpoint: the wrong dialect 404s, and used to say
+    only "provider returned HTTP 404".
+
+    Each provider puts its completion route at a different path, so speaking the
+    wrong API means the request never reaches a handler. The bare status code
+    sends the user to re-check their URL -- which is correct-looking and wrong,
+    because the URL is fine and the API is not. The error has to name the dialect
+    in play, or the one hypothesis worth testing is the one it never suggests.
+    """
+    base = fake_provider(status=404)
+    try:
+        cloud_complete("hi", api_base=base, api_key="k", model="m",
+                       enable_cloud=True, accept_not_private=True, dialect="anthropic")
+        raise AssertionError("a 404 should have raised")
+    except CloudGateError as exc:
+        msg = str(exc)
+        assert "anthropic" in msg, f"error does not name the dialect in play: {msg}"
+        assert "dialect" in msg.lower(), f"error does not suggest changing it: {msg}"
+        assert "404" in msg, f"error drops the status code: {msg}"
+
+
 def run():
     tests = [(k, v) for k, v in sorted(globals().items()) if k.startswith("test_")]
     passed, failed = [], []
