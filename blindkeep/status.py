@@ -118,6 +118,13 @@ def capabilities(root: Optional[Path] = None) -> list[dict[str, Any]]:
          mod("oblivious.py") and suite("test_oblivious.py")),
         ("Equivocation detection + gossip", mod("witness.py")
          and suite("test_witness.py")),
+        # ASCII on purpose: this label is printed by anything that consumes status,
+        # and a consumer without the UTF-8 guard dies on a a non-ASCII byte. That
+        # bug has already shipped three times in this project.
+        ("Any model, closed or open weights (wire format is not policy)",
+         mod("dialects.py") and suite("test_dialects.py")),
+        ("Sensitivity routing — a general question skips abstraction",
+         mod("delegate.py") and suite("test_delegate.py")),
         # The SNARK had no row here for as long as it existed, and the documentation drifted
         # into saying there was no SNARK in the repository while the circuit was proving and
         # verifying in CI. What the status report cannot see, the docs eventually contradict.
