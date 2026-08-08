@@ -18,6 +18,20 @@ the signal. A *constant* rate has no underlying signal to recover — the channe
 per interval whether you are working, asleep, or on holiday. `jitter` is therefore not offered as
 an option here. Offering it would be selling the feeling.
 
+**Poisson is the exception, and it is not jitter.** `interval_mode="poisson"` draws each gap from
+an exponential distribution instead of using a fixed one. That sounds like the thing just refused
+and is its opposite: a Poisson process is *memoryless*, so the time since the last send tells an
+observer nothing about the time until the next, and independent Poisson streams merge into another
+Poisson stream — which is what lets many clients' traffic combine without the mixture revealing
+its parts. This is the timing model mix networks use, for that reason. Constant rate remains the
+default because it is the easier claim to check; Poisson is the better one when this channel feeds
+into a mix or shares a relay with other users.
+
+**Responses are padded too, and the reason is specific.** See `pad_payload`: an unpadded streamed
+response leaks token lengths, which is enough to classify a conversation's topic and recover a
+fraction of its text from ciphertext alone. Padding the request and not the response protects the
+half nobody was reading.
+
 **Cover traffic is real traffic.** A slot with nothing queued still sends: a generic question, from
 the same code path, padded to the same bucket, costing the same money. That is the price and it is
 not hidden — `Channel.cost()` reports it. A channel that skipped empty slots would announce, every
@@ -42,6 +56,7 @@ therefore not one. That limit is stated in `visibility()` rather than papered ov
 
 from __future__ import annotations
 
+import math
 import secrets
 import time
 from dataclasses import dataclass, field
@@ -85,6 +100,42 @@ def bucket_for(length: int) -> int:
     raise DispatchError(
         f"{length} bytes exceeds the largest bucket ({SIZE_BUCKETS[-1]}). Padding it would create "
         f"a bucket of one, which is a measurement rather than a disguise. Shorten the question.")
+
+
+def pad_payload(data: bytes) -> bytes:
+    """Pad a payload to its bucket, reversibly. **This is the response-side fix.**
+
+    Requests were padded from the start; responses were not, and that was a real hole rather than
+    an omission of polish. LLMs stream token by token, so the sequence of encrypted packet sizes
+    tracks the *lengths of the tokens being generated* — enough to reconstruct a meaningful share
+    of the output and to classify the topic of a conversation with high confidence, from ciphertext
+    alone. Padding the question and leaving the answer bare protects the half nobody was reading.
+
+    **Buffering is the larger half of the fix, and it is architectural rather than arithmetic.**
+    The attack needs a *sequence* of sizes; one padded blob is a single size. A gateway that waits
+    for the whole response and returns it once removes the sequence entirely, which is why this
+    pads a complete payload and offers no streaming variant. The cost is that the user waits for
+    the full answer instead of watching it type, and that cost is the defence.
+    """
+    body = _i2osp_len(len(data)) + data
+    target = bucket_for(len(body))
+    return body + b"\x00" * (target - len(body))
+
+
+def unpad_payload(padded: bytes) -> bytes:
+    """Recover the payload. Refuses a declared length that does not fit what arrived."""
+    if len(padded) < 4:
+        raise DispatchError("padded payload is too short to carry a length prefix")
+    n = int.from_bytes(padded[:4], "big")
+    if n > len(padded) - 4:
+        raise DispatchError(
+            f"declared length {n} exceeds the {len(padded) - 4} bytes present; refusing to return "
+            f"a truncated payload rather than guessing at the remainder")
+    return padded[4:4 + n]
+
+
+def _i2osp_len(n: int) -> bytes:
+    return n.to_bytes(4, "big")
 
 
 def padding_headers(payload_len: int) -> dict[str, str]:
@@ -141,6 +192,7 @@ class Channel:
     interval: float = DEFAULT_INTERVAL
     clock: Callable[[], float] = time.monotonic
     strict_linkage: bool = True
+    interval_mode: str = "constant"          # "constant" | "poisson"
     cover_questions: tuple[str, ...] = COVER_QUESTIONS
 
     _queue: list[tuple[str, str]] = field(default_factory=list, repr=False)
@@ -204,6 +256,24 @@ class Channel:
 
     # ---- the clock --------------------------------------------------------------
 
+    def _next_gap(self) -> float:
+        """How long until the next slot.
+
+        Constant returns the interval. Poisson draws from Exp(1/interval), giving a memoryless
+        gap: knowing when the last request went out tells an observer nothing about the next.
+        Sampled from `secrets` rather than `random`, because a predictable schedule is a schedule
+        an adversary can subtract.
+        """
+        if self.interval_mode == "constant":
+            return self.interval
+        if self.interval_mode != "poisson":
+            raise DispatchError(
+                f"unknown interval_mode {self.interval_mode!r}. Use 'constant' or 'poisson' — "
+                f"an unrecognised mode must not fall back to a weaker schedule silently.")
+        # Uniform in (0, 1], then inverse-transform to an exponential.
+        u = (secrets.randbits(53) + 1) / (1 << 53)
+        return -self.interval * math.log(u)
+
     def due(self) -> bool:
         """True when the next slot has arrived. A slot is never skipped for being empty."""
         return self._next_at is None or self.clock() >= self._next_at
@@ -227,7 +297,7 @@ class Channel:
                 f"would make emission time depend on caller behaviour, which is the leak.")
 
         now = self.clock()
-        self._next_at = now + self.interval
+        self._next_at = now + self._next_gap()
         slot = self._slot
         self._slot += 1
 
@@ -274,7 +344,16 @@ class Channel:
             "real": self._real,
             "cover": self._cover,
             "cover_fraction": round(self._cover / total, 3) if total else 0.0,
-            "worst_case_latency_seconds": self.interval,
+            "mean_latency_seconds": self.interval,
+            # Constant rate bounds the wait; Poisson does not, and reporting a bound it cannot
+            # keep would be the same class of lie this module exists to avoid.
+            "worst_case_latency_seconds": (
+                self.interval if self.interval_mode == "constant" else None),
+            "latency_note": (
+                "a queued question waits at most one interval"
+                if self.interval_mode == "constant" else
+                "exponential gaps are unbounded — the mean is the interval, but any single wait "
+                "can be much longer. That unpredictability is the property being bought."),
             "note": ("cover requests are billed by the provider at the same rate as real ones; "
                      "that is the price of the timing signal being a clock instead of you"),
         }
@@ -293,10 +372,12 @@ class Channel:
             "prompt_length_at_the_provider": "VISIBLE — they parse the prompt; no header changes it",
             "that_the_channel_exists": "visible, and not addressable by any scheduling scheme",
             "who_holds_the_account": (
-                "hidden from the provider behind a relay redeeming an anon_token"
+                "hidden from the provider — see oblivious.py, where the gateway's credential is "
+                "used instead of yours; holds only if relay and gateway are independent"
                 if relay else
                 "VISIBLE — you are sending direct, and the provider's API key is an account "
-                "identity. Scheduling hides when and which; it cannot hide whose key."),
+                "identity. Scheduling hides when and which; it cannot hide whose key. "
+                "oblivious.py (RFC 9458) is the path that does."),
             "your_ip_address": (
                 "seen by the relay, not the provider" if relay else
                 "VISIBLE to the provider — a network-layer property this module does not touch"),

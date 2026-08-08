@@ -24,7 +24,9 @@ from blindkeep.dispatch import (
     DispatchError,
     LinkageError,
     bucket_for,
+    pad_payload,
     padding_headers,
+    unpad_payload,
 )
 
 
@@ -208,6 +210,67 @@ def test_visibility_never_claims_the_api_key_is_hidden_when_sending_direct():
     assert "VISIBLE" not in relayed["who_holds_the_account"]
     assert "not a privacy boundary" in relayed["relay_correlation"], (
         "a self-run relay was presented as a privacy boundary")
+
+
+# --- response padding: the token-length side channel --------------------------
+
+def test_responses_of_different_lengths_pad_to_one_size():
+    """The whole point. Two answers, one observable size."""
+    short = pad_payload(b"Yes.")
+    long = pad_payload(b"Yes, though it depends on several factors worth setting out." * 3)
+    assert len(short) == len(long), (
+        f"a short and a long answer were distinguishable by size: {len(short)} vs {len(long)}")
+
+
+def test_padding_is_reversible_at_every_boundary():
+    for n in (0, 1, 4, 507, 508, 1000, 4090):
+        data = bytes(range(256)) * (n // 256) + bytes(range(n % 256))
+        assert unpad_payload(pad_payload(data)) == data, f"round trip failed at {n} bytes"
+
+
+def test_token_length_sequence_is_erased_by_padding_the_whole_payload():
+    """A streamed answer leaks a SEQUENCE of sizes; a buffered one leaks a single bucket."""
+    tokens = [b"The", b" quick", b" brown", b" f", b"ox", b" jumped"]
+    streamed = [len(t) for t in tokens]
+    assert len(set(streamed)) > 1, "fixture should have varied token lengths"
+    buffered = pad_payload(b"".join(tokens))
+    assert len(buffered) in SIZE_BUCKETS, "buffered response did not land on a bucket"
+
+
+def test_a_lying_length_prefix_is_refused():
+    padded = bytearray(pad_payload(b"short"))
+    padded[:4] = (9999).to_bytes(4, "big")
+    expect(lambda: unpad_payload(bytes(padded)), contains="exceeds")
+
+
+# --- Poisson timing -----------------------------------------------------------
+
+def test_poisson_gaps_are_memoryless_not_fixed():
+    ch, _ = channel(interval_mode="poisson")
+    gaps = [ch._next_gap() for _ in range(400)]
+    assert len(set(gaps)) > 350, "poisson mode produced repeated gaps; it is not sampling"
+    mean = sum(gaps) / len(gaps)
+    assert 0.75 * ch.interval < mean < 1.35 * ch.interval, (
+        f"mean gap {mean:.1f}s is far from the {ch.interval}s interval")
+    assert min(gaps) < ch.interval < max(gaps), "gaps did not straddle the mean"
+
+
+def test_constant_mode_is_still_exactly_constant():
+    ch, _ = channel()
+    assert {ch._next_gap() for _ in range(50)} == {ch.interval}
+
+
+def test_an_unknown_interval_mode_is_refused_not_downgraded():
+    ch, _ = channel(interval_mode="jitter")
+    expect(lambda: ch._next_gap(), contains="unknown interval_mode")
+
+
+def test_poisson_does_not_advertise_a_latency_bound_it_cannot_keep():
+    poisson, _ = channel(interval_mode="poisson")
+    assert poisson.cost()["worst_case_latency_seconds"] is None, (
+        "poisson mode claimed a worst-case bound; exponential gaps are unbounded")
+    constant, _ = channel()
+    assert constant.cost()["worst_case_latency_seconds"] == constant.interval
 
 
 def run():
