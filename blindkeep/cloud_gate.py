@@ -30,6 +30,8 @@ import urllib.error
 import urllib.request
 from typing import Optional
 
+from . import dialects
+
 MAX_REPLY_BYTES = 8 * 1024 * 1024
 NOT_PRIVATE_NOTICE = (
     "NOT PRIVATE: this request leaves your machine and is processed by a "
@@ -95,12 +97,19 @@ def cloud_complete(prompt: str, *,
                    system: Optional[str] = None,
                    apply_redaction: bool = False,
                    headers: Optional[dict] = None,
+                   dialect: Optional[str] = None,
                    timeout: float = 120.0) -> dict:
-    """Send one prompt to an OpenAI-compatible endpoint. NOT PRIVATE.
+    """Send one prompt to a hosted model, in whatever API it speaks. NOT PRIVATE.
 
     Returns the reply together with what was actually transmitted, so a caller
     can show the user the exact text that left the machine rather than asking
     them to trust that redaction worked.
+
+    `dialect` selects the wire format (see `dialects.py`); omitted, it is
+    inferred from `api_base` and the guess is reported in the result. The
+    dialect changes only how bytes are framed -- **every dialect is equally
+    NOT PRIVATE**, because what makes this path disclosing is that an operator
+    receives the prompt at all, not which JSON shape carried it.
     """
     require_opt_in(enable_cloud, accept_not_private)
     if not api_key:
@@ -113,21 +122,20 @@ def cloud_complete(prompt: str, *,
     if apply_redaction:
         sent, redacted = redact(prompt)
 
-    messages = []
-    if system:
-        messages.append({"role": "system", "content": system})
-    messages.append({"role": "user", "content": sent})
+    if dialect:
+        spoken, why = dialects.get(dialect), f"dialect {dialect!r} was requested"
+    else:
+        spoken, why = dialects.detect(api_base)
 
     # Extra headers exist so an anonymous entitlement can actually be presented. A token that
     # cannot reach the provider protects nobody, and carrying it in the message body would put it
     # in the one place the model reads.
-    hdrs = {"Content-Type": "application/json",
-            "Authorization": f"Bearer {api_key}"}
+    hdrs = spoken.headers(api_key)
     hdrs.update(headers or {})
 
     req = urllib.request.Request(
-        api_base.rstrip("/") + "/v1/chat/completions",
-        data=json.dumps({"model": model, "messages": messages}).encode("utf-8"),
+        spoken.url(api_base),
+        data=spoken.body(model=model, prompt=sent, system=system),
         headers=hdrs,
         method="POST")
     try:
@@ -141,10 +149,9 @@ def cloud_complete(prompt: str, *,
         raise CloudGateError(f"provider unreachable: {exc}") from exc
 
     try:
-        reply = data["choices"][0]["message"]["content"]
-    except (KeyError, IndexError, TypeError) as exc:
-        raise CloudGateError(
-            f"unexpected provider response shape: {sorted(data)}") from exc
+        reply = spoken.reply(data)
+    except dialects.DialectError as exc:
+        raise CloudGateError(str(exc)) from exc
 
     return {
         "reply": reply,
@@ -152,4 +159,6 @@ def cloud_complete(prompt: str, *,
         "redacted": redacted,
         "private": False,
         "notice": NOT_PRIVATE_NOTICE,
+        "dialect": spoken.name,
+        "dialect_reason": why,
     }

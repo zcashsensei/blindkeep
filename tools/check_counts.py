@@ -54,6 +54,7 @@ LABELS = {
     "test_cloud_gate.py": "cloud gate",
     "test_console.py": "console",
     "test_delegate.py": "delegate",
+    "test_dialects.py": "dialects",
     "test_discover.py": "discovery",
     "test_dispatch.py": "dispatch",
     "test_hardening.py": "hardening",

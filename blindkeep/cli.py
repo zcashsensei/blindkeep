@@ -8,6 +8,7 @@ import os
 import sys
 from pathlib import Path
 
+from . import dialects
 from ._console import use_utf8_stdout
 
 # The dashboard and progress board are local working tools, not part of the
@@ -453,6 +454,7 @@ def cmd_cloud_chat(args) -> int:
     api_key = args.api_key or os.environ.get("BLINDKEEP_CLOUD_KEY", "")
     result = cloud_complete(
         args.text, api_base=args.api_base, api_key=api_key, model=args.model,
+        dialect=getattr(args, 'dialect', None),
         enable_cloud=args.enable_cloud,
         accept_not_private=args.i_accept_not_private,
         system=args.system, apply_redaction=args.redact)
@@ -488,6 +490,7 @@ def cmd_private_chat(args) -> int:
     api_key = args.api_key or os.environ.get("BLINDKEEP_CLOUD_KEY", "")
     result = private_cloud_complete(
         args.text, vault=vault, api_base=args.api_base, api_key=api_key,
+        dialect=getattr(args, 'dialect', None),
         model=args.model, enable_cloud=args.enable_cloud,
         accept_not_private=args.i_accept_not_private, system=args.system)
 
@@ -583,10 +586,14 @@ def _gate_backend(args, client):
     if not args.api_base:
         raise CliError(
             f"--api-base is required for --tier {tier.label}\n"
-            f"  Blindkeep does not choose a provider for you. Any endpoint "
-            f"speaking the /v1/chat/completions format works, e.g.\n"
-            f"    --api-base https://api.x.ai --model grok-4.3\n"
-            f"    --api-base http://127.0.0.1:8000 --model <self-hosted>")
+            f"  Blindkeep does not choose a provider for you, and does not "
+            f"require one API. Closed or open weights, hosted or self-run:\n"
+            f"    --api-base https://api.anthropic.com  --model <claude model>\n"
+            f"    --api-base https://api.x.ai           --model <grok model>\n"
+            f"    --api-base https://api.openai.com     --model <gpt model>\n"
+            f"    --api-base http://127.0.0.1:8000      --model <self-hosted>\n"
+            f"  The wire format is inferred from the endpoint; override it with "
+            f"--dialect ({', '.join(sorted(dialects.DIALECTS))}).")
 
     api_key = args.api_key or os.environ.get("BLINDKEEP_CLOUD_KEY", "")
 
@@ -1062,6 +1069,8 @@ def build_parser() -> argparse.ArgumentParser:
     cc.add_argument("--text", required=True)
     cc.add_argument("--api-base", required=True,
                     help="required: Blindkeep does not choose a provider for you")
+    cc.add_argument("--dialect", default=None, choices=sorted(dialects.DIALECTS),
+                    help="wire format to speak; inferred from --api-base when omitted (any model, closed or open weights)")
     cc.add_argument("--api-key", default=None,
                     help="or set BLINDKEEP_CLOUD_KEY; a flag is visible in shell history")
     cc.add_argument("--model", required=True)
@@ -1089,6 +1098,8 @@ def build_parser() -> argparse.ArgumentParser:
                     help="KIND:VALUE, e.g. ORG:Acme (repeatable)")
     pc.add_argument("--api-base", required=True,
                     help="required: Blindkeep does not choose a provider for you")
+    pc.add_argument("--dialect", default=None, choices=sorted(dialects.DIALECTS),
+                    help="wire format to speak; inferred from --api-base when omitted (any model, closed or open weights)")
     pc.add_argument("--api-key", default=None,
                     help="or set BLINDKEEP_CLOUD_KEY; a flag is visible in shell history")
     pc.add_argument("--model", required=True)
@@ -1141,6 +1152,8 @@ def build_parser() -> argparse.ArgumentParser:
     gc.add_argument("--ollama-base", default="http://127.0.0.1:11434")
     gc.add_argument("--api-base", default=None,
                     help="required for every tier except local: Blindkeep does not choose a provider for you")
+    gc.add_argument("--dialect", default=None, choices=sorted(dialects.DIALECTS),
+                    help="wire format to speak; inferred from --api-base when omitted (any model, closed or open weights)")
     gc.add_argument("--api-key", default=None,
                     help="or set BLINDKEEP_CLOUD_KEY; a flag is visible in shell history")
     gc.add_argument("--attest-url", default=None,

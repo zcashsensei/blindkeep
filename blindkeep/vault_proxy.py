@@ -376,6 +376,7 @@ def private_cloud_complete(prompt: str, *,
                            enable_cloud: bool = False,
                            accept_not_private: bool = False,
                            system: Optional[str] = None,
+                           dialect: Optional[str] = None,
                            timeout: float = 120.0) -> dict:
     """Anonymise, send, restore. Still not private — see the module docstring.
 
@@ -399,6 +400,7 @@ def private_cloud_complete(prompt: str, *,
         system=sent_system,
         apply_redaction=False,          # substitution already ran; stacking the
                                         # regex pass would corrupt placeholders
+        dialect=dialect,
         timeout=timeout)
 
     return {

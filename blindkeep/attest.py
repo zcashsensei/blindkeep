@@ -55,6 +55,8 @@ import urllib.request
 from dataclasses import dataclass, field
 from typing import Any, Optional, Protocol
 
+from . import dialects
+
 from .crypto import NodeIdentity
 
 NONCE_BYTES = 32
@@ -368,6 +370,7 @@ def attested_complete(prompt: str, *,
                       model: str,
                       result: Result,
                       system: Optional[str] = None,
+                      dialect: Optional[str] = None,
                       timeout: float = 120.0) -> dict:
     """Send a prompt to a host whose attestation already verified.
 
@@ -378,23 +381,25 @@ def attested_complete(prompt: str, *,
     Deliberately does not route through `cloud_gate`: that module's identity is
     the NOT PRIVATE labelling and the two acknowledgements that go with it, and
     stamping that notice on an attested response would be as wrong as omitting
-    it from an unattested one. The ~20 lines of duplicated POST are the price of
-    keeping the gated path isolated and its guarantee legible.
+    it from an unattested one. The duplicated POST is the price of keeping the
+    gated path isolated and its guarantee legible.
+
+    It shares a *dialect* with that path, though, and only a dialect. Wire
+    format is not a guarantee: an enclave that speaks one vendor's JSON is no
+    less attested than one speaking another's, and refusing to reach it would
+    be an arbitrary limit dressed up as caution. What stays unshared is the
+    labelling, which is the part that actually carries meaning.
     """
     if not isinstance(result, Result):
         raise AttestationError(
             "attested_complete requires a verified Result; attest the host first")
 
-    messages = []
-    if system:
-        messages.append({"role": "system", "content": system})
-    messages.append({"role": "user", "content": prompt})
+    spoken = dialects.get(dialect) if dialect else dialects.detect(api_base)[0]
 
     req = urllib.request.Request(
-        api_base.rstrip("/") + "/v1/chat/completions",
-        data=json.dumps({"model": model, "messages": messages}).encode("utf-8"),
-        headers={"Content-Type": "application/json",
-                 "Authorization": f"Bearer {api_key}"},
+        spoken.url(api_base),
+        data=spoken.body(model=model, prompt=prompt, system=system),
+        headers=spoken.headers(api_key),
         method="POST")
     try:
         with urllib.request.urlopen(req, timeout=timeout) as resp:
@@ -406,14 +411,14 @@ def attested_complete(prompt: str, *,
         raise AttestationError(f"attested host unreachable: {exc}") from exc
 
     try:
-        reply = data["choices"][0]["message"]["content"]
-    except (KeyError, IndexError, TypeError) as exc:
-        raise AttestationError(
-            f"unexpected response shape: {sorted(data)}") from exc
+        reply = spoken.reply(data)
+    except dialects.DialectError as exc:
+        raise AttestationError(str(exc)) from exc
 
     return {
         "reply": reply,
         "attested": True,
         "measurement_hex": result.measurement_hex,
         "checks": list(result.checks),
+        "dialect": spoken.name,
     }

@@ -198,6 +198,26 @@ separately and partially — by `pad_writes`, which writes records that mean
 nothing, and by constant-rate dispatch, which sends on a clock rather than when
 you happened to type.
 
+### 4.1 Provider independence
+
+The tiers above describe what an operator may read. They would be worth much
+less if reaching an operator at all required imitating one particular company's
+HTTP API — which is what this implementation originally demanded, in three
+places, while its own module documentation promised "any AI".
+
+Wire format is now a separate concern from disclosure policy (`dialects.py`).
+A dialect maps a prompt to bytes: a URL, an auth header, a JSON shape, a field
+to read the answer out of. It is structurally incapable of deciding what may be
+sent — it never receives a record, a sensitivity class, or a tier grant, and a
+test asserts the type carries no such field. Adding a provider therefore cannot
+change a guarantee, which is the property that makes the addition safe.
+
+The reasoning is not convenience. A privacy system whose guarantees hold only
+when the user selects a specific vendor has not eliminated trust in that vendor;
+it has renamed it. Open weights on loopback are `LOCAL` whether the server is
+llama.cpp, vLLM or Ollama, and a frontier API is `OPEN` whichever company
+operates it. **The guarantee must not depend on whose model was chosen.**
+
 **Cryptographic status of these claims** is spelled out in
 [`CRYPTO_FOUNDATIONS.md`](CRYPTO_FOUNDATIONS.md): security reduces to standard
 assumptions on AES-GCM, HKDF, Ed25519, and SHA-256 under the RFC 6962 Merkle
@@ -216,8 +236,8 @@ The verification layer does not become the bottleneck at any realistic scale.
 
 ## 4. What is verified — as of 2026-08-08
 
-Implemented, running, and covered by tests in this repository. **475 tests
-across 28 suites**, plus an end-to-end demonstration. Every number in this
+Implemented, running, and covered by tests in this repository. **485 tests
+across 29 suites**, plus an end-to-end demonstration. Every number in this
 section is computed from source by `blindkeep status` and enforced against this
 document by `tools/check_counts.py`; none of them is typed by hand.
 
@@ -236,6 +256,7 @@ document by `tools/check_counts.py`; none of them is typed by hand.
 | Retrieval auditing | Complete | 10 tests separating offline, lost-data and dishonest nodes |
 | Local-model memory loop | Complete | 13 tests, loopback enforced, no hosted-provider path |
 | Gated hosted-model path | Complete | 14 tests asserting it stays closed by default |
+| Provider independence — any model, closed or open weights | Complete | 10 tests; a dialect carries no policy field, so a new provider cannot weaken a tier |
 | Reversible pseudonymisation on that path | Complete | 30 tests, four of which pass by demonstrating the limits |
 | Attestation framework | Complete | 30 tests; a replayed but genuine report is refused |
 | Release policy across model tiers, including the SEALED tier | Complete | 42 tests; an unproven tier claim is demoted, not honoured |
@@ -254,7 +275,7 @@ document by `tools/check_counts.py`; none of them is typed by hand.
 | Terminal output encoding guard | Complete | 8 tests |
 | Command-line surface | Complete | 19 tests, including that no command creates a master key as a side effect |
 
-<!-- roster --> adversarial 9 · anon-token 16 · attestation 30 · audit 10 · CLI 19 · cloud gate 14 · console 8 · delegate 22 · discovery 23 · dispatch 20 · hardening 14 · HPKE 10 · local-model memory 13 · memory gate 42 · Merkle 13 · metadata 8 · oblivious HTTP 15 · poseidon 15 · private read 12 · recovery 25 · replication 12 · SEV-SNP 19 · status 15 · store 5 · vault proxy 30 · witness 13 · zk 31 · zk-keep 12
+<!-- roster --> adversarial 9 · anon-token 16 · attestation 30 · audit 10 · CLI 19 · cloud gate 14 · console 8 · delegate 22 · dialects 10 · discovery 23 · dispatch 20 · hardening 14 · HPKE 10 · local-model memory 13 · memory gate 42 · Merkle 13 · metadata 8 · oblivious HTTP 15 · poseidon 15 · private read 12 · recovery 25 · replication 12 · SEV-SNP 19 · status 15 · store 5 · vault proxy 30 · witness 13 · zk 31 · zk-keep 12
 
 The adversarial suites are the substantive claim. They stand up nodes that
 substitute records, fork history at equal length, forge heads, tamper with

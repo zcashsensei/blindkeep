@@ -10,7 +10,7 @@
 <p align="center">
   <img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License: MIT">
   <img src="https://img.shields.io/badge/python-3.10%2B-blue.svg" alt="Python 3.10+">
-  <img src="https://img.shields.io/badge/tests-475%20passing-brightgreen.svg" alt="475 tests passing">
+  <img src="https://img.shields.io/badge/tests-485%20passing-brightgreen.svg" alt="485 tests passing">
   <img src="https://img.shields.io/badge/status-v0%20alpha-orange.svg" alt="v0 alpha">
   <img src="https://img.shields.io/badge/dependencies-1-lightgrey.svg" alt="1 dependency">
   <img src="https://img.shields.io/badge/zero--knowledge-sigma%20protocols%20%2B%20halo2-6E4B9E.svg" alt="Zero-knowledge: sigma protocols and a halo2 SNARK">
@@ -18,7 +18,7 @@
 </p>
 
 <p align="center">
-  <sub><b>Status as of 2026-08-08</b> · v0 alpha · 475 tests passing ·
+  <sub><b>Status as of 2026-08-08</b> · v0 alpha · 485 tests passing ·
   replication, peer discovery, retrieval audits, key recovery, local-model
   memory, pseudonymisation, an attestation framework and <b>zero-knowledge
   membership</b> implemented · sigma protocols <i>and</i> a halo2 SNARK
@@ -490,7 +490,7 @@ circuits/       halo2 membership circuit + the blindkeep-prove binary (Rust)
   anon_token.py blind-signed entitlement: prove you may ask, not who you are
   _console.py   terminal output helpers
   cli.py        command-line interface
-tests/          28 suites, 475 tests
+tests/          29 suites, 485 tests
 ```
 
 ## Replication
@@ -580,10 +580,26 @@ python -m blindkeep cloud-chat --enable-cloud --i-accept-not-private \
   --api-base https://api.x.ai --model grok-4.3 --text "..." --redact
 ```
 
-`--api-base` and `--model` are **required, with no default**. Any endpoint
-speaking the `/v1/chat/completions` format works — xAI, a self-hosted vLLM, or
-anything else — because Blindkeep does not choose a provider for you, and on a
-path that discloses, that is the one choice you should make consciously.
+`--api-base` and `--model` are **required, with no default**, because Blindkeep
+does not choose a provider for you, and on a path that discloses, that is the one
+choice you should make consciously.
+
+**Any model, closed or open weights.** The wire format is inferred from the
+endpoint and can be overridden with `--dialect`:
+
+```bash
+--api-base https://api.anthropic.com  --model <claude model>   # dialect: anthropic
+--api-base https://api.x.ai           --model <grok model>     # dialect: openai
+--api-base https://api.openai.com     --model <gpt model>      # dialect: openai
+--api-base http://127.0.0.1:8000      --model <self-hosted>    # vLLM, llama.cpp, TGI…
+--api-base http://127.0.0.1:11434     --model <local>          # dialect: ollama
+```
+
+This is not a convenience feature. **Privacy that only holds if you pick one
+particular company is not a property — it is a dependency on that company.** A
+dialect decides bytes on the wire and nothing else: it never sees a record, a
+sensitivity class, or a tier, so supporting a new provider cannot weaken a
+guarantee. The tiers below read identically on every one of them.
 
 Nothing in the default paths imports it — enforced by a test. `--redact` removes
 obvious secrets on a best-effort basis and is **not** a privacy control: pattern
