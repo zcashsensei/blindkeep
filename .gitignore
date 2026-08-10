@@ -48,6 +48,7 @@ data/*/head.json
 # so a clone never advertises a command it cannot run.
 # -----------------------------------------------------------------------------
 dashboard.py
+launch.pyw
 data/plan.json
 blindkeep/progress.py
 
