@@ -94,6 +94,40 @@ def ensure_node() -> tuple[bool, str]:
     return False, "did not come up"
 
 
+def safe_error(exc: Exception) -> dict:
+    """What the browser is told, versus what the operator is told.
+
+    Python's filesystem errors carry the absolute path -- so a plain
+    str(exception) hands out the username and the directory layout, and once
+    agent access is switched on it hands them to the agent as well. The type
+    is enough for a user to report; the detail goes to the console, which only
+    the person running this can see.
+    """
+    print(f"[blindkeep] {type(exc).__name__}: {exc}", file=sys.stderr)
+    return {"error": type(exc).__name__,
+            "hint": "details are in the terminal running this app"}
+
+
+def lock_down(path: pathlib.Path) -> None:
+    """Make the master key readable by its owner and nobody else.
+
+    It inherits the parent directory's ACL otherwise, which on Windows means
+    SYSTEM and every local Administrator can read it. That is a poor default
+    for the one file that decrypts everything.
+    """
+    try:
+        if os.name == "nt":
+            user = os.environ.get("USERNAME") or ""
+            subprocess.run(["icacls", str(path), "/inheritance:r",
+                            "/grant:r", f"{user}:F"],
+                           capture_output=True, check=False, timeout=15)
+        else:
+            os.chmod(path, 0o600)
+    except Exception as exc:                                 # pragma: no cover
+        print(f"[blindkeep] could not tighten permissions on {path.name}: "
+              f"{type(exc).__name__}", file=sys.stderr)
+
+
 def client(need_key: bool = True):
     from blindkeep.client import BlindkeepClient
     key = b""
@@ -101,6 +135,7 @@ def client(need_key: bool = True):
         if not KEY_PATH.exists():
             KEY_PATH.parent.mkdir(parents=True, exist_ok=True)
             BlindkeepClient.create_keys(str(KEY_PATH))
+            lock_down(KEY_PATH)
         key = BlindkeepClient.load_master_key(str(KEY_PATH))
     return BlindkeepClient(NODE_URL, key, pin_path=str(PIN_PATH))
 
@@ -323,7 +358,7 @@ class Handler(BaseHTTPRequestHandler):
                     return self._send(404, {"error": "no receipt"})
                 return self._send(200, json.dumps(r["receipt"], indent=2).encode())
         except Exception as exc:
-            return self._send(500, {"error": f"{type(exc).__name__}: {exc}"})
+            return self._send(500, safe_error(exc))
         self._send(404, {"error": "not found"})
 
     def do_POST(self):
@@ -375,7 +410,7 @@ class Handler(BaseHTTPRequestHandler):
                                  daemon=True).start()
                 return self._send(200, {"run": rid})
         except Exception as exc:
-            return self._send(500, {"error": f"{type(exc).__name__}: {exc}"})
+            return self._send(500, safe_error(exc))
         self._send(404, {"error": "not found"})
 
     def _hw_stream(self, rid):
@@ -478,6 +513,19 @@ overflow:hidden}.bar i{display:block;height:100%;width:0;background:var(--cyan);
 transition:width .25s}
 .res{margin-top:1rem;border-radius:.6rem;padding:1rem 1.15rem;border:1px solid var(--line)}
 .grid2{display:grid;gap:1rem;grid-template-columns:repeat(auto-fit,minmax(14rem,1fr))}
+ol.steps{counter-reset:s;list-style:none;padding:0;margin:1rem 0 0}
+ol.steps li{counter-increment:s;position:relative;padding:0 0 .9rem 2.4rem;
+  border-left:1px solid var(--line);margin-left:.7rem;color:var(--muted);font-size:.9rem}
+ol.steps li:last-child{border-left-color:transparent;padding-bottom:0}
+ol.steps li::before{content:counter(s);position:absolute;left:-.72rem;top:0;
+  width:1.44rem;height:1.44rem;border-radius:50%;background:var(--cyan);
+  color:#08101c;font-family:var(--mono);font-size:.75rem;font-weight:700;
+  display:grid;place-items:center}
+ol.steps b{color:var(--ink)}
+ul.plain{margin:.9rem 0 0;padding-left:1.1rem}
+ul.plain li{margin-bottom:.55rem;color:var(--muted);font-size:.9rem}
+ul.plain li::marker{color:var(--cyan)}
+ul.plain b{color:var(--ink)}
 .warnbox{border-left:3px solid var(--gold);padding:.2rem 0 .2rem .9rem;
 color:var(--muted);font-size:.86rem;margin-top:.9rem}
 
@@ -527,6 +575,7 @@ body.hastodo{padding-bottom:5.5rem}
     <button class=tab id=t-write role=tab aria-selected=false aria-controls=p-write>Remember</button>
     <button class=tab id=t-proof role=tab aria-selected=false aria-controls=p-proof>Proof</button>
     <button class=tab id=t-hw role=tab aria-selected=false aria-controls=p-hw>Check your AI</button>
+    <button class=tab id=t-how role=tab aria-selected=false aria-controls=p-how>How it works</button>
   </div>
 </header>
 
@@ -611,6 +660,87 @@ body.hastodo{padding-bottom:5.5rem}
       saving and reading memories. It cannot fetch your master key and cannot
       change this switch. It dies when you turn this off or close the app.</div>
     </div>
+  </div>
+</section>
+
+<section class=page id=p-how role=tabpanel aria-labelledby=t-how hidden>
+  <div class=card>
+    <h2>The problem</h2>
+    <p class=note>AI assistants get more useful the more they remember about
+    you. But "remembering" normally means a company holds your notes, your
+    health, your finances, in a form its staff and its servers can read. You
+    are asked to trade privacy for usefulness.</p>
+    <p class=note style="margin-top:.7rem">Blindkeep refuses the trade. The
+    thing that stores your memory <b style="color:var(--ink)">cannot read
+    it</b> — not because it promises not to, but because it never has the key.</p>
+  </div>
+
+  <div class=card>
+    <h2>What happens when you save something</h2>
+    <ol class=steps>
+      <li><b>It is encrypted on this machine.</b> Before anything leaves, your
+      text is sealed with a key held only here. The storage node receives a
+      blob it has no way to open.</li>
+      <li><b>It is appended to a tamper-evident log.</b> Each entry is hashed
+      into a structure where changing any past entry changes the root — so a
+      node that quietly edits or drops your history cannot hide it.</li>
+      <li><b>The node signs the new root.</b> That signature is your receipt
+      that the log is in a particular state.</li>
+      <li><b>Your client remembers that root.</b> Next time you read, it checks
+      the node's answer against what it saw last time. A node that rewrites
+      history gets caught by your own copy, not by trusting a third party.</li>
+    </ol>
+  </div>
+
+  <div class=card>
+    <h2>What happens when you read it back</h2>
+    <ol class=steps>
+      <li><b>The node returns ciphertext plus a proof</b> that this exact entry
+      belongs in the log whose root it signed.</li>
+      <li><b>Your client verifies the proof</b> and checks the root is
+      consistent with the one it pinned earlier. If either fails it refuses the
+      answer rather than showing you something unverified.</li>
+      <li><b>Only then is it decrypted</b>, here, with your key.</li>
+    </ol>
+    <p class=note style="margin-top:.8rem">This is why "Proof" is a tab and not
+    a footnote. The claim is not <i>trust us</i> — it is <i>check us</i>.</p>
+  </div>
+
+  <div class=card>
+    <h2>Your master key</h2>
+    <p class=note>One file on this machine. It is the only thing that can
+    decrypt your keep. Nobody — not us, not a node operator — can reset it or
+    recover it for you, and that limitation is the feature: an operator who
+    could recover your data could also read it.</p>
+    <p class=note style="margin-top:.7rem"><b style="color:var(--ink)">Back it
+    up before you store anything you would miss.</b> The Proof tab shows it and
+    lets you copy it.</p>
+  </div>
+
+  <div class=card>
+    <h2>What it does not do</h2>
+    <ul class=plain>
+      <li><b>It does not protect a compromised machine.</b> If something is
+      already running on your computer with your permissions, it can read your
+      key. No storage design fixes that.</li>
+      <li><b>It does not hide that you are using it.</b> Hiding <i>which</i>
+      record you read costs a scan of the whole keep; hiding <i>who is asking</i>
+      needs the oblivious path and two independently operated relays.</li>
+      <li><b>It is not anonymity by default.</b> If you send a question straight
+      to a cloud AI, that provider's API key identifies your account — no
+      amount of local encryption changes it.</li>
+      <li><b>Replication is opt-in.</b> By default your keep lives on your own
+      node, on this machine. Nobody else holds a copy unless you set that up.</li>
+    </ul>
+  </div>
+
+  <div class=card>
+    <h2>And the other tab</h2>
+    <p class=note><b style="color:var(--ink)">Check your AI</b> answers a
+    different question. Blindkeep asks <i>can I stop you reading my data?</i>
+    That tab asks <i>did you do the work I paid for?</i> — whether a provider
+    is quietly spending less computation than you are billed for. Same posture
+    toward a company you cannot audit; different object.</p>
   </div>
 </section>
 
