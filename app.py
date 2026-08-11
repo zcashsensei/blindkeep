@@ -200,6 +200,23 @@ class Handler(BaseHTTPRequestHandler):
     def log_message(self, *a):
         pass
 
+    def _host_ok(self) -> bool:
+        """Reject DNS rebinding.
+
+        Binding to 127.0.0.1 stops the network reaching this, and the session
+        token stops a cross-origin page driving it -- but neither stops DNS
+        rebinding. An attacker points a domain at their own server, you visit
+        it, and they re-point that domain at 127.0.0.1. The browser now treats
+        their page as SAME-ORIGIN with this server, so their script may fetch
+        "/" and read the token out of the HTML, then spend it.
+
+        The Host header is what survives that: after rebinding the browser
+        still sends the attacker's domain, never 127.0.0.1. Checked before
+        anything else, on every route including the page itself.
+        """
+        host = (self.headers.get("Host") or "").split(":")[0].strip("[]")
+        return host in ("127.0.0.1", "localhost", "::1", "")
+
     def _send(self, code, obj, ctype="application/json"):
         body = obj if isinstance(obj, bytes) else json.dumps(obj).encode()
         self.send_response(code)
@@ -231,6 +248,8 @@ class Handler(BaseHTTPRequestHandler):
         return False
 
     def do_GET(self):
+        if not self._host_ok():
+            return self._send(403, {"error": "bad host"})
         path = self.path.split("?", 1)[0]
         if path in ("/", "/index.html"):
             return self._send(200, PAGE.replace("__TOKEN__", TOKEN).encode(),
@@ -289,6 +308,8 @@ class Handler(BaseHTTPRequestHandler):
         self._send(404, {"error": "not found"})
 
     def do_POST(self):
+        if not self._host_ok():
+            return self._send(403, {"error": "bad host"})
         path = self.path.split("?", 1)[0]
         if not self._auth():
             return self._send(403, {"error": "missing or bad session token"})
