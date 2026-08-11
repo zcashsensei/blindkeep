@@ -32,6 +32,40 @@
 
 ---
 
+## Try it in one command
+
+```bash
+git clone https://github.com/zcashsensei/blindkeep
+cd blindkeep
+python app.py
+```
+
+Opens a local app at `http://127.0.0.1:8743`. It starts your own node, creates
+your own master key, and never sends either anywhere — everything is encrypted
+on your machine before it reaches storage. Nothing to sign up for, no server of
+ours involved, and it keeps working when we are offline.
+
+Five tabs: **Your keep** (what you have stored) · **Remember** (save something)
+· **Proof** (the signed log head, your master key, and agent access) · **Check
+your AI** (whether a provider is quietly throttling the model you pay for) ·
+**How it works** (the mechanism, and what it deliberately does *not* protect).
+
+> **Back up your master key** — `data/master.key` — before you store anything
+> you would mind losing. It is the only thing that can decrypt your keep, and
+> nobody can reset it. That is the point: an operator who could recover your
+> data could also read it.
+
+**The app is new.** The storage and crypto layers have 499 tests and have been
+built over months; `app.py` is days old and has had several security fixes
+already. It binds to loopback only, holds no data of its own, and locks the key
+file to your account — but it is the youngest code here and the part most worth
+your review.
+
+Prefer a terminal? The `blindkeep` CLI does everything the app does and more —
+see [Install](#install).
+
+---
+
 ## What it is
 
 Blindkeep is a zero-knowledge memory layer for AI. It does two things, and the

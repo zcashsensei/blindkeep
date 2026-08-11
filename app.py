@@ -752,12 +752,53 @@ body.hastodo{padding-bottom:5.5rem}
       <li><b>It does not hide that you are using it.</b> Hiding <i>which</i>
       record you read costs a scan of the whole keep; hiding <i>who is asking</i>
       needs the oblivious path and two independently operated relays.</li>
-      <li><b>It is not anonymity by default.</b> If you send a question straight
-      to a cloud AI, that provider's API key identifies your account — no
-      amount of local encryption changes it.</li>
+      <li><b>Sending straight to a cloud AI is not private</b>, and that path
+      says so — it needs two separate acknowledgements and cannot be entered by
+      accident. The private route is the next card.</li>
       <li><b>Replication is opt-in.</b> By default your keep lives on your own
       node, on this machine. Nobody else holds a copy unless you set that up.</li>
     </ul>
+  </div>
+
+<div class=card>
+    <h2>Using a frontier AI, privately</h2>
+    <p class=note>You do not have to choose between a capable model and privacy.
+    Four layers each remove a different thing, because no single trick removes
+    them all:</p>
+    <ol class=steps>
+      <li><b>Your content leaves the question.</b> A local model reads the
+      private material and writes a <i>generic</i> version — one that could
+      have come from anyone. Only that goes out. The frontier model answers in
+      the abstract, and the local model re-specialises the answer against your
+      context, which never left the machine.
+      <br><span style="color:var(--muted)">This is why it is not redaction.
+      Swapping out names still transmits "the only paediatric cardiologist in
+      Truro". Writing a new question does not.</span></li>
+
+      <li><b>Your name leaves the authorisation.</b> A blind-signed token proves
+      you are entitled to ask without revealing who is asking — the token issued
+      to you is not feasibly linkable to the token you spend. Same property Zcash
+      preserves for a payment, standardised for the web as Privacy Pass.</li>
+
+      <li><b>Your rhythm leaves the traffic.</b> Requests go out on a constant
+      schedule at a uniform size, so the provider cannot read your day from
+      when and how big your questions are.</li>
+
+      <li><b>Your address leaves the connection.</b> Oblivious HTTP splits the
+      request across two operators: the relay sees your IP but not the question;
+      the gateway sees the question but not your IP. Neither holds both halves.</li>
+    </ol>
+    <p class=note style="margin-top:.9rem">Above this sits a <b
+    style="color:var(--ink)">memory gate</b>: every backend must <i>prove</i>
+    which trust tier it is on, and a policy decides which memories may cross to
+    which tier. The model is swappable — open weights or closed. The guarantee
+    is not.</p>
+    <div class=warnbox><b style="color:var(--ink)">The honest catch.</b> Step 4
+    only works if the relay and the gateway are run by <i>different people</i>.
+    Run both yourself and the anonymity is not weakened — it is void, because
+    one party sees both halves. Finding an independent operator is the single
+    biggest thing this project still needs, and no amount of code substitutes
+    for it.</div>
   </div>
 
   <div class=card>
