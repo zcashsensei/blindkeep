@@ -295,6 +295,25 @@ class Handler(BaseHTTPRequestHandler):
                 return self._send(200, {"enabled": AGENT["on"],
                                         "token": AGENT["token"] if AGENT["on"] else None,
                                         "url": f"http://127.0.0.1:{PORT}"})
+            if path == "/api/pending":
+                # Jobs only a human can finish -- an authorisation click, an
+                # email. They kept slipping because nothing on screen carried
+                # them, so they live in a file and surface as a bar that will
+                # not be ignored. One-time codes carry an expiry so the bar can
+                # say "this one is dead" instead of showing a stale number.
+                f = HERE / "data" / "pending.json"
+                if not f.exists():
+                    return self._send(200, {"items": []})
+                try:
+                    data = json.loads(f.read_text(encoding="utf-8"))
+                except json.JSONDecodeError:
+                    return self._send(200, {"items": []})
+                now = int(time.time())
+                for it in data.get("items", []):
+                    ttl = it.get("ttl") or 0
+                    it["expired"] = bool(ttl and now - it.get("issued", 0) > ttl)
+                    it["left"] = max(0, ttl - (now - it.get("issued", 0))) if ttl else None
+                return self._send(200, data)
             if path.startswith("/api/hw/events/"):
                 return self._hw_stream(path.rsplit("/", 1)[-1])
             if path.startswith("/api/hw/receipt/"):
@@ -461,8 +480,36 @@ transition:width .25s}
 .grid2{display:grid;gap:1rem;grid-template-columns:repeat(auto-fit,minmax(14rem,1fr))}
 .warnbox{border-left:3px solid var(--gold);padding:.2rem 0 .2rem .9rem;
 color:var(--muted);font-size:.86rem;margin-top:.9rem}
+
+/* Pending-actions bar. Fixed to the bottom because these are the jobs that
+   kept getting lost between sessions -- a thing only a human can finish must
+   not live only in a chat transcript. */
+#todo{position:fixed;left:0;right:0;bottom:0;z-index:20;display:none;
+  background:rgba(9,13,20,.97);border-top:1px solid rgba(88,166,255,.45);
+  backdrop-filter:blur(10px);box-shadow:0 -8px 28px rgba(0,0,0,.5)}
+#todo .row{max-width:60rem;margin:0 auto;padding:.7rem 1.5rem;display:flex;
+  align-items:center;gap:1rem;flex-wrap:wrap}
+#todo .dot{width:9px;height:9px;border-radius:50%;background:var(--accent);
+  flex:none;animation:pulse 1.15s ease-in-out infinite}
+@keyframes pulse{0%,100%{opacity:1;box-shadow:0 0 0 0 rgba(88,166,255,.6)}
+  50%{opacity:.35;box-shadow:0 0 0 7px rgba(88,166,255,0)}}
+#todo .ttl{font-weight:650;font-size:.92rem}
+#todo .det{color:var(--muted);font-size:.82rem}
+#todo code{font-family:var(--mono);font-size:1.05rem;letter-spacing:.09em;
+  color:var(--cyan);background:rgba(79,208,224,.10);padding:.2rem .55rem;
+  border-radius:.3rem;border:1px solid rgba(79,208,224,.3)}
+#todo .dead code{color:var(--muted);background:rgba(255,255,255,.05);
+  border-color:var(--line);text-decoration:line-through}
+#todo a.open{margin-left:auto;padding:.42rem 1rem;border-radius:.4rem;
+  background:var(--accent);color:#08101c;text-decoration:none;font-weight:650;
+  font-size:.86rem}
+#todo button.done{padding:.42rem .9rem;border-radius:.4rem;border:1px solid var(--line);
+  background:transparent;color:var(--muted);font:inherit;font-size:.82rem;cursor:pointer}
+@media(prefers-reduced-motion:reduce){#todo .dot{animation:none}}
+body.hastodo{padding-bottom:5.5rem}
 </style></head><body>
 <canvas id=sky></canvas><div class=veil></div>
+<div id=todo><div class=row id=todorow></div></div>
 <div class=wrap>
 <header>
   <div class=brand>
@@ -609,6 +656,13 @@ color:var(--muted);font-size:.86rem;margin-top:.9rem}
 const TOKEN = "__TOKEN__";
 const $ = id => document.getElementById(id);
 const esc = s => String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+/* esc() blocks breaking OUT of an attribute, but a scheme needs no special
+   characters: href="javascript:..." survives escaping untouched, and clicking
+   it runs in this page's context -- which holds the token that reaches the
+   master key. So any URL coming from data gets its scheme checked, not just
+   its characters. Anything not plainly http(s) becomes an inert '#'. */
+const safeUrl = u => /^https?:\/\/[^\s"'<>]+$/i.test(String(u||'')) ? String(u) : '#';
 const api = (p,o={}) => fetch(p,{...o,headers:{'X-Blindkeep-Token':TOKEN,
   ...(o.body?{'Content-Type':'application/json'}:{})}});
 
@@ -752,6 +806,42 @@ $('agenttoggle').onclick=async()=>{
   agentPaint(a);
 };
 api('/api/agent').then(r=>r.json()).then(agentPaint).catch(()=>{});
+
+/* Pending actions. Polled rather than rendered once, so a code that expires
+   while the page is open turns dead on screen instead of lying. */
+let todoIdx = 0;
+async function todoPaint(){
+  let d;
+  try { d = await (await api('/api/pending')).json(); } catch(e){ return; }
+  const live = (d.items||[]).filter(i=>!i.dismissed);
+  const bar = $('todo');
+  if(!live.length){ bar.style.display='none'; document.body.classList.remove('hastodo'); return; }
+  bar.style.display='block'; document.body.classList.add('hastodo');
+  const it = live[todoIdx % live.length];
+  const dead = it.expired;
+  const mins = it.left!=null ? Math.ceil(it.left/60) : null;
+  $('todorow').innerHTML =
+    `<span class=dot></span>
+     <span>
+       <span class=ttl>${esc(it.title)}</span>
+       ${live.length>1?`<span class=det> · ${todoIdx%live.length+1} of ${live.length}</span>`:''}
+       <br><span class=det>${esc(it.detail)}${
+         dead ? ' <b style="color:var(--warn)">This code has expired — ask for a new one.</b>'
+              : (mins!=null ? ` <b style="color:var(--cyan)">~${mins} min left</b>` : '')}</span>
+     </span>
+     <span class="${dead?'dead':''}"><code>${esc(it.code||'')}</code></span>
+     <a class=open href="${esc(safeUrl(it.url))}" target=_blank rel=noopener>Open</a>
+     <button class=done data-id="${esc(it.id)}">Done</button>`;
+  $('todorow').querySelector('.done').onclick = e => {
+    it.dismissed = true;
+    const all = d.items.filter(x=>x.id!==e.target.dataset.id);
+    if(!all.length){ $('todo').style.display='none';
+      document.body.classList.remove('hastodo'); return; }
+    d.items = all; todoIdx = 0; todoPaint();
+  };
+  if(live.length>1) todoIdx++;
+}
+todoPaint(); setInterval(todoPaint, 8000);
 
 let hwRun=null;
 function hwLine(t,c){const b=$('hwlog');b.style.display='block';
