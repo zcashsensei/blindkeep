@@ -309,7 +309,15 @@ class Handler(BaseHTTPRequestHandler):
                     "heartwood": hw_err is None, "heartwood_error": hw_err,
                     "list": recs[-50:]})
             if path.startswith("/api/read/"):
-                idx = int(path.rsplit("/", 1)[-1])
+                # Validate before touching the keep. Bad input is the CALLER's
+                # mistake and deserves a 400 saying so -- returning 500 makes a
+                # typo look like a crash, and buries real failures in noise.
+                token = path.rsplit("/", 1)[-1]
+                if not token.isdigit():
+                    return self._send(400, {"error": "that is not a record number"})
+                idx = int(token)
+                if idx > 10_000_000:
+                    return self._send(400, {"error": "record number out of range"})
                 res = client().get(idx)
                 plain = res.pop("plaintext")
                 try:
@@ -374,12 +382,26 @@ class Handler(BaseHTTPRequestHandler):
             body = json.loads(self.rfile.read(n) or "{}")
         except json.JSONDecodeError:
             return self._send(400, {"error": "bad JSON"})
+        # Valid JSON is not necessarily an OBJECT. A bare array or string parses
+        # fine and then blows up on .get() with an AttributeError, which the
+        # caller sees as a 500 -- a server fault for what is a malformed request.
+        if not isinstance(body, dict):
+            return self._send(400, {"error": "expected a JSON object"})
         try:
             if path == "/api/write":
-                text = (body.get("text") or "").strip()
+                raw_text = body.get("text")
+                if raw_text is not None and not isinstance(raw_text, str):
+                    return self._send(400, {"error": "text must be text"})
+                raw_label = body.get("label")
+                if raw_label is not None and not isinstance(raw_label, str):
+                    return self._send(400, {"error": "label must be text"})
+                text = (raw_text or "").strip()
                 if not text:
                     return self._send(400, {"error": "nothing to save"})
-                res = client().put(text, label=(body.get("label") or "")[:120])
+                if len(text) > 500_000:
+                    return self._send(400, {"error": "that memory is too long "
+                                                     "(500,000 characters max)"})
+                res = client().put(text, label=(raw_label or "")[:120])
                 return self._send(200, {"ok": True, "record": res})
             if path == "/api/agent":
                 # Only the page's own token may flip this. An agent holding an
@@ -410,6 +432,10 @@ class Handler(BaseHTTPRequestHandler):
                                  daemon=True).start()
                 return self._send(200, {"run": rid})
         except Exception as exc:
+            if path.startswith("/api/read/"):
+                print(f"[blindkeep] read failed: {type(exc).__name__}: {exc}",
+                      file=sys.stderr)
+                return self._send(404, {"error": "no such record"})
             return self._send(500, safe_error(exc))
         self._send(404, {"error": "not found"})
 
