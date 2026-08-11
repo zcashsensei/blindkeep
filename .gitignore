@@ -41,6 +41,7 @@ data/client/
 # files. Match the shape a node leaves behind instead of one directory name.
 data/*/records/
 data/*/head.json
+data/pin.json
 
 # -----------------------------------------------------------------------------
 # Personal cockpit and task board. Local working tools carrying private roadmap
@@ -48,7 +49,6 @@ data/*/head.json
 # so a clone never advertises a command it cannot run.
 # -----------------------------------------------------------------------------
 dashboard.py
-launch.pyw
 data/plan.json
 blindkeep/progress.py
 
