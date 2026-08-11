@@ -144,7 +144,16 @@ def client(need_key: bool = True):
 
 def heartwood_modules():
     if not (HEARTWOOD_DIR / "heartwood.py").exists():
-        return None, f"Heartwood not found at {HEARTWOOD_DIR}"
+        # Heartwood is a SEPARATE project, not vendored -- so there is exactly
+        # one copy of that protocol and this app can never drift from it. The
+        # cost is that a fresh Blindkeep clone does not have it, and the old
+        # message named an absolute path the reader had never seen. Tell them
+        # what to do instead.
+        return None, ("Heartwood is a separate project and is not installed.\n\n"
+                      "To turn this tab on, clone it next to blindkeep:\n\n"
+                      "    git clone https://github.com/zcashsensei/heartwood\n\n"
+                      "then restart this app. (Or set HEARTWOOD_DIR to point "
+                      "wherever you put it.)")
     try:
         if str(HEARTWOOD_DIR) not in sys.path:
             sys.path.insert(0, str(HEARTWOOD_DIR))
@@ -819,7 +828,17 @@ body.hastodo{padding-bottom:5.5rem}
     change. This asks questions that cannot be answered without doing the work.
     <b style="color:var(--ink)">This is not privacy</b> — that is the rest of
     Blindkeep. This checks whether the work was done.</p>
-    <div id=hwmissing class=mono style="display:none;color:var(--warn);margin-top:.8rem"></div>
+    <div id=hwmissing style="display:none;margin-top:1rem;border:1px solid var(--line);
+         border-radius:.6rem;padding:1rem 1.15rem;background:rgba(0,0,0,.25)">
+      <div style="font-weight:650;font-size:.95rem;margin-bottom:.4rem">
+        This tab needs Heartwood, a separate project</div>
+      <pre class=mono id=hwmissingtext style="white-space:pre-wrap;font-size:.8rem;
+        color:var(--muted);margin:0"></pre>
+      <a class=open href="https://github.com/zcashsensei/heartwood" target=_blank
+         rel=noopener style="display:inline-block;margin-top:.8rem;padding:.42rem 1rem;
+         border-radius:.4rem;background:var(--accent);color:#08101c;
+         text-decoration:none;font-weight:650;font-size:.86rem">Get Heartwood</a>
+    </div>
     <div class=grid2 id=hwform style="margin-top:1.1rem">
       <div><label for=hw-target>Which AI are you checking?</label>
         <select id=hw-target>
@@ -947,7 +966,7 @@ async function refresh(){
   });
   if(!s.heartwood){ $('hwform').style.display='none'; $('hwgo').style.display='none';
     $('hwmissing').style.display='block';
-    $('hwmissing').textContent='Heartwood not available: '+esc(s.heartwood_error||''); }
+    $('hwmissingtext').textContent = s.heartwood_error || 'not available'; }
 }
 refresh();
 

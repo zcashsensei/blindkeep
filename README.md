@@ -47,8 +47,10 @@ ours involved, and it keeps working when we are offline.
 
 Five tabs: **Your keep** (what you have stored) · **Remember** (save something)
 · **Proof** (the signed log head, your master key, and agent access) · **Check
-your AI** (whether a provider is quietly throttling the model you pay for) ·
-**How it works** (the mechanism, and what it deliberately does *not* protect).
+your AI** (whether a provider is quietly throttling the model you pay for —
+needs [Heartwood](https://github.com/zcashsensei/heartwood), a separate project,
+cloned alongside) · **How it works** (the mechanism, and what it deliberately
+does *not* protect).
 
 > **Back up your master key** — `data/master.key` — before you store anything
 > you would mind losing. It is the only thing that can decrypt your keep, and
