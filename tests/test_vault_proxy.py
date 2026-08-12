@@ -388,8 +388,13 @@ def test_no_default_module_imports_the_proxy():
 
     root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     pkg = os.path.join(root, "blindkeep")
+    # The frontier modules ARE cloud paths, same as vault_proxy: reachable only through
+    # `frontier` CLI commands that import them lazily, so importing one is choosing it.
+    # See the matching note in test_cloud_gate.py -- reachability is proved by importing
+    # the package in a clean interpreter, not by this list.
     cloud_path_modules = {"vault_proxy.py", "cloud_gate.py", "cli.py",
-                          "progress.py"}
+                          "progress.py", "frontier_gateway.py",
+                          "frontier_private.py"}
     guarded = ("vault_proxy", "cloud_gate")
 
     for name in sorted(os.listdir(pkg)):
