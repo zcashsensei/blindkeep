@@ -307,7 +307,16 @@ def unlock_session(passphrase: str) -> None:
     """Load master key into memory from sealed file (or migrate legacy)."""
     global SESSION_KEY, KEY_JUST_CREATED
     if KEY_SEALED_PATH.is_file():
-        SESSION_KEY = open_payload(KEY_SEALED_PATH.read_bytes(), passphrase)
+        try:
+            SESSION_KEY = open_payload(KEY_SEALED_PATH.read_bytes(), passphrase)
+        except Exception as exc:
+            # AES-GCM InvalidTag is the normal "wrong password" path.
+            raise ValueError(
+                "Wrong passphrase. This keep was sealed earlier with a different "
+                "one — you cannot set a new passphrase without unlocking first. "
+                "If you forgot it, use Start over (you will lose access to any "
+                "memories encrypted under the old key)."
+            ) from exc
         return
     if KEY_PATH.is_file():
         # Legacy plaintext: load, seal under this passphrase, delete plaintext.
@@ -321,6 +330,23 @@ def unlock_session(passphrase: str) -> None:
     SESSION_KEY = generate_master_key()
     KEY_JUST_CREATED = True
     seal_at_rest(passphrase)
+
+
+def reset_local_key_material() -> None:
+    """Wipe sealed key + ack so a new passphrase can be chosen.
+
+    Does not delete keep ciphertext; those records become unreadable without
+    the old key — that is intentional and stated in the UI.
+    """
+    global SESSION_KEY, KEY_JUST_CREATED
+    SESSION_KEY = None
+    KEY_JUST_CREATED = False
+    for p in (KEY_SEALED_PATH, KEY_PATH, KEY_ACK_PATH):
+        try:
+            if p.is_file():
+                p.unlink()
+        except OSError as exc:
+            print(f"[blindkeep] could not remove {p.name}: {exc}", file=sys.stderr)
 
 
 def ensure_session_key() -> bytes:
@@ -749,10 +775,17 @@ class Handler(BaseHTTPRequestHandler):
                     return self._send(400, {"error": "passphrase required"})
                 try:
                     unlock_session(pw)
+                except ValueError as exc:
+                    return self._send(403, {
+                        "error": str(exc),
+                        "code": "wrong_passphrase",
+                        "can_reset": True})
                 except Exception as exc:
                     return self._send(403, {
                         "error": "could not unlock — wrong passphrase?",
-                        "detail": type(exc).__name__})
+                        "code": "wrong_passphrase",
+                        "detail": type(exc).__name__,
+                        "can_reset": True})
                 return self._send(200, {
                     "ok": True,
                     "unlocked": True,
@@ -767,6 +800,22 @@ class Handler(BaseHTTPRequestHandler):
                     return self._send(403, {"error": "session only — not agent token"})
                 SESSION_KEY = None
                 return self._send(200, {"ok": True, "unlocked": False})
+            if path == "/api/key/reset":
+                # Start over: wipe sealed key material so a NEW passphrase can
+                # be chosen. Requires explicit confirmation string.
+                if not _require_session_token(self):
+                    return self._send(403, {"error": "session only — not agent token"})
+                confirm = (body.get("confirm") or "").strip().lower()
+                if confirm not in ("erase sealed key", "start over"):
+                    return self._send(400, {
+                        "error": 'type confirm: "start over" to erase the sealed key',
+                        "code": "confirm_required"})
+                reset_local_key_material()
+                return self._send(200, {
+                    "ok": True,
+                    "reset": True,
+                    "hint": "Sealed key removed. Choose a new passphrase to seal again. "
+                            "Old keep records cannot be decrypted without the old key."})
             if path == "/api/key/setup":
                 # First-run: mint (if needed), seal at rest, export zip, ack.
                 # One passphrase — on disk and in the download — so agents that
@@ -778,26 +827,30 @@ class Handler(BaseHTTPRequestHandler):
                 if not isinstance(pw, str) or not isinstance(pw2, str):
                     return self._send(400, {"error": "passphrase required"})
                 if pw != pw2:
-                    return self._send(400, {"error": "passphrases do not match"})
+                    return self._send(400, {"error": "passphrases do not match — type the same passphrase twice"})
                 if len(pw) < _MIN_BACKUP_PASSPHRASE:
                     return self._send(400, {
                         "error": (f"passphrase must be at least "
                                   f"{_MIN_BACKUP_PASSPHRASE} characters")})
                 try:
-                    if not session_unlocked():
-                        if key_sealed_at_rest():
-                            unlock_session(pw)
-                        else:
-                            ensure_session_key()
-                            seal_at_rest(pw)
+                    if key_sealed_at_rest() and not session_unlocked():
+                        # Already sealed: this is unlock+export, not a new passphrase.
+                        unlock_session(pw)
+                    elif not session_unlocked():
+                        ensure_session_key()
+                        seal_at_rest(pw)
                     else:
                         if not key_sealed_at_rest() or KEY_PATH.is_file():
                             seal_at_rest(pw)
                     blob = seal_master_key_zip(SESSION_KEY, pw)
+                except ValueError as exc:
+                    return self._send(403, {
+                        "error": str(exc),
+                        "code": "wrong_passphrase",
+                        "can_reset": True})
                 except Exception as exc:
                     return self._send(400, {
-                        "error": str(exc) if isinstance(exc, ValueError)
-                        else "setup failed",
+                        "error": f"setup failed ({type(exc).__name__})",
                         "detail": type(exc).__name__})
                 KEY_ACK_PATH.parent.mkdir(parents=True, exist_ok=True)
                 KEY_ACK_PATH.write_text(
@@ -1249,27 +1302,30 @@ body.hastodo{padding-bottom:5.5rem}
 <div class=modal id=keymodal role=dialog aria-modal=true aria-labelledby=keymodaltitle>
   <div class=sheet>
     <h2 id=keymodaltitle>Seal your master key</h2>
-    <p class=note>This passphrase wraps the only secret that can open your keep.
-    There is no reset. <b style="color:var(--ink)">On disk the key is sealed;</b>
-    in this process it lives in memory only after unlock. The download is a
-    sealed zip — agents that open Downloads still need this passphrase.</p>
-    <label for=keypw>Passphrase you choose (min 10 characters)</label>
-    <input id=keypw type=password autocomplete=current-password
-           placeholder="not your email password — something only you know">
-    <label for=keypw2>Type it again</label>
+    <p class=note id=keymodalhelp>Choose a passphrase (at least 10 characters),
+    type it twice, then click Seal. There is no email reset — remember it.
+    You will download a sealed zip backup.</p>
+    <label for=keypw id=keypwlab>Passphrase (min 10 characters)</label>
+    <input id=keypw type=password autocomplete=new-password
+           placeholder="e.g. four-words-you-will-remember">
+    <label for=keypw2 id=keypw2lab>Type it again</label>
     <input id=keypw2 type=password autocomplete=new-password
-           placeholder="confirm passphrase">
+           placeholder="same passphrase again">
     <div id=keymodalerr class=warnbox style="display:none;margin-top:.7rem"></div>
-    <div class=okbox style="margin-top:.8rem">You get
+    <div class=okbox id=keymodalok style="margin-top:.8rem">You get
     <b style="color:var(--ink)">blindkeep-master-key.zip</b> plus
     <span class=mono>data/master.key.sealed</span> — both ciphertext.
     Never put the passphrase in a chat or agent prompt.</div>
     <div class=rowbtns>
       <button class=go id=keymodalsave>Seal on disk + download zip</button>
       <button class=ghost id=keymodallater>Not now</button>
+      <button class=ghost id=keymodalreset style="display:none;color:var(--bad);
+        border-color:rgba(248,81,73,.4)">Start over</button>
     </div>
-    <p class=note style="margin-top:.9rem;font-size:.8rem">Raw key and hex are
-    never shown here — that would put them in the page and anything watching it.</p>
+    <p class=note id=keymodalfoot style="margin-top:.9rem;font-size:.8rem">If
+    this keep was sealed before (e.g. during testing), you must unlock with that
+    passphrase — or Start over to choose a new one (old memories stay encrypted
+    under the lost key).</p>
   </div>
 </div>
 
@@ -1963,10 +2019,10 @@ async function refresh(){
     $('keystatus').textContent='No sealed key yet. Set a passphrase before storing anything you would miss.';
   }
   $('writewarn').style.display = (s.key_backed_up && s.key_sealed_at_rest) ? 'none' : 'block';
-  // Locked with sealed key → unlock. Otherwise setup/export if not ready.
+  // Locked → unlock. No sealed key yet → setup (first visit, not only after write).
   if(s.key_sealed_at_rest && !s.unlocked && !MODAL_DISMISSED){
     openKeyModal('unlock');
-  } else if(!s.key_sealed_at_rest && !MODAL_DISMISSED && (s.key_just_created || s.legacy_plaintext)){
+  } else if(!s.key_sealed_at_rest && !MODAL_DISMISSED){
     openKeyModal('setup');
   }
   // Heartwood tab readiness
@@ -2005,17 +2061,23 @@ async function openKeyModal(mode){
   KEY_MODAL_MODE = mode || 'setup';
   $('keymodal').classList.add('show');
   const unlock = KEY_MODAL_MODE === 'unlock';
+  const exp = KEY_MODAL_MODE === 'export';
   $('keymodaltitle').textContent = unlock
     ? 'Unlock your keep'
-    : (KEY_MODAL_MODE === 'export'
-      ? 'Download sealed backup zip'
-      : 'Seal your master key');
+    : (exp ? 'Download sealed backup zip' : 'Create your passphrase');
+  $('keymodalhelp').textContent = unlock
+    ? 'This keep is already sealed. Enter the passphrase you chose before — this is not a “new password” screen. Wrong passphrase will fail. Use Start over only if you accept losing the old key.'
+    : (exp
+      ? 'Enter your current passphrase twice to download a fresh sealed zip backup.'
+      : 'Choose a passphrase (at least 10 characters), type it twice, then Seal. You will get a sealed zip. There is no email reset.');
   $('keypw').value = '';
   $('keypw2').value = '';
   $('keypw2').style.display = unlock ? 'none' : 'block';
-  const lab2 = $('keypw2').previousElementSibling;
-  if(lab2 && lab2.tagName==='LABEL') lab2.style.display = unlock ? 'none' : 'block';
-  $('keymodalsave').textContent = unlock ? 'Unlock' : 'Seal on disk + download zip';
+  $('keypw2lab').style.display = unlock ? 'none' : 'block';
+  $('keypw').autocomplete = unlock ? 'current-password' : 'new-password';
+  $('keymodalsave').textContent = unlock ? 'Unlock' : (exp ? 'Download sealed zip' : 'Seal + download backup');
+  $('keymodalok').style.display = unlock ? 'none' : 'block';
+  $('keymodalreset').style.display = unlock ? 'inline-block' : 'none';
   $('keymodalerr').style.display = 'none';
   try{
     const r = await (await api('/api/key')).json();
@@ -2031,29 +2093,52 @@ function keyModalErr(msg){
 }
 
 $('keymodallater').onclick = ()=>{ MODAL_DISMISSED=true; closeKeyModal(); };
+if($('keymodalreset')) $('keymodalreset').onclick = async ()=>{
+  if(!confirm('Start over?\n\nThis deletes the sealed key on this machine so you can choose a NEW passphrase.\n\nAny memories already stored cannot be opened without the OLD passphrase. Continue?')) return;
+  const confirmWord = prompt('Type start over to confirm:');
+  if((confirmWord||'').trim().toLowerCase() !== 'start over'){
+    keyModalErr('Reset cancelled — type exactly: start over');
+    return;
+  }
+  try{
+    const res = await api('/api/key/reset',{method:'POST',
+      body:JSON.stringify({confirm:'start over'})});
+    const r = await res.json();
+    if(!res.ok){ keyModalErr(r.error||'reset failed'); return; }
+    MODAL_DISMISSED = false;
+    closeKeyModal();
+    await refresh();
+    openKeyModal('setup');
+  }catch(e){ keyModalErr('could not reset: '+e); }
+};
 $('keymodalsave').onclick = async ()=>{
   const pw = $('keypw').value;
   const pw2 = $('keypw2').value;
   if(KEY_MODAL_MODE === 'unlock'){
     if(!pw){ keyModalErr('Enter your passphrase.'); return; }
     $('keymodalsave').disabled = true;
+    $('keymodalsave').textContent = 'Unlocking…';
     try{
       const res = await api('/api/key/unlock',{method:'POST',
         body:JSON.stringify({passphrase:pw})});
-      const err = await res.json().catch(()=>({}));
-      if(!res.ok){ keyModalErr(err.error || 'unlock failed'); return; }
+      const body = await res.json().catch(()=>({}));
+      if(!res.ok){
+        keyModalErr(body.error || 'Wrong passphrase. Use Start over only if you forgot it.');
+        $('keymodalreset').style.display = 'inline-block';
+        return;
+      }
       $('keypw').value = '';
       closeKeyModal();
       MODAL_DISMISSED = false;
       await refresh();
-    }catch(e){ keyModalErr('could not unlock'); }
+    }catch(e){ keyModalErr('could not unlock — is the app still running?'); }
     finally{ $('keymodalsave').disabled = false; $('keymodalsave').textContent = 'Unlock'; }
     return;
   }
   if(pw.length < 10){ keyModalErr('Passphrase must be at least 10 characters.'); return; }
-  if(pw !== pw2){ keyModalErr('Passphrases do not match.'); return; }
+  if(pw !== pw2){ keyModalErr('Passphrases do not match — type the same one twice.'); return; }
   $('keymodalsave').disabled = true;
-  $('keymodalsave').textContent = 'Sealing…';
+  $('keymodalsave').textContent = 'Sealing (a few seconds)…';
   try{
     const path = KEY_MODAL_MODE === 'export' ? '/api/key/export' : '/api/key/setup';
     const res = await api(path,{method:'POST',
@@ -2061,13 +2146,17 @@ $('keymodalsave').onclick = async ()=>{
     if(!res.ok){
       const err = await res.json().catch(()=>({}));
       keyModalErr(err.error || 'failed');
+      if(err.can_reset) $('keymodalreset').style.display = 'inline-block';
       return;
     }
     const blob = await res.blob();
+    if(blob.size < 50){ keyModalErr('Backup download was empty — try again.'); return; }
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
     a.download = 'blindkeep-master-key.zip';
+    document.body.appendChild(a);
     a.click();
+    a.remove();
     URL.revokeObjectURL(a.href);
     $('keypw').value = '';
     $('keypw2').value = '';
@@ -2075,10 +2164,10 @@ $('keymodalsave').onclick = async ()=>{
     MODAL_DISMISSED = false;
     await refresh();
   }catch(e){
-    keyModalErr('could not seal / export');
+    keyModalErr('could not seal / export: '+(e.message||e));
   }finally{
     $('keymodalsave').disabled = false;
-    $('keymodalsave').textContent = 'Seal on disk + download zip';
+    $('keymodalsave').textContent = KEY_MODAL_MODE==='export' ? 'Download sealed zip' : 'Seal + download backup';
   }
 };
 
