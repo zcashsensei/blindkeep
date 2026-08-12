@@ -65,8 +65,11 @@ KEY_JUST_CREATED = False
 # a default. Turning it off invalidates the token immediately.
 AGENT = {"on": False, "token": None}
 
-HEARTWOOD_DIR = pathlib.Path(os.environ.get(
-    "HEARTWOOD_DIR", str(HERE.parent / "heartwood")))
+# Heartwood is a sibling project (throttle / effort proof). Not vendored — one
+# protocol copy — but treated as a first-class Blindkeep tab: we search common
+# install locations and can clone the official repo on request.
+HEARTWOOD_REPO = "https://github.com/zcashsensei/heartwood.git"
+_HEARTWOOD_CACHED: pathlib.Path | None = None
 
 HW_TARGETS = {"haiku": ("anthropic", "claude-haiku-4-5", 3),
               "sonnet": ("anthropic", "claude-sonnet-5", 4),
@@ -75,6 +78,40 @@ HW_TARGETS = {"haiku": ("anthropic", "claude-haiku-4-5", 3),
               "local": ("ollama", "gemma:2b", 1)}
 HW_DEPTH = {"quick": (12, 20), "standard": (20, 60), "thorough": (40, 150)}
 HW_STRICT = {"balanced": (0.01, 0.40), "cautious": (0.001, 0.50)}
+
+
+def heartwood_candidates() -> list[pathlib.Path]:
+    env = os.environ.get("HEARTWOOD_DIR", "").strip()
+    out: list[pathlib.Path] = []
+    if env:
+        out.append(pathlib.Path(env))
+    out.extend([
+        HERE.parent / "heartwood",
+        HERE / "vendor" / "heartwood",
+        HERE / "third_party" / "heartwood",
+        pathlib.Path.home() / "heartwood",
+        pathlib.Path.home() / "src" / "heartwood",
+    ])
+    # de-dupe while preserving order
+    seen: set[str] = set()
+    uniq: list[pathlib.Path] = []
+    for p in out:
+        k = str(p.resolve()) if p.exists() else str(p)
+        if k not in seen:
+            seen.add(k)
+            uniq.append(p)
+    return uniq
+
+
+def resolve_heartwood_dir() -> pathlib.Path | None:
+    global _HEARTWOOD_CACHED
+    if _HEARTWOOD_CACHED and (_HEARTWOOD_CACHED / "heartwood.py").is_file():
+        return _HEARTWOOD_CACHED
+    for p in heartwood_candidates():
+        if (p / "heartwood.py").is_file():
+            _HEARTWOOD_CACHED = p
+            return p
+    return None
 
 
 # ------------------------------------------------------------------ node ----
@@ -318,30 +355,66 @@ def _require_session_token(handler: "Handler") -> bool:
     if not tok and "?" in handler.path:
         from urllib.parse import parse_qs
         tok = (parse_qs(handler.path.split("?", 1)[1]).get("t") or [""])[0]
-    return bool(tok) and secrets.compare_digest(tok, TOKEN)
+    return bool(tok) and len(tok) == len(TOKEN) and secrets.compare_digest(
+        tok, TOKEN)
 
 
 # ------------------------------------------------------------- heartwood ----
 
 def heartwood_modules():
-    if not (HEARTWOOD_DIR / "heartwood.py").exists():
-        # Heartwood is a SEPARATE project, not vendored -- so there is exactly
-        # one copy of that protocol and this app can never drift from it. The
-        # cost is that a fresh Blindkeep clone does not have it, and the old
-        # message named an absolute path the reader had never seen. Tell them
-        # what to do instead.
-        return None, ("Heartwood is a separate project and is not installed.\n\n"
-                      "To turn this tab on, clone it next to blindkeep:\n\n"
-                      "    git clone https://github.com/zcashsensei/heartwood\n\n"
-                      "then restart this app. (Or set HEARTWOOD_DIR to point "
-                      "wherever you put it.)")
+    """Load Heartwood from a discovered install. Not vendored into this tree."""
+    hw_dir = resolve_heartwood_dir()
+    if hw_dir is None:
+        return None, (
+            "Heartwood is not installed yet.\n\n"
+            "It is the throttle / effort-proof engine for this tab — kept as a "
+            "separate repo so the protocol has one source of truth.\n\n"
+            "Click Install Heartwood below, or run:\n\n"
+            f"    git clone {HEARTWOOD_REPO} {HERE.parent / 'heartwood'}\n\n"
+            "Or set HEARTWOOD_DIR to an existing clone.")
     try:
-        if str(HEARTWOOD_DIR) not in sys.path:
-            sys.path.insert(0, str(HEARTWOOD_DIR))
+        # Drop any previously imported Heartwood modules so a fresh install
+        # in the same process is visible without restarting the app.
+        for name in list(sys.modules):
+            if name in ("heartwood", "challenges", "endpoint", "endpoints",
+                        "providers", "portable") or name.startswith("heartwood."):
+                del sys.modules[name]
+        path = str(hw_dir)
+        if path not in sys.path:
+            sys.path.insert(0, path)
         import challenges, endpoint, endpoints, heartwood      # noqa: E402
         return (heartwood, challenges, endpoint, endpoints), None
     except Exception as exc:
         return None, f"{type(exc).__name__}: {exc}"
+
+
+def install_heartwood() -> tuple[bool, str]:
+    """Clone the official Heartwood repo next to Blindkeep. Fixed URL only."""
+    global _HEARTWOOD_CACHED
+    existing = resolve_heartwood_dir()
+    if existing is not None:
+        return True, f"already installed at {existing}"
+    dest = HERE.parent / "heartwood"
+    if dest.exists() and not (dest / "heartwood.py").is_file():
+        return False, f"{dest} exists but is not a Heartwood tree"
+    try:
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        r = subprocess.run(
+            ["git", "clone", "--depth", "1", HEARTWOOD_REPO, str(dest)],
+            capture_output=True, text=True, timeout=180,
+            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+        )
+    except FileNotFoundError:
+        return False, "git is not on PATH — install Git, or clone Heartwood manually"
+    except subprocess.TimeoutExpired:
+        return False, "git clone timed out"
+    if r.returncode != 0:
+        err = (r.stderr or r.stdout or "clone failed").strip()[:400]
+        return False, err
+    if not (dest / "heartwood.py").is_file():
+        return False, "clone finished but heartwood.py is missing"
+    _HEARTWOOD_CACHED = dest
+    return True, str(dest)
 
 
 def hw_run(run_id, choice):
@@ -439,8 +512,10 @@ class Handler(BaseHTTPRequestHandler):
         still sends the attacker's domain, never 127.0.0.1. Checked before
         anything else, on every route including the page itself.
         """
-        host = (self.headers.get("Host") or "").split(":")[0].strip("[]")
-        return host in ("127.0.0.1", "localhost", "::1", "")
+        # Empty Host is not trusted: some clients omit it; attackers can too.
+        # Only explicit loopback names are accepted.
+        host = (self.headers.get("Host") or "").split(":")[0].strip("[]").lower()
+        return host in ("127.0.0.1", "localhost", "::1")
 
     def _send(self, code, obj, ctype="application/json"):
         body = obj if isinstance(obj, bytes) else json.dumps(obj).encode()
@@ -461,13 +536,15 @@ class Handler(BaseHTTPRequestHandler):
         if not tok and "?" in self.path:
             from urllib.parse import parse_qs
             tok = (parse_qs(self.path.split("?", 1)[1]).get("t") or [""])[0]
-        if secrets.compare_digest(tok, TOKEN):
+        # compare_digest requires equal length; unequal inputs must not 500.
+        if tok and len(tok) == len(TOKEN) and secrets.compare_digest(tok, TOKEN):
             return True
-        # An agent token, when enabled, reaches the memory routes but never the
-        # master key or the agent switch itself -- otherwise an agent could
-        # grant itself more access than it was given.
-        if AGENT["on"] and AGENT["token"] and secrets.compare_digest(
-                tok, AGENT["token"]):
+        # An agent token, when enabled, reaches memory routes only — never key
+        # routes, Heartwood install, or the agent switch itself.
+        agent_tok = AGENT.get("token") or ""
+        if (AGENT["on"] and agent_tok and tok
+                and len(tok) == len(agent_tok)
+                and secrets.compare_digest(tok, agent_tok)):
             path = self.path.split("?", 1)[0]
             return path.startswith(("/api/write", "/api/read/", "/api/state"))
         return False
@@ -484,9 +561,17 @@ class Handler(BaseHTTPRequestHandler):
         try:
             if path == "/api/state":
                 ok, how = ensure_node()
+                _, hw_err = heartwood_modules()
+                hw_path = resolve_heartwood_dir()
+                hw_meta = {
+                    "heartwood": hw_err is None,
+                    "heartwood_error": hw_err,
+                    "heartwood_path": str(hw_path) if hw_path else None,
+                }
                 if not ok:
                     return self._send(200, {"node": False, "why": how,
-                                            "privacy": privacy_snapshot()})
+                                            "privacy": privacy_snapshot(),
+                                            **hw_meta})
                 # Head + list are metadata-only; the key is only needed when
                 # reading or writing plaintext. Creating it here would mint a
                 # secret the moment someone opens the app, before they have
@@ -494,7 +579,6 @@ class Handler(BaseHTTPRequestHandler):
                 c = client(need_key=False)
                 head = c.head()
                 recs = c.list()
-                _, hw_err = heartwood_modules()
                 pin_ok = PIN_PATH.is_file()
                 return self._send(200, {
                     "node": True, "how": how,
@@ -512,7 +596,7 @@ class Handler(BaseHTTPRequestHandler):
                     "pin_held": pin_ok,
                     "integrity": "verified",
                     "privacy": privacy_snapshot(),
-                    "heartwood": hw_err is None, "heartwood_error": hw_err,
+                    **hw_meta,
                     "list": recs[-50:]})
             if path.startswith("/api/read/"):
                 # Validate before touching the keep. Bad input is the CALLER's
@@ -932,7 +1016,23 @@ class Handler(BaseHTTPRequestHandler):
                 return self._send(200, {"enabled": AGENT["on"],
                                         "token": AGENT["token"],
                                         "url": f"http://127.0.0.1:{PORT}"})
+            if path == "/api/hw/install":
+                # Session only — never agent. Fixed upstream URL only.
+                if not _require_session_token(self):
+                    return self._send(403, {"error": "session only"})
+                ok, msg = install_heartwood()
+                if not ok:
+                    return self._send(500, {"error": msg, "ok": False})
+                mods, err = heartwood_modules()
+                return self._send(200, {
+                    "ok": True, "path": msg,
+                    "ready": mods is not None,
+                    "detail": err,
+                })
             if path == "/api/hw/run":
+                if not _require_session_token(self):
+                    return self._send(403, {
+                        "error": "session only — Heartwood is not agent-reachable"})
                 clean = {
                     "target": body.get("target") if body.get("target") in HW_TARGETS else "haiku",
                     "hardness": body.get("hardness") if body.get("hardness") in
@@ -1189,9 +1289,9 @@ body.hastodo{padding-bottom:5.5rem}
   <div class=tabs role=tablist>
     <button class=tab id=t-keep role=tab aria-selected=true aria-controls=p-keep>Your keep</button>
     <button class=tab id=t-write role=tab aria-selected=false aria-controls=p-write>Remember</button>
+    <button class=tab id=t-hw role=tab aria-selected=false aria-controls=p-hw>Heartwood</button>
     <button class=tab id=t-proof role=tab aria-selected=false aria-controls=p-proof>Proof</button>
     <button class=tab id=t-truth role=tab aria-selected=false aria-controls=p-truth>Privacy truth</button>
-    <button class=tab id=t-hw role=tab aria-selected=false aria-controls=p-hw>Check your AI</button>
     <button class=tab id=t-how role=tab aria-selected=false aria-controls=p-how>How it works</button>
   </div>
 </header>
@@ -1501,31 +1601,39 @@ body.hastodo{padding-bottom:5.5rem}
   </div>
 
   <div class=card>
-    <h2>Check your AI is a different question</h2>
-    <p class=note><b style="color:var(--ink)">Check your AI</b> asks whether a
-    provider did the compute you paid for — not whether they can read your
+    <h2>Heartwood is a different question</h2>
+    <p class=note>The <b style="color:var(--ink)">Heartwood</b> tab asks whether
+    a provider did the compute you paid for — not whether they can read your
     keep. Same posture toward an unauditable company; different object.</p>
   </div>
 </section>
 
 <section class=page id=p-hw role=tabpanel aria-labelledby=t-hw hidden>
   <div class=card>
-    <h2>Is your AI doing the work you pay for?</h2>
-    <p class=note>A provider can serve the model you asked for while quietly
-    spending less computation on it. Answers still look fine; the bill does not
-    change. This asks questions that cannot be answered without doing the work.
+    <h2>Heartwood — is your AI throttling you?</h2>
+    <p class=note>A provider can serve the model you paid for while quietly
+    spending less compute. Answers still look fine; the bill does not change.
+    <b style="color:var(--ink)">Heartwood</b> asks questions that cannot be
+    answered without doing the work, binds challenge selection to public
+    randomness, and issues a transferable receipt.
     <b style="color:var(--ink)">This is not privacy</b> — that is the rest of
     Blindkeep. This checks whether the work was done.</p>
+    <div id=hwstatus class=okbox style="display:none;margin-top:.8rem"></div>
     <div id=hwmissing style="display:none;margin-top:1rem;border:1px solid var(--line);
          border-radius:.6rem;padding:1rem 1.15rem;background:rgba(0,0,0,.25)">
       <div style="font-weight:650;font-size:.95rem;margin-bottom:.4rem">
-        This tab needs Heartwood, a separate project</div>
+        Heartwood engine not found</div>
       <pre class=mono id=hwmissingtext style="white-space:pre-wrap;font-size:.8rem;
         color:var(--muted);margin:0"></pre>
-      <a class=open href="https://github.com/zcashsensei/heartwood" target=_blank
-         rel=noopener style="display:inline-block;margin-top:.8rem;padding:.42rem 1rem;
-         border-radius:.4rem;background:var(--accent);color:#08101c;
-         text-decoration:none;font-weight:650;font-size:.86rem">Get Heartwood</a>
+      <div class=actions style="margin-top:.9rem">
+        <button class=go id=hwinstall style="margin-top:0">Install Heartwood</button>
+        <a class=ghost href="https://github.com/zcashsensei/heartwood" target=_blank
+           rel=noopener style="display:inline-block;padding:.5rem 1rem;
+           text-decoration:none;border:1px solid var(--line);border-radius:.45rem;
+           color:var(--ink);font-size:.88rem">View on GitHub</a>
+      </div>
+      <p class=note style="margin-top:.7rem;font-size:.8rem">Install clones the
+      official repo next to Blindkeep (fixed URL only). Requires <span class=mono>git</span>.</p>
     </div>
     <div class=grid2 id=hwform style="margin-top:1.1rem">
       <div><label for=hw-target>Which AI are you checking?</label>
@@ -1534,7 +1642,7 @@ body.hastodo{padding-bottom:5.5rem}
           <option value=sonnet>Claude Sonnet 5</option>
           <option value=opus>Claude Opus 5 — top tier</option>
           <option value=gpt5>OpenAI GPT-5</option>
-          <option value=local>A model on this machine</option>
+          <option value=local>A model on this machine (Ollama)</option>
         </select></div>
       <div><label for=hw-hardness>How hard should the questions be?</label>
         <select id=hw-hardness><option value=auto>Match the model automatically</option>
@@ -1548,7 +1656,10 @@ body.hastodo{padding-bottom:5.5rem}
         <select id=hw-strictness><option value=balanced selected>Balanced — 1 false alarm in 100</option>
         <option value=cautious>Cautious — 1 in 1,000</option></select></div>
     </div>
-    <button class=go id=hwgo>Check it</button>
+    <div class=warnbox id=hwwarn style="display:none">This calls the provider
+    under check. It is an audit of effort, not a private path. API keys are
+    read from your environment by Heartwood (not stored in Blindkeep).</div>
+    <button class=go id=hwgo>Run Heartwood check</button>
     <button class=ghost id=hwsave style="display:none;margin-left:.5rem">Download receipt</button>
     <div class=bar><i id=hwbar></i></div>
     <div id=hwres></div>
@@ -1761,10 +1872,32 @@ async function refresh(){
   } else if(!s.key_sealed_at_rest && !MODAL_DISMISSED && (s.key_just_created || s.legacy_plaintext)){
     openKeyModal('setup');
   }
-  if(!s.heartwood){ $('hwform').style.display='none'; $('hwgo').style.display='none';
+  // Heartwood tab readiness
+  if(s.heartwood){
+    $('hwform').style.display=''; $('hwgo').style.display='';
+    $('hwmissing').style.display='none';
+    $('hwwarn').style.display='block';
+    $('hwstatus').style.display='block';
+    $('hwstatus').innerHTML = 'Heartwood ready'
+      +(s.heartwood_path ? ' · <span class=mono>'+esc(s.heartwood_path)+'</span>' : '');
+  } else {
+    $('hwform').style.display='none'; $('hwgo').style.display='none';
+    $('hwwarn').style.display='none';
+    $('hwstatus').style.display='none';
     $('hwmissing').style.display='block';
-    $('hwmissingtext').textContent = s.heartwood_error || 'not available'; }
+    $('hwmissingtext').textContent = s.heartwood_error || 'not available';
+  }
 }
+if($('hwinstall')) $('hwinstall').onclick = async ()=>{
+  $('hwinstall').disabled = true;
+  $('hwinstall').textContent = 'Installing…';
+  try{
+    const r = await (await api('/api/hw/install',{method:'POST',body:'{}'})).json();
+    if(!r.ok){ $('hwmissingtext').textContent = r.error || 'install failed'; return; }
+    await refresh();
+  }catch(e){ $('hwmissingtext').textContent = String(e); }
+  finally{ $('hwinstall').disabled = false; $('hwinstall').textContent = 'Install Heartwood'; }
+};
 refresh();
 $('rfilter').oninput = ()=>{ if(STATE) paintList(STATE); };
 $('rhide').onclick = ()=>{ $('reader').style.display='none'; OPEN_IDX=null; };
