@@ -1094,6 +1094,7 @@ body.hastodo{padding-bottom:5.5rem}
     <button class=tab id=t-keep role=tab aria-selected=true aria-controls=p-keep>Your keep</button>
     <button class=tab id=t-write role=tab aria-selected=false aria-controls=p-write>Remember</button>
     <button class=tab id=t-proof role=tab aria-selected=false aria-controls=p-proof>Proof</button>
+    <button class=tab id=t-truth role=tab aria-selected=false aria-controls=p-truth>Privacy truth</button>
     <button class=tab id=t-hw role=tab aria-selected=false aria-controls=p-hw>Check your AI</button>
     <button class=tab id=t-how role=tab aria-selected=false aria-controls=p-how>How it works</button>
   </div>
@@ -1271,95 +1272,104 @@ body.hastodo{padding-bottom:5.5rem}
   </div>
 
   <div class=card>
-    <h2>Truth: frontier models and “who you are”</h2>
+    <h2>Limits (summary)</h2>
+    <p class=note>Full honesty lives on the
+    <b style="color:var(--ink)">Privacy truth</b> tab — what the keep protects,
+    what frontier models still see, and what this app will not claim.</p>
+  </div>
+</section>
+
+<section class=page id=p-truth role=tabpanel aria-labelledby=t-truth hidden>
+  <div class=card>
+    <h2>Privacy truth</h2>
+    <p class=note>This tab is the security / threat-model surface — what is
+    real today, what is not, and where people get sold fiction. Read it before
+    you put anything in the keep you would mind losing or leaking.</p>
+    <div class=stats id=truthstats style="margin-top:1rem"></div>
+  </div>
+
+  <div class=card>
+    <h2>What this app protects (storage)</h2>
+    <ul class=plain>
+      <li><b>The node cannot read your memories.</b> Encryption happens on this
+      machine; storage only ever gets ciphertext.</li>
+      <li><b>The node cannot rewrite history unnoticed.</b> Append-only Merkle
+      log + signed head; your client pins and checks on every read.</li>
+      <li><b>The raw master key is not shown and not downloaded as plaintext.</b>
+      On disk it is passphrase-sealed; in process it lives in memory only after
+      unlock. Agents that open the zip or <span class=mono>.sealed</span> file
+      still need your passphrase.</li>
+      <li><b>This app does not phone home</b> and does not send your keep to any
+      frontier model by itself.</li>
+    </ul>
+    <div class=okbox>That is real privacy for <b style="color:var(--ink)">stored
+    memory against an untrusted storage operator</b>. It is not the same as
+    “chat anonymously with GPT.”</div>
+  </div>
+
+  <div class=card>
+    <h2>Frontier models and “who you are”</h2>
     <p class=note><b style="color:var(--ink)">No — not by default, and not
-    completely.</b> Blindkeep can keep a <i>storage node</i> blind to your
-    memories. That is a different problem from talking to Claude, GPT, Grok, or
-    any hosted model without them learning who you are.</p>
+    completely.</b> Keeping a storage node blind is a different problem from
+    talking to Claude, GPT, Grok, or any hosted model without them learning
+    who you are.</p>
     <ul class=plain>
       <li><b>API key = account identity.</b> A normal cloud call authenticates
       as you (or your org). The provider already knows the customer.</li>
-      <li><b>The prompt is data.</b> Anything you send in cleartext — names,
-      places, rare facts — can re-identify you even with names stripped.</li>
-      <li><b>Metadata still exists.</b> Timing, size, IP (unless OHTTP with two
-      independent operators), model choice, and billing all leak signals.</li>
-      <li><b>The hard path is partial and incomplete.</b> Local abstraction +
-      blind tokens + constant-rate traffic + OHTTP can reduce linkability. It
-      needs extra setup, honest operators, and still does not erase that a
-      frontier model saw a question at all.</li>
-      <li><b>This app never phones home</b> and does not send your keep to any
-      model. Cloud paths in the CLI are gated and labelled not private.</li>
+      <li><b>The prompt is data.</b> Names, places, rare facts re-identify you
+      even if you strip obvious labels.</li>
+      <li><b>Metadata still exists.</b> Timing, size, IP, model choice, and
+      billing all leak signals on a direct cloud path.</li>
+      <li><b>The hard path is partial.</b> Local abstraction + blind tokens +
+      constant-rate traffic + OHTTP can reduce linkability. It needs extra
+      setup, honest operators, and still does not erase that a frontier model
+      saw a question at all.</li>
     </ul>
-    <div class=warnbox>If someone promises “use frontier models with zero
-    metadata and zero identity,” treat that as a claim to verify — not as what
-    Blindkeep ships today.</div>
+    <div class=warnbox>If someone promises “frontier models with zero metadata
+    and zero identity,” treat that as a claim to verify — not as what Blindkeep
+    ships in this app today.</div>
   </div>
 
   <div class=card>
-    <h2>What it does not do</h2>
+    <h2>What can still go wrong</h2>
     <ul class=plain>
-      <li><b>It does not protect a compromised machine.</b> If malware already
-      runs as you, it can read memory while the app is unlocked. Sealed-at-rest
-      stops cold disk/agent scrapes of the key file — not a live process dump.</li>
-      <li><b>It does not hide that you are using it.</b> Hiding <i>which</i>
-      record you read costs a scan of the whole keep; hiding <i>who is asking</i>
-      needs the oblivious path and two independently operated relays.</li>
-      <li><b>Sending straight to a cloud AI is not private</b>, and that path
-      says so — it needs two separate acknowledgements and cannot be entered by
-      accident. The layered private route is the next card — still not magic.</li>
-      <li><b>Replication is opt-in.</b> By default your keep lives on your own
-      node, on this machine. Nobody else holds a copy unless you set that up.</li>
+      <li><b>Unlocked session on a compromised machine.</b> Malware running as
+      you can read process memory. Sealed-at-rest stops cold disk scrapes — not
+      a live dump while unlocked.</li>
+      <li><b>Passphrase in a chat or agent prompt.</b> That hands over the only
+      secret that opens the sealed key and the zip.</li>
+      <li><b>Which record you read</b> can leak access patterns unless you pay
+      for full-keep private read (trivial PIR).</li>
+      <li><b>Direct cloud chat</b> is labelled not private in the CLI and is
+      not offered as a silent default here.</li>
     </ul>
   </div>
 
-<div class=card>
-    <h2>Using a frontier AI, privately</h2>
-    <p class=note>You do not have to choose between a capable model and privacy.
-    Four layers each remove a different thing, because no single trick removes
-    them all:</p>
+  <div class=card>
+    <h2>The hard path (CLI · not one-click)</h2>
+    <p class=note>If you need a capable hosted model with less linkability,
+    four layers each remove a different leak. No single trick removes them all:</p>
     <ol class=steps>
-      <li><b>Your content leaves the question.</b> A local model reads the
-      private material and writes a <i>generic</i> version — one that could
-      have come from anyone. Only that goes out. The frontier model answers in
-      the abstract, and the local model re-specialises the answer against your
-      context, which never left the machine.
-      <br><span style="color:var(--muted)">This is why it is not redaction.
-      Swapping out names still transmits "the only paediatric cardiologist in
-      Truro". Writing a new question does not.</span></li>
-
-      <li><b>Your name leaves the authorisation.</b> A blind-signed token proves
-      you are entitled to ask without revealing who is asking — the token issued
-      to you is not feasibly linkable to the token you spend. Same property Zcash
-      preserves for a payment, standardised for the web as Privacy Pass.</li>
-
-      <li><b>Your rhythm leaves the traffic.</b> Requests go out on a constant
-      schedule at a uniform size, so the provider cannot read your day from
-      when and how big your questions are.</li>
-
-      <li><b>Your address leaves the connection.</b> Oblivious HTTP splits the
-      request across two operators: the relay sees your IP but not the question;
-      the gateway sees the question but not your IP. Neither holds both halves.</li>
+      <li><b>Content</b> — local model rewrites a generic question; private
+      context never leaves.</li>
+      <li><b>Authorisation</b> — blind-signed token (Privacy Pass shape), not
+      your name on the spend.</li>
+      <li><b>Rhythm</b> — constant-rate, uniform-size traffic.</li>
+      <li><b>Address</b> — OHTTP: relay sees IP not question; gateway sees
+      question not IP. Both operators must be independent or anonymity is
+      void.</li>
     </ol>
-    <p class=note style="margin-top:.9rem">Above this sits a <b
-    style="color:var(--ink)">memory gate</b>: every backend must <i>prove</i>
-    which trust tier it is on, and a policy decides which memories may cross to
-    which tier. The model is swappable — open weights or closed. The guarantee
-    is not.</p>
-    <div class=warnbox><b style="color:var(--ink)">The honest catch.</b> Step 4
-    only works if the relay and the gateway are run by <i>different people</i>.
-    Run both yourself and the anonymity is not weakened — it is void, because
-    one party sees both halves. Finding an independent operator is the single
-    biggest thing this project still needs, and no amount of code substitutes
-    for it.</div>
+    <div class=warnbox><b style="color:var(--ink)">Honest catch.</b> That stack
+    is in the library/CLI, not a button in this app. Finding independent relay
+    and gateway operators is still the bottleneck no amount of local code
+    substitutes for.</div>
   </div>
 
   <div class=card>
-    <h2>And the other tab</h2>
-    <p class=note><b style="color:var(--ink)">Check your AI</b> answers a
-    different question. Blindkeep asks <i>can I stop you reading my data?</i>
-    That tab asks <i>did you do the work I paid for?</i> — whether a provider
-    is quietly spending less computation than you are billed for. Same posture
-    toward a company you cannot audit; different object.</p>
+    <h2>Check your AI is a different question</h2>
+    <p class=note><b style="color:var(--ink)">Check your AI</b> asks whether a
+    provider did the compute you paid for — not whether they can read your
+    keep. Same posture toward an unauditable company; different object.</p>
   </div>
 </section>
 
@@ -1512,6 +1522,14 @@ function paintStats(s){
      <div class=stat><b>${s.pin_held?'held':'—'}</b><span>local pin</span></div>`;
   $('stats').innerHTML = html;
   $('proofstats').innerHTML = html;
+  if($('truthstats')){
+    const p = s.privacy || {};
+    $('truthstats').innerHTML =
+      `<div class=stat><b>${p.key_sealed_at_rest?'yes':'no'}</b><span>key sealed at rest</span></div>
+       <div class=stat><b>${p.unlocked?'yes':'no'}</b><span>unlocked this session</span></div>
+       <div class=stat><b>${p.sends_data_out?'yes':'no'}</b><span>phones home</span></div>
+       <div class=stat><b>no</b><span>frontier private by default</span></div>`;
+  }
 }
 
 function paintList(s){

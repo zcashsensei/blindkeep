@@ -45,12 +45,10 @@ your own master key, and never sends either anywhere — everything is encrypted
 on your machine before it reaches storage. Nothing to sign up for, no server of
 ours involved, and it keeps working when we are offline.
 
-Five tabs: **Your keep** (what you have stored) · **Remember** (save something)
-· **Proof** (signed log head, master key, zero-knowledge membership, agent
-access) · **Check your AI** (whether a provider is quietly throttling the model
-you pay for — needs [Heartwood](https://github.com/zcashsensei/heartwood), a
-separate project, cloned alongside) · **How it works** (the mechanism, and what
-it deliberately does *not* protect).
+Tabs: **Your keep** · **Remember** · **Proof** · **Privacy truth** (what is
+actually protected vs frontier-model limits — read this) · **Check your AI**
+(needs [Heartwood](https://github.com/zcashsensei/heartwood) alongside) ·
+**How it works**.
 
 A privacy strip on every page shows the posture at a glance. The first time you
 save a memory you set a **passphrase** that (1) seals the key **at rest** as
