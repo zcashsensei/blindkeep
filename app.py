@@ -14,6 +14,7 @@ ciphertext and cannot read it.
 
 Stdlib only.
 """
+import io
 import json
 import os
 import pathlib
@@ -26,6 +27,7 @@ import time
 import urllib.error
 import urllib.request
 import webbrowser
+import zipfile
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 HERE = pathlib.Path(__file__).resolve().parent
@@ -164,7 +166,89 @@ def privacy_snapshot() -> dict:
         "key_just_created": KEY_JUST_CREATED and not key_backed_up(),
         "agent_access": bool(AGENT["on"]),
         "sends_data_out": False,             # this app never phones home
+        "backup_format": "passphrase-sealed zip",
     }
+
+
+# Minimum length for the passphrase that seals a backup zip. Short secrets are
+# guessable offline; the sealed file is meant to sit where an agent might see
+# it (Downloads, a USB stick) without that being enough to open the keep.
+_MIN_BACKUP_PASSPHRASE = 10
+
+_SEAL_AAD = b"blindkeep-key-backup-v1"
+_SEAL_MAGIC = b"BK1\0"
+
+
+def seal_master_key_zip(raw_key: bytes, passphrase: str) -> bytes:
+    """Pack the master key into a zip that is useless without the passphrase.
+
+    Default backup is never the raw 32-byte key and never hex in the page —
+    those are readable by any agent with filesystem or clipboard access. The
+    zip holds only ciphertext (Scrypt + AES-GCM) plus a README. An agent or
+    frontier model that opens the file sees noise, not the key.
+    """
+    if not isinstance(passphrase, str) or len(passphrase) < _MIN_BACKUP_PASSPHRASE:
+        raise ValueError(
+            f"choose a passphrase of at least {_MIN_BACKUP_PASSPHRASE} characters")
+    if len(raw_key) != 32:
+        raise ValueError("master key must be 32 bytes")
+
+    from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+    from cryptography.hazmat.primitives.kdf.scrypt import Scrypt
+
+    salt = os.urandom(16)
+    # n=2**14 is interactive-fast on a laptop and still expensive to brute-force.
+    kdf = Scrypt(salt=salt, length=32, n=2**14, r=8, p=1)
+    wrap = kdf.derive(passphrase.encode("utf-8"))
+    nonce = os.urandom(12)
+    sealed = AESGCM(wrap).encrypt(nonce, raw_key, _SEAL_AAD)
+    payload = _SEAL_MAGIC + salt + nonce + sealed
+
+    readme = (
+        "Blindkeep master-key backup\n"
+        "===========================\n\n"
+        "This zip does NOT contain a readable master key.\n"
+        "master.key.sealed is encrypted with the passphrase you chose when\n"
+        "you exported it. Without that passphrase the file is useless — that\n"
+        "is intentional so an agent, cloud upload, or casual file browser\n"
+        "cannot recover your keep from this backup alone.\n\n"
+        "Restore (when you need the raw key again):\n"
+        "  python -c \"from app import open_master_key_zip; "
+        "open('master.key','wb').write(open_master_key_zip("
+        "open('blindkeep-master-key.zip','rb').read(), 'YOUR_PASSPHRASE'))\"\n\n"
+        "Or use the Blindkeep app / CLI restore when available.\n"
+        "Never put the passphrase in a chat, email, or agent prompt.\n"
+    )
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w", compression=zipfile.ZIP_DEFLATED) as zf:
+        zf.writestr("README.txt", readme)
+        zf.writestr("master.key.sealed", payload)
+    return buf.getvalue()
+
+
+def open_master_key_zip(zip_bytes: bytes, passphrase: str) -> bytes:
+    """Inverse of seal_master_key_zip — for recovery, not the default UI path."""
+    from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+    from cryptography.hazmat.primitives.kdf.scrypt import Scrypt
+
+    with zipfile.ZipFile(io.BytesIO(zip_bytes), "r") as zf:
+        payload = zf.read("master.key.sealed")
+    if not payload.startswith(_SEAL_MAGIC):
+        raise ValueError("not a Blindkeep sealed key backup")
+    body = payload[len(_SEAL_MAGIC):]
+    salt, nonce, sealed = body[:16], body[16:28], body[28:]
+    kdf = Scrypt(salt=salt, length=32, n=2**14, r=8, p=1)
+    wrap = kdf.derive(passphrase.encode("utf-8"))
+    return AESGCM(wrap).decrypt(nonce, sealed, _SEAL_AAD)
+
+
+def _require_session_token(handler: "Handler") -> bool:
+    """Key material is never reachable with an agent token — only the page token."""
+    tok = handler.headers.get("X-Blindkeep-Token") or ""
+    if not tok and "?" in handler.path:
+        from urllib.parse import parse_qs
+        tok = (parse_qs(handler.path.split("?", 1)[1]).get("t") or [""])[0]
+    return bool(tok) and secrets.compare_digest(tok, TOKEN)
 
 
 # ------------------------------------------------------------- heartwood ----
@@ -375,37 +459,32 @@ class Handler(BaseHTTPRequestHandler):
                     text = f"<{len(plain)} bytes of binary>"
                 return self._send(200, {"text": text, "meta": res})
             if path == "/api/key":
-                # Deliberately NOT part of /api/state. The key is only ever
-                # sent when explicitly asked for, so it does not sit in a
-                # response the page fetches on every refresh.
+                # Metadata only. The raw key and its hex never ride on a GET —
+                # that is how a page refresh, a log, or an agent scrapes secrets.
+                if not _require_session_token(self):
+                    return self._send(403, {"error": "session only — not agent token"})
                 if not KEY_PATH.exists():
-                    # Mint only when the human asked to see / back up the key.
                     client()
                 if not KEY_PATH.exists():
                     return self._send(404, {"error": "no key yet"})
-                raw = KEY_PATH.read_bytes()
-                return self._send(200, {"hex": raw.hex(), "path": str(KEY_PATH),
-                                        "bytes": len(raw),
-                                        "backed_up": key_backed_up(),
-                                        "just_created": KEY_JUST_CREATED})
+                return self._send(200, {
+                    "path": str(KEY_PATH),
+                    "bytes": KEY_PATH.stat().st_size,
+                    "backed_up": key_backed_up(),
+                    "just_created": KEY_JUST_CREATED,
+                    "export": "passphrase-sealed zip only",
+                    "hex": None,
+                    "raw_download": False,
+                })
             if path == "/api/key/download":
-                # File download, not hex in a box — the form a password manager
-                # or USB stick actually wants. Same auth gate as /api/key.
-                if not KEY_PATH.exists():
-                    client()
-                if not KEY_PATH.exists():
-                    return self._send(404, {"error": "no key yet"})
-                raw = KEY_PATH.read_bytes()
-                self.send_response(200)
-                self.send_header("Content-Type", "application/octet-stream")
-                self.send_header("Content-Disposition",
-                                 'attachment; filename="blindkeep-master.key"')
-                self.send_header("Content-Length", str(len(raw)))
-                self.send_header("X-Content-Type-Options", "nosniff")
-                self.send_header("Cache-Control", "no-store")
-                self.end_headers()
-                self.wfile.write(raw)
-                return
+                # Plain GET of the raw key is refused. Use POST /api/key/export
+                # with a passphrase so the downloaded file is ciphertext.
+                return self._send(405, {
+                    "error": "raw key download is disabled",
+                    "hint": ("POST /api/key/export with a passphrase you choose. "
+                             "You get a sealed zip — agents that open the file "
+                             "cannot read the key without that passphrase."),
+                })
             if path == "/api/agent":
                 return self._send(200, {"enabled": AGENT["on"],
                                         "token": AGENT["token"] if AGENT["on"] else None,
@@ -484,21 +563,67 @@ class Handler(BaseHTTPRequestHandler):
                         "error": "back up your master key first",
                         "code": "key_not_backed_up",
                         "key_just_created": KEY_JUST_CREATED,
-                        "hint": ("Save the key offline (the backup prompt, or "
-                                 "the Proof tab), then try again — or send "
-                                 "i_accept_no_backup if you accept permanent "
-                                 "loss.")})
+                        "hint": ("Download a passphrase-sealed zip from the "
+                                 "backup prompt (not a raw key file), then try "
+                                 "again — or send i_accept_no_backup if you "
+                                 "accept permanent loss.")})
                 res = c.put(text, label=(raw_label or "")[:120])
                 return self._send(200, {"ok": True, "record": res})
             if path == "/api/key/ack":
                 # Human confirmed offline backup. Do not send the key here —
                 # only record that the prompt has been answered.
+                if not _require_session_token(self):
+                    return self._send(403, {"error": "session only — not agent token"})
                 KEY_ACK_PATH.parent.mkdir(parents=True, exist_ok=True)
                 KEY_ACK_PATH.write_text(
                     json.dumps({"acked_at": int(time.time()),
-                                "path": str(KEY_PATH)}, indent=2),
+                                "path": str(KEY_PATH),
+                                "format": "passphrase-sealed-zip"}, indent=2),
                     encoding="utf-8")
                 return self._send(200, {"ok": True, "backed_up": True})
+            if path == "/api/key/export":
+                # Default (and only) backup: a zip sealed with a passphrase the
+                # human chooses. The file can live in Downloads next to agents;
+                # without the passphrase it is ciphertext. Never returns hex.
+                if not _require_session_token(self):
+                    return self._send(403, {"error": "session only — not agent token"})
+                pw = body.get("passphrase")
+                pw2 = body.get("passphrase_confirm")
+                if not isinstance(pw, str) or not isinstance(pw2, str):
+                    return self._send(400, {"error": "passphrase required"})
+                if pw != pw2:
+                    return self._send(400, {"error": "passphrases do not match"})
+                if len(pw) < _MIN_BACKUP_PASSPHRASE:
+                    return self._send(400, {
+                        "error": (f"passphrase must be at least "
+                                  f"{_MIN_BACKUP_PASSPHRASE} characters")})
+                if not KEY_PATH.exists():
+                    client()
+                if not KEY_PATH.exists():
+                    return self._send(404, {"error": "no key yet"})
+                try:
+                    blob = seal_master_key_zip(KEY_PATH.read_bytes(), pw)
+                except ValueError as exc:
+                    return self._send(400, {"error": str(exc)})
+                # Auto-ack: downloading a sealed backup is the backup act.
+                KEY_ACK_PATH.parent.mkdir(parents=True, exist_ok=True)
+                KEY_ACK_PATH.write_text(
+                    json.dumps({"acked_at": int(time.time()),
+                                "path": str(KEY_PATH),
+                                "format": "passphrase-sealed-zip",
+                                "via": "export"}, indent=2),
+                    encoding="utf-8")
+                self.send_response(200)
+                self.send_header("Content-Type", "application/zip")
+                self.send_header(
+                    "Content-Disposition",
+                    'attachment; filename="blindkeep-master-key.zip"')
+                self.send_header("Content-Length", str(len(blob)))
+                self.send_header("X-Content-Type-Options", "nosniff")
+                self.send_header("Cache-Control", "no-store")
+                self.end_headers()
+                self.wfile.write(blob)
+                return
             if path == "/api/prove":
                 # Zero-knowledge membership: prove a record is in this keep
                 # without putting the index in the proof. The cool thing the
@@ -756,27 +881,34 @@ body.hastodo{padding-bottom:5.5rem}
 <canvas id=sky></canvas><div class=veil></div>
 <div id=todo><div class=row id=todorow></div></div>
 
-<!-- One-time master-key backup. Shows when a key exists and has not been
-     acknowledged. Not a permanent "key is here" badge — a decision, once. -->
+<!-- One-time master-key backup. Default is a passphrase-sealed ZIP — never
+     raw key or hex — so an agent opening Downloads cannot read the keep. -->
 <div class=modal id=keymodal role=dialog aria-modal=true aria-labelledby=keymodaltitle>
   <div class=sheet>
     <h2 id=keymodaltitle>Save your master key</h2>
     <p class=note>This is the only thing that can decrypt your keep. There is
-    no password reset, no recovery email, no “forgot my key” — that is what
-    keeps the node blind. <b style="color:var(--ink)">Save it offline now,
-    before you store anything you would miss.</b></p>
-    <div class=hex id=keymodalhex>loading…</div>
+    no password reset — that is what keeps the node blind.
+    <b style="color:var(--ink)">You get a sealed zip, not the raw key.</b>
+    Choose a passphrase only you know; without it the file is useless to
+    agents, APIs, and anyone who finds the download.</p>
+    <label for=keypw>Passphrase you choose (min 10 characters)</label>
+    <input id=keypw type=password autocomplete=new-password
+           placeholder="not your email password — something only you know">
+    <label for=keypw2>Type it again</label>
+    <input id=keypw2 type=password autocomplete=new-password
+           placeholder="confirm passphrase">
+    <div id=keymodalerr class=warnbox style="display:none;margin-top:.7rem"></div>
+    <div class=okbox style="margin-top:.8rem">The download is
+    <b style="color:var(--ink)">blindkeep-master-key.zip</b> — ciphertext
+    inside. An agent or frontier model that opens the file still cannot read
+    your key. Remember the passphrase; we cannot recover it.</div>
     <div class=rowbtns>
-      <button class=go id=keymodalsave>Download key file</button>
-      <button class=ghost id=keymodalcopy>Copy hex</button>
-    </div>
-    <div class=warnbox>Do <b style="color:var(--ink)">not</b> paste this into a
-    chat, email, cloud note, or screenshot. USB stick, password manager, or
-    paper. Anyone with it can read everything you keep here.</div>
-    <div class=rowbtns>
-      <button class=go id=keymodalack>I've saved it somewhere safe</button>
+      <button class=go id=keymodalsave>Download sealed zip</button>
       <button class=ghost id=keymodallater>Not now</button>
     </div>
+    <p class=note style="margin-top:.9rem;font-size:.8rem">We never show the
+    raw key or hex here on purpose — that would put it in the page, clipboard
+    history, and anything watching the browser.</p>
   </div>
 </div>
 
@@ -839,9 +971,9 @@ body.hastodo{padding-bottom:5.5rem}
     <h2>Remember something</h2>
     <p class=note>Encrypted on this machine before it leaves. The node stores
     a blob it cannot open, and cannot tell one memory from another.</p>
-    <div id=writewarn class=warnbox style="display:none">Your master key is not
-    marked as backed up yet. You will be asked to save it before this is kept —
-    or you can accept permanent loss if the key disappears.</div>
+    <div id=writewarn class=warnbox style="display:none">No sealed zip backup
+    yet. You will be asked to download a passphrase-sealed backup before this
+    is kept — or you can accept permanent loss if the key disappears.</div>
     <label for=wlabel>A name for it (optional · stays encrypted)</label>
     <input id=wlabel placeholder="e.g. bank details, notes on the grant" autocomplete=off>
     <label for=wtext>What to remember</label>
@@ -866,30 +998,19 @@ body.hastodo{padding-bottom:5.5rem}
 
   <div class=card>
     <h2>Your master key</h2>
-    <p class=note>This one file is the only thing that can decrypt anything in
-    your keep. <b style="color:var(--ink)">Lose it and every memory here is
-    gone. Leak it and every memory here is readable.</b> Nobody can reset it —
-    that is what makes the node unable to read your data.</p>
-    <div id=keystatus class=warnbox>Not shown until you ask. It is never put in
-    the page state on refresh.</div>
-    <label>Where it lives on this machine</label>
+    <p class=note>The working key stays on this machine under
+    <span class=mono>data/master.key</span>. Backups are always a
+    <b style="color:var(--ink)">passphrase-sealed zip</b> — never raw bytes,
+    never hex in the page. Agents and APIs that open the zip without your
+    passphrase learn nothing.</p>
+    <div id=keystatus class=warnbox>Not backed up yet as a sealed zip.</div>
+    <label>Working key path (local only · not for sharing)</label>
     <div class=mono id=keypath>data/master.key</div>
     <div class=actions>
-      <button class=ghost id=keyshow>Show me the key</button>
-      <button class=ghost id=keydl>Download key file</button>
-      <button class=ghost id=keyprompt>Open backup prompt</button>
+      <button class=go id=keyprompt style="margin-top:0">Download sealed backup zip</button>
     </div>
-    <div id=keybox style="display:none;margin-top:.9rem">
-      <div class=mono id=keyhex style="padding:.7rem .8rem;border:1px solid var(--line);
-           border-radius:.45rem;background:rgba(0,0,0,.35);color:var(--gold)"></div>
-      <div class=actions>
-        <button class=ghost id=keycopy>Copy</button>
-        <button class=ghost id=keyhide>Hide</button>
-        <button class=go id=keyackbtn style="margin-top:0">I've saved this</button>
-      </div>
-      <div class=warnbox>Write this down offline, or keep the file on a USB stick
-      or password manager. Do not paste it into a chat, email, or cloud note.</div>
-    </div>
+    <div class=warnbox>Do not put the passphrase in a chat or agent prompt.
+    The zip is safe to park in Downloads; the passphrase is not.</div>
   </div>
 
   <div class=card>
@@ -980,8 +1101,8 @@ body.hastodo{padding-bottom:5.5rem}
     recover it for you, and that limitation is the feature: an operator who
     could recover your data could also read it.</p>
     <p class=note style="margin-top:.7rem"><b style="color:var(--ink)">Back it
-    up before you store anything you would miss.</b> The Proof tab shows it and
-    lets you copy it.</p>
+    up before you store anything you would miss.</b> The app exports a
+    passphrase-sealed zip only — never the raw key in the page.</p>
   </div>
 
   <div class=card>
@@ -1172,7 +1293,6 @@ tabs.forEach(t=>t.onclick=()=>tabs.forEach(o=>{const on=o===t;
 let STATE = null;
 let LAST_PROOF = null;
 let OPEN_IDX = null;
-let KEY_HEX = '';
 let MODAL_DISMISSED = false;   // "Not now" this session only
 // Labels live inside ciphertext; the list endpoint cannot show them. Cache
 // what we decrypt in this session so the filter can use real names.
@@ -1278,10 +1398,10 @@ async function refresh(){
     : '<b style="color:var(--good)">Verified.</b> Signed head checked this session. A pin will be written on the first read or write.';
   if(s.key_backed_up){
     $('keystatus').className='okbox';
-    $('keystatus').innerHTML='Backup acknowledged. The key itself is still only shown when you ask — never on every refresh.';
+    $('keystatus').innerHTML='Sealed zip backup recorded. The raw key is never shown in this app and is never returned by the API as hex.';
   } else if(s.key_exists){
     $('keystatus').className='warnbox';
-    $('keystatus').innerHTML='Key exists on this machine but is <b style="color:var(--ink)">not marked as backed up</b>. Save it offline once.';
+    $('keystatus').innerHTML='Key exists locally but you have not downloaded a <b style="color:var(--ink)">passphrase-sealed zip</b> yet.';
   } else {
     $('keystatus').className='warnbox';
     $('keystatus').textContent='No key yet. One is created the first time you save a memory or open the backup prompt.';
@@ -1302,34 +1422,58 @@ $('rhide').onclick = ()=>{ $('reader').style.display='none'; OPEN_IDX=null; };
 async function openKeyModal(justCreated){
   $('keymodal').classList.add('show');
   $('keymodaltitle').textContent = justCreated
-    ? 'Your master key was just created — save it'
-    : 'Save your master key';
+    ? 'Your master key was just created — seal a backup'
+    : 'Save your master key (sealed zip)';
+  $('keypw').value = '';
+  $('keypw2').value = '';
+  $('keymodalerr').style.display = 'none';
   try{
     const r = await (await api('/api/key')).json();
-    if(r.error){ $('keymodalhex').textContent = r.error; KEY_HEX=''; return; }
-    KEY_HEX = r.hex || '';
-    $('keymodalhex').textContent = KEY_HEX;
     if(r.path) $('keypath').textContent = r.path;
-  }catch(e){ $('keymodalhex').textContent = 'could not load key'; }
+  }catch(e){ /* mint may happen on export */ }
+  setTimeout(()=>$('keypw').focus(), 50);
 }
 function closeKeyModal(){ $('keymodal').classList.remove('show'); }
-
-async function ackKey(){
-  await api('/api/key/ack',{method:'POST',body:JSON.stringify({})});
-  closeKeyModal();
-  MODAL_DISMISSED = false;
-  await refresh();
+function keyModalErr(msg){
+  const el = $('keymodalerr');
+  el.style.display = 'block';
+  el.textContent = msg;
 }
-$('keymodalack').onclick = ackKey;
+
 $('keymodallater').onclick = ()=>{ MODAL_DISMISSED=true; closeKeyModal(); };
-$('keymodalcopy').onclick = async()=>{
-  try{ await navigator.clipboard.writeText(KEY_HEX||$('keymodalhex').textContent);
-    $('keymodalcopy').textContent='Copied'; setTimeout(()=>$('keymodalcopy').textContent='Copy hex',1500); }
-  catch(e){ $('keymodalcopy').textContent='select it manually'; }
-};
-$('keymodalsave').onclick = ()=>{
-  // Token in query so a plain navigation can download without custom headers.
-  location.href = '/api/key/download?t='+encodeURIComponent(TOKEN);
+$('keymodalsave').onclick = async ()=>{
+  const pw = $('keypw').value;
+  const pw2 = $('keypw2').value;
+  if(pw.length < 10){ keyModalErr('Passphrase must be at least 10 characters.'); return; }
+  if(pw !== pw2){ keyModalErr('Passphrases do not match.'); return; }
+  $('keymodalsave').disabled = true;
+  $('keymodalsave').textContent = 'Sealing…';
+  try{
+    const res = await api('/api/key/export',{method:'POST',
+      body:JSON.stringify({passphrase:pw, passphrase_confirm:pw2})});
+    if(!res.ok){
+      const err = await res.json().catch(()=>({}));
+      keyModalErr(err.error || 'export failed');
+      return;
+    }
+    // Blob download — never touch the DOM with key material.
+    const blob = await res.blob();
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'blindkeep-master-key.zip';
+    a.click();
+    URL.revokeObjectURL(a.href);
+    $('keypw').value = '';
+    $('keypw2').value = '';
+    closeKeyModal();
+    MODAL_DISMISSED = false;
+    await refresh();
+  }catch(e){
+    keyModalErr('could not export sealed backup');
+  }finally{
+    $('keymodalsave').disabled = false;
+    $('keymodalsave').textContent = 'Download sealed zip';
+  }
 };
 
 async function writeMemory(force){
@@ -1366,21 +1510,7 @@ async function writeMemory(force){
 }
 $('wgo').onclick=()=>writeMemory(false);
 
-$('keyshow').onclick=async()=>{
-  const r=await (await api('/api/key')).json();
-  if(r.error){ $('keyhex').textContent=r.error; }
-  else { KEY_HEX=r.hex; $('keyhex').textContent=r.hex; if(r.path)$('keypath').textContent=r.path; }
-  $('keybox').style.display='block';
-};
-$('keyhide').onclick=()=>{ $('keybox').style.display='none'; $('keyhex').textContent=''; };
-$('keycopy').onclick=async()=>{
-  try{ await navigator.clipboard.writeText($('keyhex').textContent);
-       $('keycopy').textContent='Copied'; setTimeout(()=>$('keycopy').textContent='Copy',1500); }
-  catch(e){ $('keycopy').textContent='select it manually'; }
-};
-$('keydl').onclick=()=>{ location.href='/api/key/download?t='+encodeURIComponent(TOKEN); };
 $('keyprompt').onclick=()=>{ MODAL_DISMISSED=false; openKeyModal(false); };
-$('keyackbtn').onclick=ackKey;
 
 async function doProve(idx, stay){
   $('proveout').innerHTML = '<span class=note>building zero-knowledge proof…</span>';

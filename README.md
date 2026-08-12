@@ -54,14 +54,16 @@ it deliberately does *not* protect).
 
 A privacy strip on every page shows the posture at a glance (localhost only,
 encrypted here, key never leaves, agent off). The first time you save a memory
-you are asked to **back up your master key once** — download the file, copy the
-hex, then confirm. After that the app does not nag; the key is still only shown
-when you ask. You can also prove you hold a record without naming which one.
+you are asked to **back up your master key once** as a **passphrase-sealed
+zip** (`blindkeep-master-key.zip`). The raw key and hex are never shown in the
+page and are never returned by the API — so an agent that opens Downloads sees
+ciphertext, not your key. You choose the passphrase; without it the zip is
+useless. You can also prove you hold a record without naming which one.
 
-> **Back up your master key** — `data/master.key` — before you store anything
-> you would mind losing. It is the only thing that can decrypt your keep, and
-> nobody can reset it. That is the point: an operator who could recover your
-> data could also read it.
+> **Back up your master key** before you store anything you would mind losing.
+> The working file is `data/master.key` on this machine; the portable backup is
+> a sealed zip only you can open. Nobody can reset it — that is the point: an
+> operator who could recover your data could also read it.
 
 **The app is new.** The storage and crypto layers have 499 tests and have been
 built over months; `app.py` is days old and has had several security fixes
