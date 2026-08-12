@@ -33,7 +33,9 @@ data/node/
 data/client/
 *.pem
 *.key
+*.key.sealed
 !requirements.txt
+data/key_backup.ack
 
 # Node runtime state under ANY data dir, not just the default one. `--data-dir`
 # takes an arbitrary path, so a rule naming `data/node/` only covers the node

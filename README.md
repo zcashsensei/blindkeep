@@ -52,17 +52,18 @@ you pay for — needs [Heartwood](https://github.com/zcashsensei/heartwood), a
 separate project, cloned alongside) · **How it works** (the mechanism, and what
 it deliberately does *not* protect).
 
-A privacy strip on every page shows the posture at a glance (localhost only,
-encrypted here, key never leaves, agent off). The first time you save a memory
-you are asked to **back up your master key once** as a **passphrase-sealed
-zip** (`blindkeep-master-key.zip`). The raw key and hex are never shown in the
-page and are never returned by the API — so an agent that opens Downloads sees
-ciphertext, not your key. You choose the passphrase; without it the zip is
-useless. You can also prove you hold a record without naming which one.
+A privacy strip on every page shows the posture at a glance. The first time you
+save a memory you set a **passphrase** that (1) seals the key **at rest** as
+`data/master.key.sealed` and (2) downloads `blindkeep-master-key.zip`. The raw
+key lives in process memory only while unlocked — never as hex in the page, never
+as a plaintext download. Agents that open the project folder or Downloads still
+need your passphrase.
 
-> **Back up your master key** before you store anything you would mind losing.
-> The working file is `data/master.key` on this machine; the portable backup is
-> a sealed zip only you can open. Nobody can reset it — that is the point: an
+**Storage privacy ≠ frontier-model privacy.** The keep can stay unreadable to a
+node; talking to a hosted model is a different threat model (API account, prompt
+content, timing, IP). The app states that plainly and does not phone home.
+
+> **Remember the passphrase** — there is no reset. That is the point: an
 > operator who could recover your data could also read it.
 
 **The app is new.** The storage and crypto layers have 499 tests and have been
