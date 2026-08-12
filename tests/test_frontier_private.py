@@ -131,6 +131,29 @@ def test_receipt_lists_residual_risks():
     joined = " ".join(r.residual).lower()
     assert "api key" in joined or "account" in joined
     assert any("claim" in c.lower() or "fact" in c.lower() for c in r.claims)
+    assert r.as_dict()["identity_private"] is False
+
+
+def test_account_decoupled_claims_identity_private():
+    def local(prompt, system=None):
+        if "rewrite" in (system or "").lower():
+            return "How do I recover a private debt?"
+        if "guidance" in (prompt or "").lower():
+            return "put it in writing"
+        return "PRIVATE"
+
+    r = frontier_chat(
+        PRIVATE,
+        local=local,
+        remote=remote_stub(),
+        enable_frontier=True,
+        accept_residual_risks=True,
+        account_decoupled=True,
+    )
+    d = r.as_dict()
+    assert d["identity_private"] is True
+    assert d["account_decoupled"] is True
+    assert any("blind token" in c.lower() or "api key" in c.lower() for c in r.claims)
 
 
 def test_empty_question_refused():

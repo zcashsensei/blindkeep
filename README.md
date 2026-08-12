@@ -12,7 +12,7 @@
 <p align="center">
   <img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License: MIT">
   <img src="https://img.shields.io/badge/python-3.10%2B-blue.svg" alt="Python 3.10+">
-  <img src="https://img.shields.io/badge/tests-505%20passing-brightgreen.svg" alt="505 tests passing">
+  <img src="https://img.shields.io/badge/tests-510%20passing-brightgreen.svg" alt="510 tests passing">
   <img src="https://img.shields.io/badge/status-v0%20alpha-orange.svg" alt="v0 alpha">
   <img src="https://img.shields.io/badge/dependencies-1-lightgrey.svg" alt="1 dependency">
   <img src="https://img.shields.io/badge/zero--knowledge-sigma%20protocols%20%2B%20halo2-6E4B9E.svg" alt="Zero-knowledge: sigma protocols and a halo2 SNARK">
@@ -20,7 +20,7 @@
 </p>
 
 <p align="center">
-  <sub><b>Status as of 2026-08-11</b> · v0 alpha · 505 tests passing ·
+  <sub><b>Status as of 2026-08-11</b> · v0 alpha · 510 tests passing ·
   replication, peer discovery, retrieval audits, key recovery, local-model
   memory, pseudonymisation, an attestation framework and <b>zero-knowledge
   membership</b> implemented · sigma protocols <i>and</i> a halo2 SNARK
@@ -61,26 +61,44 @@ need your passphrase.
 node; talking to a hosted model is a different threat model (API account, prompt
 content, timing, IP). The app states that plainly and does not phone home.
 
-### Closest path to private frontier chat (content, not identity)
+### Historic stack: content-gated + account-decoupled frontier chat
+
+Open-source path where the **client never holds the frontier API key**.
+Entitlement is a **one-time blind token**. Private facts are **LeakGate-blocked**
+before leave. Optional OHTTP relay for IP split (only if relay ≠ gateway operator).
 
 ```bash
-# Needs a local Ollama model + your provider API key
+# 1) Gateway (holds the API key; issues are separate)
+python -m blindkeep frontier-gateway \
+  --api-base https://api.x.ai --api-key "$BLINDKEEP_CLOUD_KEY" \
+  --issuer-key data/gateway_issuer.pem --port 8751
+
+# 2) Issue a one-time unlinkable token (same issuer key)
+python -m blindkeep token issue --issuer-key data/gateway_issuer.pem --out token.json
+
+# 3) Client: Ollama abstracts + gates; gateway redeems token; no client API key
 python -m blindkeep frontier-chat \
   --enable-frontier --accept-residual-risks \
-  --api-base https://api.x.ai --model <model> \
+  --gateway-url http://127.0.0.1:8751 --token token.json --model <model> \
   --text "Sarah in Truro owes me £4000 — what can I do?"
 ```
 
-What leaves the machine is a **generic** question (local abstraction + mechanical
-LeakGate). What comes back is re-specialised **on this machine**. The receipt
-prints claims and residual risks. This does **not** hide your API account or IP;
-it hides private **facts** on the wire. Same path is on the app **Privacy truth**
-tab as “Maximum-effort frontier path.”
+**What is historic (defensible):** first open stack combining encrypted keep +
+ZK membership + local abstraction + mechanical leak gate + Chaum blind
+entitlement + optional OHTTP + a gateway that holds the provider credential so
+the client is not a named API customer.
+
+**What is still not magic:** if one person runs relay and gateway, IP anonymity
+is void. The gateway operator can still see cleared prompts. The provider still
+sees that *someone* asked a generic question. Receipts print claims vs residual.
+
+**Direct path (content only, account still yours):** omit gateway; pass
+`--api-base` and `--api-key` as before.
 
 > **Remember the passphrase** — there is no reset. That is the point: an
 > operator who could recover your data could also read it.
 
-**The app is new.** The storage and crypto layers have 505 tests and have been
+**The app is new.** The storage and crypto layers have 510 tests and have been
 built over months; `app.py` is days old and has had several security fixes
 already. It binds to loopback only, holds no data of its own, and locks the key
 file to your account — but it is the youngest code here and the part most worth
@@ -552,7 +570,7 @@ circuits/       halo2 membership circuit + the blindkeep-prove binary (Rust)
   anon_token.py blind-signed entitlement: prove you may ask, not who you are
   _console.py   terminal output helpers
   cli.py        command-line interface
-tests/          30 suites, 505 tests
+tests/          31 suites, 510 tests
 ```
 
 ## Replication
