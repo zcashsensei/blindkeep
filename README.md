@@ -44,10 +44,9 @@ your own master key, and never sends either anywhere — everything is encrypted
 on your machine before it reaches storage. Nothing to sign up for, no server of
 ours involved, and it keeps working when we are offline.
 
-Tabs: **Your keep** · **Remember** · **Heartwood** (is your AI throttling you?
-— install engine in-app or clone
-[heartwood](https://github.com/zcashsensei/heartwood)) · **Proof** ·
-**Privacy truth** · **How it works**.
+Tabs: **Your keep** · **Remember** · **Security** (plain-English protections
+for everyone) · **Heartwood** (is your AI throttling you?) · **Proof** ·
+**Privacy truth** (deep threat model) · **How it works**.
 
 A privacy strip on every page shows the posture at a glance. The first time you
 save a memory you set a **passphrase** that (1) seals the key **at rest** as

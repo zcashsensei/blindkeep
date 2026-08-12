@@ -1289,6 +1289,7 @@ body.hastodo{padding-bottom:5.5rem}
   <div class=tabs role=tablist>
     <button class=tab id=t-keep role=tab aria-selected=true aria-controls=p-keep>Your keep</button>
     <button class=tab id=t-write role=tab aria-selected=false aria-controls=p-write>Remember</button>
+    <button class=tab id=t-sec role=tab aria-selected=false aria-controls=p-sec>Security</button>
     <button class=tab id=t-hw role=tab aria-selected=false aria-controls=p-hw>Heartwood</button>
     <button class=tab id=t-proof role=tab aria-selected=false aria-controls=p-proof>Proof</button>
     <button class=tab id=t-truth role=tab aria-selected=false aria-controls=p-truth>Privacy truth</button>
@@ -1325,6 +1326,80 @@ body.hastodo{padding-bottom:5.5rem}
       </div>
       <div id=proveres style="margin-top:.8rem"></div>
     </div>
+  </div>
+</section>
+
+<section class=page id=p-sec role=tabpanel aria-labelledby=t-sec hidden>
+  <div class=card>
+    <h2>Security — plain English</h2>
+    <p class=note>This is the page for everyone, not just cryptographers. What
+    Blindkeep does to keep you safer, what it does <b style="color:var(--ink)">not</b>
+    do, and what you should do with your key. Live status updates as you use the app.</p>
+    <div class=stats id=secstats style="margin-top:1rem"></div>
+    <div id=secposture style="margin-top:1rem"></div>
+  </div>
+
+  <div class=card>
+    <h2>What is protected</h2>
+    <ul class=plain>
+      <li><b>Your memories stay encrypted.</b> Text is sealed on this machine
+      before the storage node ever sees a blob. The node has no key — so it
+      cannot read what you stored.</li>
+      <li><b>History cannot be silently rewritten.</b> Every save appends to a
+      signed log. If something is dropped or changed, your client refuses it.</li>
+      <li><b>Your master key is sealed on disk.</b> After setup it is
+      passphrase-wrapped (<span class=mono>master.key.sealed</span>). Backups
+      are a sealed zip — not a raw key file agents can open.</li>
+      <li><b>This app does not phone home.</b> It binds to localhost only. No
+      Blindkeep cloud account. No analytics upload of your keep.</li>
+      <li><b>You can prove you hold a record without naming which.</b> That is
+      the zero-knowledge membership feature on the Proof tab.</li>
+    </ul>
+  </div>
+
+  <div class=card>
+    <h2>What you must do</h2>
+    <ol class=steps>
+      <li><b>Set a passphrase and save the sealed zip</b> when prompted — before
+      you store anything you would mind losing. There is no password reset.</li>
+      <li><b>Never put the passphrase in a chat or AI agent.</b> That hands over
+      the only secret that opens your keep.</li>
+      <li><b>Lock when you walk away</b> if others can use this computer
+      (Proof tab / unlock flow). Unlocked means the key is in memory.</li>
+      <li><b>Treat cloud AI as a different risk.</b> Sending a question to a
+      frontier model is not the same as storing a memory here. Use
+      <b>Privacy truth</b> and the frontier stack only if you understand the receipt.</li>
+    </ol>
+  </div>
+
+  <div class=card>
+    <h2>What is not protected</h2>
+    <ul class=plain>
+      <li><b>Malware on your PC while unlocked</b> can still read process memory.
+      Sealed-at-rest stops cold disk scrapes, not a live infection.</li>
+      <li><b>A normal cloud chat with your API key</b> still identifies your
+      account to the provider. That is not “anonymous ChatGPT.”</li>
+      <li><b>Heartwood</b> checks whether a provider did the work you paid for
+      — it is an effort audit, not a privacy tool. It may call the provider.</li>
+      <li><b>If someone has your passphrase and sealed zip,</b> they can open
+      the keep. Guard both like a password manager vault.</li>
+    </ul>
+    <div class=warnbox>If a product promises “frontier AI with zero metadata and
+    zero identity for free,” treat that as a claim to verify — not as what this
+    app silently guarantees.</div>
+  </div>
+
+  <div class=card>
+    <h2>Where to go next</h2>
+    <div class=welcome>
+      <div class=stepc><b>Proof</b><span>Key backup, sealed zip, zero-knowledge membership, agent access switch.</span></div>
+      <div class=stepc><b>Heartwood</b><span>Check if your AI is being throttled — install engine if needed, then run a check.</span></div>
+      <div class=stepc><b>Privacy truth</b><span>Deep threat model, frontier stack, and residual risks with full receipts.</span></div>
+      <div class=stepc><b>How it works</b><span>Step-by-step: encrypt → append → verify → decrypt.</span></div>
+    </div>
+    <p class=note style="margin-top:1rem">Technical write-up for reviewers:
+    <span class=mono>SECURITY.md</span> and <span class=mono>STACK.md</span>
+    in the GitHub repo — not required to use the app.</p>
   </div>
 </section>
 
@@ -1775,6 +1850,28 @@ function paintStats(s){
        <div class=stat><b>${p.unlocked?'yes':'no'}</b><span>unlocked this session</span></div>
        <div class=stat><b>${p.sends_data_out?'yes':'no'}</b><span>phones home</span></div>
        <div class=stat><b>no</b><span>frontier private by default</span></div>`;
+  }
+  if($('secstats')){
+    const p = s.privacy || {};
+    $('secstats').innerHTML =
+      `<div class=stat><b>${s.node?'up':'down'}</b><span>local node</span></div>
+       <div class=stat><b>${p.key_sealed_at_rest?'yes':'no'}</b><span>key sealed on disk</span></div>
+       <div class=stat><b>${p.unlocked?'unlocked':'locked'}</b><span>this session</span></div>
+       <div class=stat><b>${s.heartwood?'ready':'install'}</b><span>Heartwood</span></div>
+       <div class=stat><b>${p.sends_data_out?'yes':'no'}</b><span>phones home</span></div>
+       <div class=stat><b>127.0.0.1</b><span>bind address</span></div>`;
+    const bits = [];
+    if(p.key_sealed_at_rest) bits.push('<span class="pill good">disk key sealed</span>');
+    else bits.push('<span class="pill warn">set a passphrase soon</span>');
+    if(p.unlocked) bits.push('<span class="pill on">session unlocked</span>');
+    else if(p.key_sealed_at_rest) bits.push('<span class="pill warn">locked — unlock to read/write</span>');
+    if(s.heartwood) bits.push('<span class="pill good">Heartwood ready</span>');
+    else bits.push('<span class="pill on">Heartwood optional</span>');
+    if(!p.sends_data_out) bits.push('<span class="pill good">does not phone home</span>');
+    if(p.agent_access) bits.push('<span class="pill warn">agent access ON</span>');
+    else bits.push('<span class="pill good">agent access off</span>');
+    bits.push('<span class="pill warn">frontier chat ≠ private by default</span>');
+    $('secposture').innerHTML = '<div class=rail style="margin:0">'+bits.join('')+'</div>';
   }
 }
 
