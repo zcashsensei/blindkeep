@@ -17,17 +17,17 @@
   <img src="https://img.shields.io/badge/dependencies-1-lightgrey.svg" alt="1 dependency">
   <img src="https://img.shields.io/badge/zero--knowledge-sigma%20protocols%20%2B%20halo2-6E4B9E.svg" alt="Zero-knowledge: sigma protocols and a halo2 SNARK">
   <img src="https://img.shields.io/badge/SNARK-halo2%20%C2%B7%20no%20trusted%20setup-6E4B9E.svg" alt="halo2 SNARK, no trusted setup">
+  <img src="https://img.shields.io/badge/frontier-content%20gate%20%2B%20account%20decoupled-6E4B9E.svg" alt="Frontier: content gate and account-decoupled gateway">
 </p>
 
 <p align="center">
-  <sub><b>Status as of 2026-08-11</b> · v0 alpha · 510 tests passing ·
-  replication, peer discovery, retrieval audits, key recovery, local-model
-  memory, pseudonymisation, an attestation framework and <b>zero-knowledge
-  membership</b> implemented · sigma protocols <i>and</i> a halo2 SNARK
-  (3,040-byte constant-size membership proof) — no zkML ·
-  <b>runs on one machine today — no public node
-  network exists, and no node has ever been run by anyone but the author</b> ·
-  run <code>blindkeep status</code> for a count computed from the source</sub>
+  <sub><b>Status as of 2026-08-11</b> · v0 alpha · 510 tests ·
+  encrypted keep · ZK membership · <b>historic frontier stack</b>
+  (content gate + blind-token gateway — client holds no provider API key) ·
+  optional OHTTP · <a href="STACK.md">STACK.md</a> ·
+  <b>no public multi-operator network yet</b> ·
+  run <code>blindkeep status</code> ·
+  prove offline with <code>python tools/demo_historic_stack.py</code></sub>
 </p>
 
 ---
@@ -566,11 +566,15 @@ circuits/       halo2 membership circuit + the blindkeep-prove binary (Rust)
   cloud_gate.py  opt-in hosted-model path — NOT PRIVATE
   vault_proxy.py reversible pseudonymisation for that path — SMALLER disclosure
   delegate.py   abstract locally, verify, send a question about nobody
-  frontier_private.py  max-effort content-private frontier path + receipt
+  frontier_private.py  content gate + receipts
+  frontier_gateway.py  account-decoupled gateway (holds API key)
+  frontier_relay.py    OHTTP relay surface
   anon_token.py blind-signed entitlement: prove you may ask, not who you are
   _console.py   terminal output helpers
   cli.py        command-line interface
 tests/          31 suites, 510 tests
+STACK.md        historic frontier stack architecture
+tools/demo_historic_stack.py   offline proof (no API key)
 ```
 
 ## Replication

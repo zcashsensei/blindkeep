@@ -100,6 +100,11 @@ def capabilities(root: Optional[Path] = None) -> list[dict[str, Any]]:
         ("Delegated inference (abstraction + gate)", mod("delegate.py") and suite("test_delegate.py")),
         ("Anonymous entitlement (blind signatures)", mod("anon_token.py")
          and suite("test_anon_token.py")),
+        ("Historic frontier stack (content gate + account-decoupled gateway)",
+         mod("frontier_private.py", "frontier_gateway.py")
+         and suite("test_frontier_private.py", "test_frontier_gateway.py")),
+        ("OHTTP relay surface for frontier gateway",
+         mod("frontier_relay.py", "oblivious.py") and suite("test_oblivious.py")),
         ("SEALED tier: abstraction AND attestation", mod("delegate.py", "attest.py",
          "memory_gate.py") and suite("test_delegate.py", "test_memory_gate.py")),
         ("Attestation (5 checks)", mod("attest.py") and suite("test_attest.py")),
@@ -169,7 +174,10 @@ NOT_CLAIMED = [
     "Interoperability with a real OHTTP deployment — the HPKE layer matches RFC 9180's "
     "vectors, but the RFC 9458 framing has never been run against a production relay",
     "Sender anonymity when sending DIRECT — unchanged and unfixable on that path; "
-    "the provider's API key is an account identity. Route through oblivious.py instead",
+    "the provider's API key is an account identity. Route through frontier-gateway "
+    "+ blind token (and optional OHTTP) instead",
+    "Public community frontier gateway / independent relay network — architecture "
+    "ships; operators do not (yet)",
 ]
 
 
