@@ -508,6 +508,99 @@ def cmd_private_chat(args) -> int:
     return 0
 
 
+def cmd_frontier_chat(args) -> int:
+    """Maximum-effort content-private path to a frontier model.
+
+    Abstracts locally, gates leaks, sends only the cleared text, re-specialises
+    the answer on this machine. Prints a receipt of claims and residual risks.
+    Does NOT claim identity- or metadata-privacy with a user API key.
+    """
+    from .frontier_private import (
+        FrontierPrivateError,
+        default_api_key,
+        frontier_chat,
+        make_cloud_remote,
+        make_ollama_local,
+    )
+
+    if not args.enable_frontier or not args.accept_residual_risks:
+        raise CliError(
+            "frontier-chat needs both acknowledgements:\n"
+            "  --enable-frontier\n"
+            "  --accept-residual-risks\n"
+            "This path protects CONTENT (private facts on the wire), not your\n"
+            "API-account identity or network metadata. The receipt will say so.")
+
+    api_key = args.api_key or default_api_key()
+    if not args.api_base:
+        raise CliError(
+            "--api-base is required (Blindkeep does not choose a provider).\n"
+            "  e.g. --api-base https://api.x.ai --model <name>")
+    if not api_key:
+        raise CliError(
+            "no API key: pass --api-key or set BLINDKEEP_CLOUD_KEY "
+            "(or OPENAI_API_KEY / ANTHROPIC_API_KEY / XAI_API_KEY)")
+
+    context: list[str] = []
+    if args.with_keep:
+        key = _load_key(args.key)
+        from .client import BlindkeepClient
+        from .memory_gate import Sensitivity, decode_label
+        c = BlindkeepClient(args.url, key, pin_path=args.pin)
+        # Best-effort recall of recent non-secret memories as private context
+        # for abstraction — they never leave except via the gated path.
+        try:
+            for rec in c.list()[-args.recall:]:
+                try:
+                    opened = c.get(int(rec["index"]))
+                    sens, _ = decode_label(opened.get("label") or "")
+                    if sens is Sensitivity.SECRET:
+                        continue
+                    pt = opened["plaintext"]
+                    if isinstance(pt, bytes):
+                        pt = pt.decode("utf-8", "replace")
+                    if pt:
+                        context.append(pt)
+                except Exception:
+                    continue
+        except Exception:
+            pass
+
+    local = make_ollama_local(args.ollama_base, args.local_model)
+    remote = make_cloud_remote(
+        api_base=args.api_base, api_key=api_key, model=args.model,
+        dialect=args.dialect)
+
+    try:
+        receipt = frontier_chat(
+            args.text,
+            local=local,
+            remote=remote,
+            context=context,
+            enable_frontier=True,
+            accept_residual_risks=True,
+            max_specificity=args.max_specificity,
+            ohttp_independent_operators=(
+                True if getattr(args, "ohttp_independent", False) else None),
+        )
+    except FrontierPrivateError as exc:
+        print(f"REFUSED: {exc}", file=sys.stderr)
+        return 1
+
+    print(f"[{receipt.notice}]", file=sys.stderr)
+    print(f"[mode: {receipt.mode} · attempts: {receipt.attempts}]", file=sys.stderr)
+    print(f"[sent to provider:]", file=sys.stderr)
+    print(receipt.sent, file=sys.stderr)
+    print("[claims]", file=sys.stderr)
+    for c in receipt.claims:
+        print(f"  + {c}", file=sys.stderr)
+    print("[residual — not claimed]", file=sys.stderr)
+    for r in receipt.residual:
+        print(f"  - {r}", file=sys.stderr)
+    print(receipt.reply)
+    return 0
+
+
 def cmd_attest(args) -> int:
     """Challenge a model host to prove it cannot read what it computes."""
     from .attest import AttestationError, Policy, attest_host
@@ -1142,6 +1235,35 @@ def build_parser() -> argparse.ArgumentParser:
                     help="reject reports older than this many seconds")
     at.add_argument("--timeout", type=float, default=10.0)
     at.set_defaults(func=cmd_attest)
+
+    fc = sub.add_parser(
+        "frontier-chat",
+        help="max-effort CONTENT-private path to a frontier model "
+             "(abstract+gate; not identity/metadata private)")
+    fc.add_argument("--text", required=True)
+    fc.add_argument("--api-base", required=True,
+                    help="provider base URL — Blindkeep does not choose one")
+    fc.add_argument("--model", required=True)
+    fc.add_argument("--api-key", default=None)
+    fc.add_argument("--dialect", default=None, choices=sorted(dialects.DIALECTS))
+    fc.add_argument("--local-model", default="llama3.2",
+                    help="Ollama model that abstracts and re-specialises")
+    fc.add_argument("--ollama-base", default="http://127.0.0.1:11434")
+    fc.add_argument("--max-specificity", type=int, default=24)
+    fc.add_argument("--with-keep", action="store_true",
+                    help="use recent keep memories as private context for the gate")
+    fc.add_argument("--url", default="http://127.0.0.1:8741")
+    fc.add_argument("--key", default="data/client/master.key")
+    fc.add_argument("--pin", default="data/client/pin.json")
+    fc.add_argument("--index", default="data/client/gate_index.json")
+    fc.add_argument("--recall", type=int, default=6)
+    fc.add_argument("--ohttp-independent", action="store_true",
+                    help="you assert relay≠gateway operators (code cannot verify)")
+    fc.add_argument("--enable-frontier", action="store_true",
+                    help="turn on the frontier-private path")
+    fc.add_argument("--accept-residual-risks", action="store_true",
+                    help="accept that account identity and metadata are NOT solved")
+    fc.set_defaults(func=cmd_frontier_chat)
 
     gc = sub.add_parser(
         "gate-chat",

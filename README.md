@@ -61,6 +61,22 @@ need your passphrase.
 node; talking to a hosted model is a different threat model (API account, prompt
 content, timing, IP). The app states that plainly and does not phone home.
 
+### Closest path to private frontier chat (content, not identity)
+
+```bash
+# Needs a local Ollama model + your provider API key
+python -m blindkeep frontier-chat \
+  --enable-frontier --accept-residual-risks \
+  --api-base https://api.x.ai --model <model> \
+  --text "Sarah in Truro owes me £4000 — what can I do?"
+```
+
+What leaves the machine is a **generic** question (local abstraction + mechanical
+LeakGate). What comes back is re-specialised **on this machine**. The receipt
+prints claims and residual risks. This does **not** hide your API account or IP;
+it hides private **facts** on the wire. Same path is on the app **Privacy truth**
+tab as “Maximum-effort frontier path.”
+
 > **Remember the passphrase** — there is no reset. That is the point: an
 > operator who could recover your data could also read it.
 
