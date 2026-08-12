@@ -36,6 +36,10 @@ NODE_PORT = 8741
 NODE_URL = f"http://127.0.0.1:{NODE_PORT}"
 KEY_PATH = HERE / "data" / "master.key"
 PIN_PATH = HERE / "data" / "pin.json"
+# Written only when the human confirms they saved the master key offline.
+# Without this the app would nag every refresh ("key is there") instead of
+# once, at the moment it matters: before anything worth losing is stored.
+KEY_ACK_PATH = HERE / "data" / "key_backup.ack"
 
 # An app that holds a master key must not be drivable by a page you happen to
 # be visiting. Localhost is not a security boundary against the browser: a
@@ -46,6 +50,10 @@ TOKEN = secrets.token_urlsafe(32)
 
 HW_RUNS: dict = {}
 HW_LOCK = threading.Lock()
+
+# True only in the process that just minted the key — drives the first-run
+# backup modal. Reloads of an existing key do not re-raise it.
+KEY_JUST_CREATED = False
 
 # Agent access. An AI agent cannot read the page, so it cannot learn the
 # session token -- it needs one of its own. Off by default and minted only when
@@ -129,6 +137,7 @@ def lock_down(path: pathlib.Path) -> None:
 
 
 def client(need_key: bool = True):
+    global KEY_JUST_CREATED
     from blindkeep.client import BlindkeepClient
     key = b""
     if need_key:
@@ -136,8 +145,26 @@ def client(need_key: bool = True):
             KEY_PATH.parent.mkdir(parents=True, exist_ok=True)
             BlindkeepClient.create_keys(str(KEY_PATH))
             lock_down(KEY_PATH)
+            KEY_JUST_CREATED = True
         key = BlindkeepClient.load_master_key(str(KEY_PATH))
     return BlindkeepClient(NODE_URL, key, pin_path=str(PIN_PATH))
+
+
+def key_backed_up() -> bool:
+    return KEY_ACK_PATH.is_file()
+
+
+def privacy_snapshot() -> dict:
+    """What a stranger should be able to see at a glance about this session."""
+    return {
+        "bound": "loopback",                 # 127.0.0.1 only — never the LAN
+        "encrypted_on_device": True,
+        "key_stays_local": True,
+        "key_backed_up": key_backed_up(),
+        "key_just_created": KEY_JUST_CREATED and not key_backed_up(),
+        "agent_access": bool(AGENT["on"]),
+        "sends_data_out": False,             # this app never phones home
+    }
 
 
 # ------------------------------------------------------------- heartwood ----
@@ -304,17 +331,30 @@ class Handler(BaseHTTPRequestHandler):
             if path == "/api/state":
                 ok, how = ensure_node()
                 if not ok:
-                    return self._send(200, {"node": False, "why": how})
+                    return self._send(200, {"node": False, "why": how,
+                                            "privacy": privacy_snapshot()})
+                # Head + list are metadata-only; the key is only needed when
+                # reading or writing plaintext. Creating it here would mint a
+                # secret the moment someone opens the app, before they have
+                # anything to protect — wrong moment for the backup modal.
                 c = client(need_key=False)
                 head = c.head()
                 recs = c.list()
                 _, hw_err = heartwood_modules()
+                pin_ok = PIN_PATH.is_file()
                 return self._send(200, {
                     "node": True, "how": how,
                     "records": len(recs),
                     "tree_size": head.get("tree_size"),
-                    "root": head.get("root_hash") or head.get("root"),
+                    "root": head.get("root_hex") or head.get("root_hash")
+                            or head.get("root"),
+                    "pubkey": head.get("public_key_hex"),
                     "key_exists": KEY_PATH.exists(),
+                    "key_backed_up": key_backed_up(),
+                    "key_just_created": KEY_JUST_CREATED and not key_backed_up(),
+                    "pin_held": pin_ok,
+                    "integrity": "verified",
+                    "privacy": privacy_snapshot(),
                     "heartwood": hw_err is None, "heartwood_error": hw_err,
                     "list": recs[-50:]})
             if path.startswith("/api/read/"):
@@ -339,10 +379,33 @@ class Handler(BaseHTTPRequestHandler):
                 # sent when explicitly asked for, so it does not sit in a
                 # response the page fetches on every refresh.
                 if not KEY_PATH.exists():
+                    # Mint only when the human asked to see / back up the key.
+                    client()
+                if not KEY_PATH.exists():
                     return self._send(404, {"error": "no key yet"})
                 raw = KEY_PATH.read_bytes()
                 return self._send(200, {"hex": raw.hex(), "path": str(KEY_PATH),
-                                        "bytes": len(raw)})
+                                        "bytes": len(raw),
+                                        "backed_up": key_backed_up(),
+                                        "just_created": KEY_JUST_CREATED})
+            if path == "/api/key/download":
+                # File download, not hex in a box — the form a password manager
+                # or USB stick actually wants. Same auth gate as /api/key.
+                if not KEY_PATH.exists():
+                    client()
+                if not KEY_PATH.exists():
+                    return self._send(404, {"error": "no key yet"})
+                raw = KEY_PATH.read_bytes()
+                self.send_response(200)
+                self.send_header("Content-Type", "application/octet-stream")
+                self.send_header("Content-Disposition",
+                                 'attachment; filename="blindkeep-master.key"')
+                self.send_header("Content-Length", str(len(raw)))
+                self.send_header("X-Content-Type-Options", "nosniff")
+                self.send_header("Cache-Control", "no-store")
+                self.end_headers()
+                self.wfile.write(raw)
+                return
             if path == "/api/agent":
                 return self._send(200, {"enabled": AGENT["on"],
                                         "token": AGENT["token"] if AGENT["on"] else None,
@@ -410,8 +473,65 @@ class Handler(BaseHTTPRequestHandler):
                 if len(text) > 500_000:
                     return self._send(400, {"error": "that memory is too long "
                                                      "(500,000 characters max)"})
-                res = client().put(text, label=(raw_label or "")[:120])
+                # Soft gate: mint the key first (so the human has something to
+                # save), then refuse the write until they have either backed it
+                # up or explicitly accepted permanent loss. Losing the key after
+                # this is permanent; the app will not pretend it is not.
+                c = client()
+                force = bool(body.get("i_accept_no_backup"))
+                if not key_backed_up() and not force:
+                    return self._send(409, {
+                        "error": "back up your master key first",
+                        "code": "key_not_backed_up",
+                        "key_just_created": KEY_JUST_CREATED,
+                        "hint": ("Save the key offline (the backup prompt, or "
+                                 "the Proof tab), then try again — or send "
+                                 "i_accept_no_backup if you accept permanent "
+                                 "loss.")})
+                res = c.put(text, label=(raw_label or "")[:120])
                 return self._send(200, {"ok": True, "record": res})
+            if path == "/api/key/ack":
+                # Human confirmed offline backup. Do not send the key here —
+                # only record that the prompt has been answered.
+                KEY_ACK_PATH.parent.mkdir(parents=True, exist_ok=True)
+                KEY_ACK_PATH.write_text(
+                    json.dumps({"acked_at": int(time.time()),
+                                "path": str(KEY_PATH)}, indent=2),
+                    encoding="utf-8")
+                return self._send(200, {"ok": True, "backed_up": True})
+            if path == "/api/prove":
+                # Zero-knowledge membership: prove a record is in this keep
+                # without putting the index in the proof. The cool thing the
+                # CLI already does — now on the surface a stranger can reach.
+                raw_idx = body.get("index")
+                if not isinstance(raw_idx, int) and not (isinstance(raw_idx, str)
+                                                         and str(raw_idx).isdigit()):
+                    return self._send(400, {"error": "index must be a number"})
+                idx = int(raw_idx)
+                if idx < 0:
+                    return self._send(400, {"error": "index out of range"})
+                from blindkeep.zk_keep import (keep_leaves, prove_in_keep,
+                                               verify_in_keep)
+                c = client()
+                head = c.head()
+                size = int(head.get("tree_size") or 0)
+                if idx >= size:
+                    return self._send(400, {"error": "no record at that index",
+                                            "tree_size": size})
+                bundle = prove_in_keep(c, index=idx, head=head)
+                leaves = keep_leaves(c)
+                ok = verify_in_keep(bundle, leaves, head) is True
+                # Never echo the index in the proof blob the user can share.
+                return self._send(200, {
+                    "ok": ok,
+                    "statement": (f"The prover holds one of the {size} records "
+                                  f"in this keep. Which one is not revealed."),
+                    "tree_size": size,
+                    "root": head.get("root_hex"),
+                    "proof_has_index": "index" in bundle,
+                    "branches": len((bundle.get("proof") or {}).get("t_hex") or []),
+                    "bundle": bundle if ok else None,
+                })
             if path == "/api/agent":
                 # Only the page's own token may flip this. An agent holding an
                 # agent token must not be able to keep itself enabled.
@@ -563,6 +683,48 @@ ul.plain li::marker{color:var(--cyan)}
 ul.plain b{color:var(--ink)}
 .warnbox{border-left:3px solid var(--gold);padding:.2rem 0 .2rem .9rem;
 color:var(--muted);font-size:.86rem;margin-top:.9rem}
+.okbox{border-left:3px solid var(--good);padding:.2rem 0 .2rem .9rem;
+color:var(--muted);font-size:.86rem;margin-top:.9rem}
+.rail{display:flex;flex-wrap:wrap;gap:.45rem;margin-top:1.15rem}
+.pill{font-family:var(--mono);font-size:.72rem;letter-spacing:.02em;
+padding:.28rem .6rem;border-radius:999px;border:1px solid var(--line);
+color:var(--muted);background:rgba(0,0,0,.22)}
+.pill.on{color:var(--cyan);border-color:rgba(79,208,224,.35);
+background:rgba(79,208,224,.08)}
+.pill.warn{color:var(--gold);border-color:rgba(227,179,65,.4);
+background:rgba(227,179,65,.08)}
+.pill.bad{color:var(--bad);border-color:rgba(248,81,73,.35);
+background:rgba(248,81,73,.08)}
+.pill.good{color:var(--good);border-color:rgba(63,185,80,.35);
+background:rgba(63,185,80,.08)}
+.welcome{display:grid;gap:.75rem;grid-template-columns:repeat(auto-fit,minmax(12rem,1fr));
+margin-top:1rem}
+.stepc{background:rgba(0,0,0,.28);border:1px solid var(--line);border-radius:.6rem;
+padding:.9rem 1rem}
+.stepc b{display:block;color:var(--cyan);font-family:var(--mono);font-size:.78rem;
+margin-bottom:.35rem}
+.stepc span{font-size:.86rem;color:var(--muted)}
+.searchrow{display:flex;gap:.6rem;margin-top:.8rem;align-items:center}
+.searchrow input{flex:1;margin:0}
+.actions{display:flex;flex-wrap:wrap;gap:.5rem;margin-top:.7rem}
+.rec .acts{display:flex;gap:.35rem;align-items:center}
+.rec button.mini{padding:.2rem .5rem;font-size:.72rem;border-radius:.3rem;
+border:1px solid var(--line);background:transparent;color:var(--muted);
+font-family:var(--mono);cursor:pointer}
+.rec button.mini:hover{color:var(--accent);border-color:var(--accent)}
+.modal{position:fixed;inset:0;z-index:40;display:none;place-items:center;
+background:rgba(4,8,14,.72);backdrop-filter:blur(6px);padding:1.2rem}
+.modal.show{display:grid}
+.modal .sheet{width:min(34rem,100%);background:var(--panel2);border:1px solid var(--line);
+border-radius:.9rem;padding:1.4rem 1.5rem;box-shadow:0 20px 60px rgba(0,0,0,.55);
+background-image:linear-gradient(180deg,rgba(227,179,65,.07),transparent 50%)}
+.modal h2{margin:0 0 .4rem;font-size:1.2rem;color:var(--gold)}
+.modal .hex{margin-top:.8rem;padding:.7rem .8rem;border:1px solid var(--line);
+border-radius:.45rem;background:rgba(0,0,0,.4);color:var(--gold);
+font-family:var(--mono);font-size:.78rem;word-break:break-all;max-height:6.5rem;
+overflow:auto;user-select:all}
+.modal .rowbtns{display:flex;flex-wrap:wrap;gap:.5rem;margin-top:1rem}
+.eye{opacity:.55;font-size:.78rem;margin-left:.25rem}
 
 /* Pending-actions bar. Fixed to the bottom because these are the jobs that
    kept getting lost between sessions -- a thing only a human can finish must
@@ -593,6 +755,31 @@ body.hastodo{padding-bottom:5.5rem}
 </style></head><body>
 <canvas id=sky></canvas><div class=veil></div>
 <div id=todo><div class=row id=todorow></div></div>
+
+<!-- One-time master-key backup. Shows when a key exists and has not been
+     acknowledged. Not a permanent "key is here" badge — a decision, once. -->
+<div class=modal id=keymodal role=dialog aria-modal=true aria-labelledby=keymodaltitle>
+  <div class=sheet>
+    <h2 id=keymodaltitle>Save your master key</h2>
+    <p class=note>This is the only thing that can decrypt your keep. There is
+    no password reset, no recovery email, no “forgot my key” — that is what
+    keeps the node blind. <b style="color:var(--ink)">Save it offline now,
+    before you store anything you would miss.</b></p>
+    <div class=hex id=keymodalhex>loading…</div>
+    <div class=rowbtns>
+      <button class=go id=keymodalsave>Download key file</button>
+      <button class=ghost id=keymodalcopy>Copy hex</button>
+    </div>
+    <div class=warnbox>Do <b style="color:var(--ink)">not</b> paste this into a
+    chat, email, cloud note, or screenshot. USB stick, password manager, or
+    paper. Anyone with it can read everything you keep here.</div>
+    <div class=rowbtns>
+      <button class=go id=keymodalack>I've saved it somewhere safe</button>
+      <button class=ghost id=keymodallater>Not now</button>
+    </div>
+  </div>
+</div>
+
 <div class=wrap>
 <header>
   <div class=brand>
@@ -605,6 +792,7 @@ body.hastodo{padding-bottom:5.5rem}
     <div><h1>Blindkeep</h1>
     <div class=tag id=tag>encrypted memory · the node cannot read it</div></div>
   </div>
+  <div class=rail id=rail aria-label="Privacy posture"></div>
   <div class=tabs role=tablist>
     <button class=tab id=t-keep role=tab aria-selected=true aria-controls=p-keep>Your keep</button>
     <button class=tab id=t-write role=tab aria-selected=false aria-controls=p-write>Remember</button>
@@ -619,25 +807,43 @@ body.hastodo{padding-bottom:5.5rem}
     <h2>Your keep</h2>
     <div class=stats id=stats></div>
     <p class=note id=keepnote></p>
+    <div id=welcome class=welcome style="display:none">
+      <div class=stepc><b>1 · Remember</b><span>Write something only you should see. It is encrypted on this machine before the node ever gets a blob.</span></div>
+      <div class=stepc><b>2 · Save your key</b><span>One file decrypts everything. Back it up once — there is no reset. We will ask you, not nag forever.</span></div>
+      <div class=stepc><b>3 · Prove, don't disclose</b><span>Show that you hold a record in this keep without saying which one. That is the zero-knowledge part.</span></div>
+    </div>
   </div>
   <div class=card>
-    <h2>Memories</h2>
-    <p class=note>Stored encrypted. Click one to decrypt it here — the node
-    only ever held ciphertext.</p>
+    <h2>Memories <span class=eye title="Labels stay inside the ciphertext. The node never sees them.">· private labels</span></h2>
+    <p class=note>Stored encrypted. Open one to decrypt it here — the node
+    only ever held ciphertext. Filter stays on this page; nothing is searched on the node.</p>
+    <div class=searchrow>
+      <input id=rfilter type=search placeholder="Filter by name (local only)…" autocomplete=off>
+    </div>
     <div id=recs style="margin-top:.8rem">…</div>
     <div id=reader style="display:none;margin-top:1rem;border-top:1px solid var(--line);
-         padding-top:1rem"><div class=mono id=readermeta></div>
-      <pre id=readertext style="white-space:pre-wrap;font-size:.9rem;margin:.6rem 0 0"></pre></div>
+         padding-top:1rem">
+      <div class=mono id=readermeta></div>
+      <pre id=readertext style="white-space:pre-wrap;font-size:.9rem;margin:.6rem 0 0"></pre>
+      <div class=actions>
+        <button class=ghost id=rprove>Prove I hold this · without naming which</button>
+        <button class=ghost id=rhide>Hide</button>
+      </div>
+      <div id=proveres style="margin-top:.8rem"></div>
+    </div>
   </div>
 </section>
 
 <section class=page id=p-write role=tabpanel aria-labelledby=t-write hidden>
   <div class=card>
     <h2>Remember something</h2>
-    <p class=note>This is encrypted on this machine before it leaves. The node
-    stores a blob it cannot open, and cannot tell one memory from another.</p>
-    <label for=wlabel>A name for it (optional)</label>
-    <input id=wlabel placeholder="e.g. bank details, notes on the grant">
+    <p class=note>Encrypted on this machine before it leaves. The node stores
+    a blob it cannot open, and cannot tell one memory from another.</p>
+    <div id=writewarn class=warnbox style="display:none">Your master key is not
+    marked as backed up yet. You will be asked to save it before this is kept —
+    or you can accept permanent loss if the key disappears.</div>
+    <label for=wlabel>A name for it (optional · stays encrypted)</label>
+    <input id=wlabel placeholder="e.g. bank details, notes on the grant" autocomplete=off>
     <label for=wtext>What to remember</label>
     <textarea id=wtext placeholder="Type anything. It never leaves in the clear."></textarea>
     <button class=go id=wgo>Encrypt and save</button>
@@ -652,7 +858,10 @@ body.hastodo{padding-bottom:5.5rem}
     node ever silently dropped or altered a record, the head would not match
     and this client would refuse it. That check runs on every read.</p>
     <div class=stats id=proofstats style="margin-top:1rem"></div>
-    <label>Current root</label><div class=mono id=root>…</div>
+    <label>Current root <span class=eye>(public commitment · not secret)</span></label>
+    <div class=mono id=root>…</div>
+    <label style="margin-top:.8rem">Integrity</label>
+    <div id=integrity class=okbox>Checking…</div>
   </div>
 
   <div class=card>
@@ -661,18 +870,41 @@ body.hastodo{padding-bottom:5.5rem}
     your keep. <b style="color:var(--ink)">Lose it and every memory here is
     gone. Leak it and every memory here is readable.</b> Nobody can reset it —
     that is what makes the node unable to read your data.</p>
-    <label>Where it lives</label>
+    <div id=keystatus class=warnbox>Not shown until you ask. It is never put in
+    the page state on refresh.</div>
+    <label>Where it lives on this machine</label>
     <div class=mono id=keypath>data/master.key</div>
-    <button class=ghost id=keyshow style="margin-top:.9rem">Show me the key</button>
+    <div class=actions>
+      <button class=ghost id=keyshow>Show me the key</button>
+      <button class=ghost id=keydl>Download key file</button>
+      <button class=ghost id=keyprompt>Open backup prompt</button>
+    </div>
     <div id=keybox style="display:none;margin-top:.9rem">
       <div class=mono id=keyhex style="padding:.7rem .8rem;border:1px solid var(--line);
            border-radius:.45rem;background:rgba(0,0,0,.35);color:var(--gold)"></div>
-      <button class=ghost id=keycopy style="margin-top:.6rem">Copy</button>
-      <button class=ghost id=keyhide style="margin-top:.6rem">Hide</button>
-      <div class=warnbox>Write this down somewhere offline, or copy the file to
-      a USB stick or password manager. Anyone who has it can read your keep, so
-      do not paste it into a chat, an email, or a cloud note.</div>
+      <div class=actions>
+        <button class=ghost id=keycopy>Copy</button>
+        <button class=ghost id=keyhide>Hide</button>
+        <button class=go id=keyackbtn style="margin-top:0">I've saved this</button>
+      </div>
+      <div class=warnbox>Write this down offline, or keep the file on a USB stick
+      or password manager. Do not paste it into a chat, email, or cloud note.</div>
     </div>
+  </div>
+
+  <div class=card>
+    <h2>Zero-knowledge membership</h2>
+    <p class=note>Prove you hold <b style="color:var(--ink)">one</b> of the
+    records in this keep without saying which. The proof carries no index;
+    every record produces the same shape. Bound to the signed tree head, so it
+    fails if the keep grows or is swapped.</p>
+    <label for=proveidx>Record number to prove (kept private in the proof)</label>
+    <input id=proveidx type=number min=0 step=1 placeholder="e.g. 0" style="max-width:12rem">
+    <div class=actions>
+      <button class=go id=provego style="margin-top:0">Build proof</button>
+      <button class=ghost id=provedl style="display:none">Download proof JSON</button>
+    </div>
+    <div id=proveout style="margin-top:.9rem"></div>
   </div>
 
   <div class=card>
@@ -937,71 +1169,261 @@ const tabs=[...document.querySelectorAll('.tab')];
 tabs.forEach(t=>t.onclick=()=>tabs.forEach(o=>{const on=o===t;
   o.setAttribute('aria-selected',on); $(o.getAttribute('aria-controls')).hidden=!on;}));
 
+let STATE = null;
+let LAST_PROOF = null;
+let OPEN_IDX = null;
+let KEY_HEX = '';
+let MODAL_DISMISSED = false;   // "Not now" this session only
+// Labels live inside ciphertext; the list endpoint cannot show them. Cache
+// what we decrypt in this session so the filter can use real names.
+const LABEL_CACHE = {};
+
+function paintRail(s){
+  const p = s.privacy || {};
+  const pills = [
+    ['on','localhost only'],
+    ['on','encrypted on this device'],
+    ['on','key never leaves'],
+    [p.sends_data_out ? 'bad' : 'on', p.sends_data_out ? 'phones home' : 'does not phone home'],
+    [p.agent_access ? 'warn' : 'good', p.agent_access ? 'agent access ON' : 'agent access off'],
+    [p.key_backed_up ? 'good' : (s.key_exists ? 'warn' : 'on'),
+      p.key_backed_up ? 'key backed up' : (s.key_exists ? 'key not backed up yet' : 'no key yet')],
+  ];
+  $('rail').innerHTML = pills.map(([k,t])=>`<span class="pill ${k}">${esc(t)}</span>`).join('');
+}
+
+function paintStats(s){
+  const html =
+    `<div class=stat><b>${s.records??0}</b><span>memories kept</span></div>
+     <div class=stat><b>${s.tree_size??'—'}</b><span>entries in the log</span></div>
+     <div class=stat><b>${s.integrity==='verified'?'verified':'—'}</b><span>log integrity</span></div>
+     <div class=stat><b>${s.pin_held?'held':'—'}</b><span>local pin</span></div>`;
+  $('stats').innerHTML = html;
+  $('proofstats').innerHTML = html;
+}
+
+function paintList(s){
+  const q = ($('rfilter').value||'').trim().toLowerCase();
+  const rows = (s.list||[]).filter(r=>{
+    if(!q) return true;
+    const lab = LABEL_CACHE[r.index] || r.label || '';
+    return String(lab).toLowerCase().includes(q)
+        || String(r.index??'').includes(q);
+  });
+  $('welcome').style.display = s.records ? 'none' : 'grid';
+  $('keepnote').textContent = s.records
+    ? 'Everything below was encrypted here before the node saw it. Click to decrypt locally.'
+    : 'Nothing kept yet. Open Remember and write your first memory — you will be asked to save your master key first.';
+  if(!rows.length){
+    $('recs').innerHTML = s.list && s.list.length
+      ? '<span class=note>no memories match that filter</span>'
+      : '<span class=note>nothing yet</span>';
+    return;
+  }
+  $('recs').innerHTML = rows.slice().reverse().map(r=>{
+    const i = r.index;
+    // Labels from list are empty by design (node never stores them). After you
+    // open a record here, its name is cached for this session only.
+    const title = LABEL_CACHE[i] || r.label || ('record #'+i);
+    return `<div class=rec data-i="${i}">
+      <span>${esc(title)}</span>
+      <span class=acts>
+        <button class=mini data-act=open data-i="${i}">open</button>
+        <button class=mini data-act=prove data-i="${i}">prove</button>
+        <span class=i>#${i}</span>
+      </span></div>`;
+  }).join('');
+  document.querySelectorAll('.rec').forEach(el=>{
+    el.onclick = e=>{
+      const btn = e.target.closest('button.mini');
+      const i = el.dataset.i;
+      if(btn && btn.dataset.act==='prove'){ e.stopPropagation(); doProve(i, true); return; }
+      openRecord(i);
+    };
+  });
+}
+
+async function openRecord(i){
+  OPEN_IDX = i;
+  $('reader').style.display='block';
+  $('proveres').innerHTML='';
+  $('readertext').textContent='decrypting…';
+  $('readermeta').textContent = 'record #'+i;
+  const r = await (await api('/api/read/'+i)).json();
+  if(r.error){ $('readertext').textContent='could not open: '+r.error; return; }
+  const lab = (r.meta&&r.meta.label) ? r.meta.label : '';
+  if(lab) LABEL_CACHE[i] = lab;
+  $('readermeta').textContent =
+    (lab?lab+' · ':'')+'record #'+i+' · decrypted here, not on the node · inclusion verified';
+  $('readertext').textContent = r.text;
+  $('proveidx').value = i;
+  if(STATE) paintList(STATE);
+}
+
 async function refresh(){
   let s;
   try { s = await (await api('/api/state')).json(); }
   catch(e){ $('tag').textContent='could not reach the app'; return; }
-  if(!s.node){ $('tag').textContent='node did not start: '+esc(s.why||''); return; }
+  STATE = s;
+  if(!s.node){ $('tag').textContent='node did not start: '+(s.why||'');
+    paintRail(s); return; }
   $('tag').textContent = 'encrypted memory · the node cannot read it';
-  $('stats').innerHTML =
-    `<div class=stat><b>${s.records}</b><span>memories kept</span></div>
-     <div class=stat><b>${s.tree_size??'—'}</b><span>entries in the log</span></div>
-     <div class=stat><b>${s.key_exists?'yes':'no'}</b><span>master key present</span></div>`;
-  $('proofstats').innerHTML = $('stats').innerHTML;
+  paintRail(s);
+  paintStats(s);
+  paintList(s);
   $('root').textContent = s.root || '—';
-  $('keepnote').textContent = s.records
-    ? 'Everything below was encrypted here before the node saw it.'
-    : 'Nothing kept yet. Open Remember and write your first memory.';
-  $('recs').innerHTML = s.list.length
-    ? s.list.map((r,i)=>`<div class=rec data-i="${r.index??i}">
-        <span>${esc(r.label||'(no name)')}</span>
-        <span class=i>#${r.index??i}</span></div>`).reverse().join('')
-    : '<span class=note>nothing yet</span>';
-  document.querySelectorAll('.rec').forEach(el=>el.onclick=async()=>{
-    const r = await (await api('/api/read/'+el.dataset.i)).json();
-    $('reader').style.display='block';
-    if(r.error){ $('readertext').textContent='could not open: '+r.error; return; }
-    $('readermeta').textContent = 'record #'+el.dataset.i+' · decrypted here, not on the node';
-    $('readertext').textContent = r.text;
-  });
+  $('integrity').className = 'okbox';
+  $('integrity').innerHTML = s.pin_held
+    ? '<b style="color:var(--good)">Verified.</b> Signed head checked; append-only pin held on this machine. A rewrite would be refused.'
+    : '<b style="color:var(--good)">Verified.</b> Signed head checked this session. A pin will be written on the first read or write.';
+  if(s.key_backed_up){
+    $('keystatus').className='okbox';
+    $('keystatus').innerHTML='Backup acknowledged. The key itself is still only shown when you ask — never on every refresh.';
+  } else if(s.key_exists){
+    $('keystatus').className='warnbox';
+    $('keystatus').innerHTML='Key exists on this machine but is <b style="color:var(--ink)">not marked as backed up</b>. Save it offline once.';
+  } else {
+    $('keystatus').className='warnbox';
+    $('keystatus').textContent='No key yet. One is created the first time you save a memory or open the backup prompt.';
+  }
+  $('writewarn').style.display = s.key_backed_up ? 'none' : 'block';
+  // One-time backup modal: key exists, not acked, not dismissed this session.
+  if(s.key_exists && !s.key_backed_up && !MODAL_DISMISSED){
+    openKeyModal(!!s.key_just_created);
+  }
   if(!s.heartwood){ $('hwform').style.display='none'; $('hwgo').style.display='none';
     $('hwmissing').style.display='block';
     $('hwmissingtext').textContent = s.heartwood_error || 'not available'; }
 }
 refresh();
+$('rfilter').oninput = ()=>{ if(STATE) paintList(STATE); };
+$('rhide').onclick = ()=>{ $('reader').style.display='none'; OPEN_IDX=null; };
 
-$('wgo').onclick=async()=>{
+async function openKeyModal(justCreated){
+  $('keymodal').classList.add('show');
+  $('keymodaltitle').textContent = justCreated
+    ? 'Your master key was just created — save it'
+    : 'Save your master key';
+  try{
+    const r = await (await api('/api/key')).json();
+    if(r.error){ $('keymodalhex').textContent = r.error; KEY_HEX=''; return; }
+    KEY_HEX = r.hex || '';
+    $('keymodalhex').textContent = KEY_HEX;
+    if(r.path) $('keypath').textContent = r.path;
+  }catch(e){ $('keymodalhex').textContent = 'could not load key'; }
+}
+function closeKeyModal(){ $('keymodal').classList.remove('show'); }
+
+async function ackKey(){
+  await api('/api/key/ack',{method:'POST',body:JSON.stringify({})});
+  closeKeyModal();
+  MODAL_DISMISSED = false;
+  await refresh();
+}
+$('keymodalack').onclick = ackKey;
+$('keymodallater').onclick = ()=>{ MODAL_DISMISSED=true; closeKeyModal(); };
+$('keymodalcopy').onclick = async()=>{
+  try{ await navigator.clipboard.writeText(KEY_HEX||$('keymodalhex').textContent);
+    $('keymodalcopy').textContent='Copied'; setTimeout(()=>$('keymodalcopy').textContent='Copy hex',1500); }
+  catch(e){ $('keymodalcopy').textContent='select it manually'; }
+};
+$('keymodalsave').onclick = ()=>{
+  // Token in query so a plain navigation can download without custom headers.
+  location.href = '/api/key/download?t='+encodeURIComponent(TOKEN);
+};
+
+async function writeMemory(force){
   const text=$('wtext').value.trim(); if(!text) return;
   $('wgo').disabled=true;
-  const r=await (await api('/api/write',{method:'POST',
-    body:JSON.stringify({text,label:$('wlabel').value})})).json();
+  const body={text,label:$('wlabel').value};
+  if(force) body.i_accept_no_backup = true;
+  const res = await api('/api/write',{method:'POST',body:JSON.stringify(body)});
+  const r = await res.json();
   $('wgo').disabled=false;
+  if(r.code==='key_not_backed_up'){
+    $('wres').innerHTML =
+      `<div class=res style="border-color:var(--gold)">
+        <b style="color:var(--gold)">Back up your master key first.</b>
+        <p class=note style="margin-top:.4rem">${esc(r.hint||'')}</p>
+        <div class=actions>
+          <button class=go id=wbackup style="margin-top:0">Save my key now</button>
+          <button class=ghost id=wforce>Save memory anyway (I accept permanent loss)</button>
+        </div></div>`;
+    $('wbackup').onclick = ()=>openKeyModal(!!r.key_just_created);
+    $('wforce').onclick = ()=>writeMemory(true);
+    // Key was minted; surface the modal immediately.
+    openKeyModal(!!r.key_just_created);
+    await refresh();
+    return;
+  }
   $('wres').innerHTML = r.ok
     ? `<div class=res style="border-color:var(--good)"><b style="color:var(--good)">Kept.</b>
-       <div class=mono style="margin-top:.4rem">encrypted here · the node stored a blob it cannot read</div></div>`
+       <div class=mono style="margin-top:.4rem">encrypted here · the node stored a blob it cannot read
+       · log head verified</div></div>`
     : `<div class=res style="border-color:var(--bad)"><b style="color:var(--bad)">Failed.</b>
        <div class=mono>${esc(r.error||'')}</div></div>`;
   if(r.ok){ $('wtext').value=''; $('wlabel').value=''; refresh(); }
-};
+}
+$('wgo').onclick=()=>writeMemory(false);
 
 $('keyshow').onclick=async()=>{
   const r=await (await api('/api/key')).json();
   if(r.error){ $('keyhex').textContent=r.error; }
-  else { $('keyhex').textContent=r.hex; $('keypath').textContent=r.path; }
-  $('keybox').style.display='block'; $('keyshow').style.display='none';
+  else { KEY_HEX=r.hex; $('keyhex').textContent=r.hex; if(r.path)$('keypath').textContent=r.path; }
+  $('keybox').style.display='block';
 };
-$('keyhide').onclick=()=>{ $('keybox').style.display='none';
-  $('keyhex').textContent=''; $('keyshow').style.display='inline-block'; };
+$('keyhide').onclick=()=>{ $('keybox').style.display='none'; $('keyhex').textContent=''; };
 $('keycopy').onclick=async()=>{
   try{ await navigator.clipboard.writeText($('keyhex').textContent);
        $('keycopy').textContent='Copied'; setTimeout(()=>$('keycopy').textContent='Copy',1500); }
   catch(e){ $('keycopy').textContent='select it manually'; }
+};
+$('keydl').onclick=()=>{ location.href='/api/key/download?t='+encodeURIComponent(TOKEN); };
+$('keyprompt').onclick=()=>{ MODAL_DISMISSED=false; openKeyModal(false); };
+$('keyackbtn').onclick=ackKey;
+
+async function doProve(idx, stay){
+  $('proveout').innerHTML = '<span class=note>building zero-knowledge proof…</span>';
+  $('proveres').innerHTML = '<span class=note>building zero-knowledge proof…</span>';
+  const res = await api('/api/prove',{method:'POST',body:JSON.stringify({index:Number(idx)})});
+  const r = await res.json();
+  LAST_PROOF = r.bundle || null;
+  const box = r.ok
+    ? `<div class=res style="border-color:var(--good)">
+        <b style="color:var(--good)">VERIFIED</b>
+        <p class=note style="margin-top:.4rem">${esc(r.statement||'')}</p>
+        <div class=mono style="margin-top:.5rem">branches ${r.branches} · tree size ${r.tree_size}
+        · index not in proof: ${r.proof_has_index?'NO — bug':'yes'}
+        · root ${esc((r.root||'').slice(0,16))}…</div></div>`
+    : `<div class=res style="border-color:var(--bad)"><b style="color:var(--bad)">Failed.</b>
+        <div class=mono>${esc(r.error||'proof did not verify')}</div></div>`;
+  $('proveout').innerHTML = box;
+  $('proveres').innerHTML = box;
+  $('provedl').style.display = LAST_PROOF ? 'inline-block' : 'none';
+  if(!stay){
+    tabs.forEach(o=>{const on=o.id==='t-proof';
+      o.setAttribute('aria-selected',on); $(o.getAttribute('aria-controls')).hidden=!on;});
+  }
+}
+$('provego').onclick=()=>{
+  const i=$('proveidx').value;
+  if(i===''||i==null){ $('proveout').innerHTML='<span class=note>pick a record number</span>'; return; }
+  doProve(i, false);
+};
+$('rprove').onclick=()=>{ if(OPEN_IDX!=null) doProve(OPEN_IDX, true); };
+$('provedl').onclick=()=>{
+  if(!LAST_PROOF) return;
+  const blob = new Blob([JSON.stringify(LAST_PROOF,null,2)],{type:'application/json'});
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob); a.download='blindkeep-membership-proof.json';
+  a.click(); URL.revokeObjectURL(a.href);
 };
 
 async function agentPaint(a){
   const on=a.enabled;
   $('agenttoggle').textContent = on ? 'Turn off agent access' : 'Turn on agent access';
   $('agentbox').style.display = on ? 'block' : 'none';
+  if(STATE){ STATE.privacy = STATE.privacy||{}; STATE.privacy.agent_access=on; paintRail(STATE); }
   if(!on) return;
   $('agenturl').textContent = a.url;
   $('agenttok').textContent = a.token;
@@ -1010,7 +1432,7 @@ async function agentPaint(a){
 curl -s ${a.url}/api/write \\
   -H "X-Blindkeep-Token: ${a.token}" \\
   -H "Content-Type: application/json" \\
-  -d '{"text":"remember this","label":"note"}'
+  -d '{"text":"remember this","label":"note","i_accept_no_backup":true}'
 
 # read memory #0 back
 curl -s "${a.url}/api/read/0" -H "X-Blindkeep-Token: ${a.token}"`;

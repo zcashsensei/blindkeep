@@ -46,11 +46,17 @@ on your machine before it reaches storage. Nothing to sign up for, no server of
 ours involved, and it keeps working when we are offline.
 
 Five tabs: **Your keep** (what you have stored) · **Remember** (save something)
-· **Proof** (the signed log head, your master key, and agent access) · **Check
-your AI** (whether a provider is quietly throttling the model you pay for —
-needs [Heartwood](https://github.com/zcashsensei/heartwood), a separate project,
-cloned alongside) · **How it works** (the mechanism, and what it deliberately
-does *not* protect).
+· **Proof** (signed log head, master key, zero-knowledge membership, agent
+access) · **Check your AI** (whether a provider is quietly throttling the model
+you pay for — needs [Heartwood](https://github.com/zcashsensei/heartwood), a
+separate project, cloned alongside) · **How it works** (the mechanism, and what
+it deliberately does *not* protect).
+
+A privacy strip on every page shows the posture at a glance (localhost only,
+encrypted here, key never leaves, agent off). The first time you save a memory
+you are asked to **back up your master key once** — download the file, copy the
+hex, then confirm. After that the app does not nag; the key is still only shown
+when you ask. You can also prove you hold a record without naming which one.
 
 > **Back up your master key** — `data/master.key` — before you store anything
 > you would mind losing. It is the only thing that can decrypt your keep, and
