@@ -788,9 +788,8 @@ class Handler(BaseHTTPRequestHandler):
                 self.wfile.write(blob)
                 return
             if path == "/api/frontier-chat":
-                # Maximum-effort CONTENT-private path. Never claims identity
-                # or metadata privacy. Requires dual ack + unlocked keep when
-                # recalling context. Session token only — not the agent token.
+                # Historic stack entry: content gate + optional account-decoupled
+                # gateway (client holds no provider API key; blind token only).
                 if not _require_session_token(self):
                     return self._send(403, {
                         "error": "session only — frontier path is human-gated"})
@@ -809,19 +808,16 @@ class Handler(BaseHTTPRequestHandler):
                     return self._send(400, {
                         "error": "both enable_frontier and "
                                  "accept_residual_risks are required",
-                        "hint": "this path protects content, not identity"})
-                api_base = (body.get("api_base") or "").strip()
+                        "hint": "content is gated; identity only with gateway"})
                 model = (body.get("model") or "").strip()
-                api_key = (body.get("api_key") or default_api_key() or "").strip()
-                if not api_base or not model:
-                    return self._send(400, {
-                        "error": "api_base and model are required"})
-                if not api_key:
-                    return self._send(400, {
-                        "error": "api_key required (or set BLINDKEEP_CLOUD_KEY)"})
+                gateway_url = (body.get("gateway_url") or "").strip()
+                token_blob = body.get("token")  # {token_hex, signature_hex}
                 local_model = (body.get("local_model") or "llama3.2").strip()
                 ollama_base = (body.get("ollama_base")
                                or "http://127.0.0.1:11434").strip()
+                if not model:
+                    return self._send(400, {"error": "model is required"})
+                account_decoupled = False
                 context: list = []
                 if body.get("with_keep"):
                     try:
@@ -842,9 +838,33 @@ class Handler(BaseHTTPRequestHandler):
                             "code": "key_locked"})
                 try:
                     local = make_ollama_local(ollama_base, local_model)
-                    remote = make_cloud_remote(
-                        api_base=api_base, api_key=api_key, model=model,
-                        dialect=body.get("dialect") or None)
+                    if gateway_url:
+                        from blindkeep.anon_token import Token
+                        from blindkeep.frontier_gateway import make_gateway_remote
+                        if not isinstance(token_blob, dict):
+                            return self._send(400, {
+                                "error": "gateway path needs token object "
+                                         "{token_hex, signature_hex}"})
+                        tok = Token(
+                            value_hex=str(token_blob.get("token_hex") or ""),
+                            signature_hex=str(
+                                token_blob.get("signature_hex") or ""))
+                        remote = make_gateway_remote(
+                            gateway_url, tok, model=model)
+                        account_decoupled = True
+                    else:
+                        api_base = (body.get("api_base") or "").strip()
+                        api_key = (body.get("api_key") or default_api_key()
+                                   or "").strip()
+                        if not api_base:
+                            return self._send(400, {
+                                "error": "api_base required, or set gateway_url"})
+                        if not api_key:
+                            return self._send(400, {
+                                "error": "api_key required (or use gateway + token)"})
+                        remote = make_cloud_remote(
+                            api_base=api_base, api_key=api_key, model=model,
+                            dialect=body.get("dialect") or None)
                     receipt = frontier_chat(
                         text,
                         local=local,
@@ -855,6 +875,7 @@ class Handler(BaseHTTPRequestHandler):
                         max_specificity=int(body.get("max_specificity") or 24),
                         ohttp_independent_operators=(
                             True if body.get("ohttp_independent") else None),
+                        account_decoupled=account_decoupled,
                     )
                 except FrontierPrivateError as exc:
                     return self._send(409, {"error": str(exc),
@@ -1441,34 +1462,42 @@ body.hastodo{padding-bottom:5.5rem}
   </div>
 
   <div class=card>
-    <h2>Maximum-effort frontier path</h2>
-    <p class=note>Closest path this project offers: a <b style="color:var(--ink)">local
-    model abstracts</b> your question, <b style="color:var(--ink)">LeakGate refuses
-    any leak</b>, only the cleared text hits a frontier API, then the answer is
-    re-specialised here. Requires Ollama locally + your API key. Protects
-    <b>content</b>, not account identity or IP.</p>
+    <h2>Historic frontier stack</h2>
+    <p class=note><b style="color:var(--ink)">Content gated</b> (local abstract +
+    LeakGate) · <b style="color:var(--ink)">account decoupled</b> when you use a
+    gateway + blind token (you never paste a provider API key here) ·
+    re-specialise on this machine. See <span class=mono>STACK.md</span>.</p>
     <label for=ft-text>Your private question</label>
     <textarea id=ft-text placeholder="Include real names/details — they should stay on this machine."></textarea>
     <div class=grid2 style="margin-top:.6rem">
-      <div><label for=ft-base>API base</label>
+      <div><label for=ft-mode>Path</label>
+        <select id=ft-mode>
+          <option value=gateway selected>Gateway + blind token (no client API key)</option>
+          <option value=direct>Direct API key (content only — account still yours)</option>
+        </select></div>
+      <div><label for=ft-model>Frontier model id</label>
+        <input id=ft-model placeholder="grok-3 / gpt-4o / …" autocomplete=off></div>
+      <div id=ft-gw-wrap><label for=ft-gw>Gateway URL</label>
+        <input id=ft-gw value="http://127.0.0.1:8751" autocomplete=off></div>
+      <div id=ft-tok-wrap><label for=ft-token>Token JSON (from token issue)</label>
+        <textarea id=ft-token style="min-height:4rem" placeholder='{"token_hex":"…","signature_hex":"…"}'></textarea></div>
+      <div id=ft-base-wrap style="display:none"><label for=ft-base>API base</label>
         <input id=ft-base placeholder="https://api.x.ai" autocomplete=off></div>
-      <div><label for=ft-model>Frontier model</label>
-        <input id=ft-model placeholder="grok-3" autocomplete=off></div>
-      <div><label for=ft-key>API key (or env BLINDKEEP_CLOUD_KEY)</label>
-        <input id=ft-key type=password autocomplete=off placeholder="not stored by Blindkeep"></div>
+      <div id=ft-key-wrap style="display:none"><label for=ft-key>API key</label>
+        <input id=ft-key type=password autocomplete=off placeholder="not stored"></div>
       <div><label for=ft-local>Local Ollama model</label>
         <input id=ft-local value="llama3.2" autocomplete=off></div>
     </div>
     <label style="margin-top:.8rem;display:flex;gap:.5rem;align-items:flex-start;color:var(--muted);font-size:.86rem">
       <input type=checkbox id=ft-enable style="width:auto;margin-top:.2rem">
-      Enable frontier-private path (content gate only)</label>
+      Enable frontier path</label>
     <label style="display:flex;gap:.5rem;align-items:flex-start;color:var(--muted);font-size:.86rem">
       <input type=checkbox id=ft-accept style="width:auto;margin-top:.2rem">
-      I accept residual risks: API account identity + metadata are NOT private</label>
+      I accept residual risks listed in the receipt (not zero-metadata magic)</label>
     <label style="display:flex;gap:.5rem;align-items:flex-start;color:var(--muted);font-size:.86rem">
       <input type=checkbox id=ft-keep style="width:auto;margin-top:.2rem">
       Use recent keep memories as private context (never sent raw)</label>
-    <button class=go id=ft-go>Ask with content gate</button>
+    <button class=go id=ft-go>Run historic stack</button>
     <div id=ft-out style="margin-top:1rem"></div>
   </div>
 
@@ -1936,27 +1965,45 @@ $('agenttoggle').onclick=async()=>{
 };
 api('/api/agent').then(r=>r.json()).then(agentPaint).catch(()=>{});
 
+function ftModePaint(){
+  const gw = ($('ft-mode').value==='gateway');
+  $('ft-gw-wrap').style.display = gw?'block':'none';
+  $('ft-tok-wrap').style.display = gw?'block':'none';
+  $('ft-base-wrap').style.display = gw?'none':'block';
+  $('ft-key-wrap').style.display = gw?'none':'block';
+}
+$('ft-mode').onchange = ftModePaint; ftModePaint();
+
 $('ft-go').onclick = async ()=>{
   const text = ($('ft-text').value||'').trim();
   if(!text){ $('ft-out').innerHTML='<span class=note>type a question</span>'; return; }
   if(!$('ft-enable').checked || !$('ft-accept').checked){
-    $('ft-out').innerHTML='<div class=warnbox>Both acknowledgements are required. This path is content-gated, not identity-private.</div>';
+    $('ft-out').innerHTML='<div class=warnbox>Both acknowledgements are required.</div>';
     return;
   }
+  const useGw = $('ft-mode').value==='gateway';
+  const body = {
+    text,
+    model: $('ft-model').value.trim(),
+    local_model: $('ft-local').value.trim()||'llama3.2',
+    enable_frontier: true,
+    accept_residual_risks: true,
+    with_keep: $('ft-keep').checked,
+  };
+  if(useGw){
+    body.gateway_url = $('ft-gw').value.trim();
+    try { body.token = JSON.parse($('ft-token').value||'{}'); }
+    catch(e){ $('ft-out').innerHTML='<div class=warnbox>Token JSON is invalid.</div>'; return; }
+  } else {
+    body.api_base = $('ft-base').value.trim();
+    body.api_key = $('ft-key').value;
+  }
   $('ft-go').disabled = true;
-  $('ft-go').textContent = 'Abstracting + gating…';
-  $('ft-out').innerHTML = '<span class=note>local model rewrites · gate checks · frontier only sees cleared text…</span>';
+  $('ft-go').textContent = 'Running stack…';
+  $('ft-out').innerHTML = '<span class=note>abstract · LeakGate · '
+    +(useGw?'blind token · gateway':'API key')+' …</span>';
   try{
-    const res = await api('/api/frontier-chat',{method:'POST',body:JSON.stringify({
-      text,
-      api_base: $('ft-base').value.trim(),
-      model: $('ft-model').value.trim(),
-      api_key: $('ft-key').value,
-      local_model: $('ft-local').value.trim()||'llama3.2',
-      enable_frontier: true,
-      accept_residual_risks: true,
-      with_keep: $('ft-keep').checked,
-    })});
+    const res = await api('/api/frontier-chat',{method:'POST',body:JSON.stringify(body)});
     const r = await res.json();
     if(!res.ok || r.error){
       $('ft-out').innerHTML = `<div class=res style="border-color:var(--bad)">
@@ -1966,6 +2013,7 @@ $('ft-go').onclick = async ()=>{
     }
     const claims = (r.claims||[]).map(c=>`<li>${esc(c)}</li>`).join('');
     const residual = (r.residual||[]).map(c=>`<li>${esc(c)}</li>`).join('');
+    const idOk = r.identity_private ? 'var(--good)' : 'var(--warn)';
     $('ft-out').innerHTML = `
       <div class=res style="border-color:var(--good)">
         <b style="color:var(--good)">Reply</b>
@@ -1974,13 +2022,15 @@ $('ft-go').onclick = async ()=>{
       <div class=card style="margin-top:.8rem">
         <h2 style="font-size:.95rem">Receipt</h2>
         <p class=note>${esc(r.notice||'')}</p>
-        <label>Mode</label><div class=mono>${esc(r.mode)} · attempts ${esc(r.attempts)}</div>
-        <label>Exactly what left toward the provider</label>
+        <label>Mode</label><div class=mono>${esc(r.mode)} · attempts ${esc(r.attempts)} ·
+          account_decoupled=${esc(r.account_decoupled)}</div>
+        <label>Exactly what left toward the provider / gateway</label>
         <pre class=mono style="white-space:pre-wrap;font-size:.78rem;background:rgba(0,0,0,.3);
           border:1px solid var(--line);border-radius:.45rem;padding:.7rem">${esc(r.sent||'')}</pre>
         <div class=okbox style="margin-top:.7rem"><b>Claims</b><ul class=plain>${claims}</ul></div>
         <div class=warnbox style="margin-top:.7rem"><b>Residual — not claimed</b><ul class=plain>${residual}</ul></div>
-        <p class=note style="margin-top:.6rem">identity_private=${esc(r.identity_private)} ·
+        <p class=note style="margin-top:.6rem">
+          <span style="color:${idOk}">identity_private=${esc(r.identity_private)}</span> ·
           metadata_private=${esc(r.metadata_private)} · content_private=${esc(r.content_private)}</p>
       </div>`;
   }catch(e){
@@ -1988,7 +2038,7 @@ $('ft-go').onclick = async ()=>{
       <p class=note>${esc(e.message||e)}</p></div>`;
   }finally{
     $('ft-go').disabled = false;
-    $('ft-go').textContent = 'Ask with content gate';
+    $('ft-go').textContent = 'Run historic stack';
   }
 };
 
