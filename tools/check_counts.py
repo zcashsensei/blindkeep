@@ -47,6 +47,7 @@ TOTAL_CLAIM_FLOOR = 50
 # without a label here fails the completeness check rather than being skipped.
 LABELS = {
     "test_adversarial.py": "adversarial",
+    "test_agent_gate.py": "agent gate",
     "test_anon_token.py": "anon-token",
     "test_app_security.py": "app-security",
     "test_attest.py": "attestation",
