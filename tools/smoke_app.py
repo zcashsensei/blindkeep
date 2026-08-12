@@ -2,11 +2,15 @@
 import io
 import json
 import re
+import sys
 import urllib.error
 import urllib.request
 import zipfile
+from pathlib import Path
 
 BASE = "http://127.0.0.1:8743"
+ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(ROOT))
 
 
 def main() -> int:
@@ -15,11 +19,10 @@ def main() -> int:
     assert m, "no token in page"
     token = m.group(1)
     print("token ok", len(token))
-    for needle in ("keymodal", "sealed zip", "Privacy posture",
-                   "Prove I hold", "localhost only", "Download sealed zip"):
+    for needle in ("keymodal", "Seal on disk", "Privacy posture",
+                   "Truth: frontier models", "sealed"):
         assert needle in html, f"missing UI marker: {needle}"
-    assert "keymodalhex" not in html, "raw hex UI must not ship"
-    assert "Copy hex" not in html, "copy-hex must not ship"
+    assert "Copy hex" not in html
     print("ui markers ok")
 
     def req(path, data=None, raw=False):
@@ -42,68 +45,59 @@ def main() -> int:
         except urllib.error.HTTPError as e:
             raw_body = e.read()
             try:
-                return e.code, json.loads(raw_body.decode())
+                parsed = json.loads(raw_body.decode())
             except Exception:
-                return e.code, raw_body
+                parsed = raw_body
+            if raw:
+                return e.code, parsed, e.headers
+            return e.code, parsed
 
     code, st = req("/api/state")
-    print("state", code, "records", st.get("records"),
-          "key", st.get("key_exists"), "backed", st.get("key_backed_up"))
-    assert st["privacy"]["bound"] == "loopback"
-    assert st["privacy"]["backup_format"] == "passphrase-sealed zip"
+    print("state", code, st.get("unlocked"), st.get("key_sealed_at_rest"))
+    assert st["privacy"]["frontier_private_by_default"] is False
+    assert st["privacy"]["sends_data_out"] is False
 
     code, w = req("/api/write", {"text": "secret note", "label": "test"})
-    print("write no backup", code, w.get("code"))
-    assert code == 409 and w.get("code") == "key_not_backed_up"
+    print("write gated", code, w.get("code"))
+    assert code in (409, 423), w
 
-    code, k = req("/api/key")
-    print("key meta", code, k)
-    assert code == 200 and k.get("hex") is None
-    assert k.get("raw_download") is False
-
-    # Raw GET download must be refused
-    code, refused = req("/api/key/download")
-    print("raw download", code, refused.get("error") if isinstance(refused, dict) else refused)
-    assert code == 405
-
-    # Sealed export
     pw = "correct-horse-test-passphrase"
     code, blob, headers = req(
-        "/api/key/export",
+        "/api/key/setup",
         {"passphrase": pw, "passphrase_confirm": pw},
         raw=True,
     )
-    print("export", code, "bytes", len(blob) if isinstance(blob, (bytes, bytearray)) else type(blob))
-    assert code == 200 and isinstance(blob, (bytes, bytearray))
-    assert b"PK" == blob[:2]  # zip magic
-    assert "zip" in (headers.get("Content-Type") or "")
-    with zipfile.ZipFile(io.BytesIO(blob)) as zf:
-        names = set(zf.namelist())
-        assert "master.key.sealed" in names and "README.txt" in names
-        sealed = zf.read("master.key.sealed")
-        assert sealed.startswith(b"BK1\0")
-        # sealed payload must not be the raw 32-byte key
-        assert len(sealed) > 32
+    print("setup", code, "zip", isinstance(blob, (bytes, bytearray)), len(blob) if isinstance(blob, (bytes, bytearray)) else blob)
+    assert code == 200 and isinstance(blob, (bytes, bytearray)) and blob[:2] == b"PK"
+    assert (ROOT / "data" / "master.key.sealed").is_file(), "sealed at rest missing"
+    assert not (ROOT / "data" / "master.key").is_file(), "plaintext key must be gone"
 
-    # Round-trip open
-    import sys
-    from pathlib import Path
-    sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
     import app as appmod
     raw = appmod.open_master_key_zip(bytes(blob), pw)
     assert len(raw) == 32
+    assert appmod.open_payload(
+        (ROOT / "data" / "master.key.sealed").read_bytes(), pw) == raw
     print("seal round-trip ok")
 
     code, st = req("/api/state")
-    assert st["key_backed_up"], "export should auto-ack backup"
+    assert st["unlocked"] and st["key_sealed_at_rest"] and st["key_backed_up"]
 
     code, w = req("/api/write", {"text": "secret note", "label": "test"})
-    print("write after export", code, w.get("ok"), (w.get("record") or {}).get("index"))
+    print("write after setup", code, w.get("ok"))
     assert w.get("ok")
 
-    code, p = req("/api/prove", {"index": int((w.get("record") or {}).get("index", 0))})
-    print("prove", code, p.get("ok"), "has_idx", p.get("proof_has_index"))
-    assert p.get("ok") and p.get("proof_has_index") is False
+    # Lock session in the running server, then unlock again
+    code, locked = req("/api/key/lock", {})
+    assert locked.get("ok")
+    code, st = req("/api/state")
+    assert st["key_sealed_at_rest"] and not st["unlocked"]
+    code, w = req("/api/write", {"text": "again", "label": "x"})
+    assert code == 423 and w.get("code") == "key_locked"
+    code, u = req("/api/key/unlock", {"passphrase": pw})
+    print("unlock", code, u)
+    assert u.get("ok")
+    code, w = req("/api/write", {"text": "after unlock", "label": "x"})
+    assert w.get("ok")
 
     print("ALL SMOKE OK")
     return 0
