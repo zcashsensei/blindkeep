@@ -48,6 +48,15 @@ data/*/records/
 data/*/head.json
 data/pin.json
 
+# The app's local state. `catalogue.json` is the one that matters: it holds the
+# PLAINTEXT NAME of every memory, because the node is sent an empty label and a
+# listing would otherwise be unreadable. A name is a disclosure on its own --
+# "bank details" tells you plenty without the record behind it -- so this file
+# is as private as the keep it describes.
+data/catalogue.json
+data/catalogue.json.bak-*
+data/policy.json
+
 # -----------------------------------------------------------------------------
 # Personal cockpit and task board. Local working tools carrying private roadmap
 # and task state. Their CLI subcommands register only when these files exist,

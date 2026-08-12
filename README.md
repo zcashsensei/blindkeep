@@ -12,7 +12,7 @@
 <p align="center">
   <img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License: MIT">
   <img src="https://img.shields.io/badge/python-3.10%2B-blue.svg" alt="Python 3.10+">
-  <img src="https://img.shields.io/badge/tests-515%20passing-brightgreen.svg" alt="515 tests passing">
+  <img src="https://img.shields.io/badge/tests-533%20passing-brightgreen.svg" alt="533 tests passing">
   <img src="https://img.shields.io/badge/status-v0%20alpha-orange.svg" alt="v0 alpha">
   <img src="https://img.shields.io/badge/dependencies-1-lightgrey.svg" alt="1 dependency">
   <img src="https://img.shields.io/badge/zero--knowledge-sigma%20protocols%20%2B%20halo2-6E4B9E.svg" alt="Zero-knowledge: sigma protocols and a halo2 SNARK">
@@ -21,7 +21,7 @@
 </p>
 
 <p align="center">
-  <sub><b>Status as of 2026-08-11</b> · v0 alpha · 515 tests ·
+  <sub><b>Status as of 2026-08-11</b> · v0 alpha · 533 tests ·
   encrypted keep · ZK membership · frontier stack ·
   <b>Heartwood</b> throttle audit (in-app install) ·
   <a href="STACK.md">STACK.md</a> · <a href="SECURITY.md">SECURITY.md</a> ·
@@ -568,7 +568,7 @@ circuits/       halo2 membership circuit + the blindkeep-prove binary (Rust)
   anon_token.py blind-signed entitlement: prove you may ask, not who you are
   _console.py   terminal output helpers
   cli.py        command-line interface
-tests/          32 suites, 515 tests
+tests/          33 suites, 533 tests
 STACK.md        historic frontier stack architecture
 tools/demo_historic_stack.py   offline proof (no API key)
 ```

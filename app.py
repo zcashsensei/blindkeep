@@ -63,7 +63,88 @@ KEY_JUST_CREATED = False
 # session token -- it needs one of its own. Off by default and minted only when
 # switched on, because handing an agent a key to your memory is a decision, not
 # a default. Turning it off invalidates the token immediately.
-AGENT = {"on": False, "token": None}
+#
+# `tier` is what the agent is TREATED as, and it is a declaration rather than a
+# proof: from inside this process a local script and a frontier model behind a
+# relay are both just something holding a token. It starts at the weakest tier
+# and the page says plainly that Blindkeep cannot verify it.
+AGENT = {"on": False, "token": None, "tier": 0}
+
+# The switch above is reversible; this list is not. Turning agent access off
+# kills the token instantly and stops the next read, but it cannot reach into a
+# model's context or a provider's logs and unsee what already left. Recorded so
+# "turn it off" is an informed decision instead of a feeling of safety.
+AGENT_READS: list = []
+READS_LIMIT = 200
+
+# Release policy: Sensitivity -> Tier, seeded from the engine's own defaults.
+# NOT a second encryption. Everything in the keep is sealed under the one master
+# key, and the holder of that key reads all of it. This decides only what may be
+# handed to an AI, which is a different question from what is readable at all.
+POLICY: dict = {}
+POLICY_PATH = HERE / "data" / "policy.json"
+
+# The node stores an empty label (see client.put_ciphertext), so a listing that
+# came back from it carries nothing a person could recognise. This file is how
+# the keep shows names and classes without a decrypt round-trip per row.
+#
+# DISPLAY ONLY, never the authority for a release decision: it is plaintext on
+# disk and so editable by anything running as this user, which is exactly why
+# the read route takes the class from the decrypted label instead.
+CAT_PATH = HERE / "data" / "catalogue.json"
+
+
+def gate_mod():
+    """Imported lazily, like the client, so a broken package still renders."""
+    from blindkeep import memory_gate
+    return memory_gate
+
+
+def _read_json(path, default):
+    try:
+        d = json.loads(path.read_text(encoding="utf-8"))
+        return d if isinstance(d, type(default)) else default
+    except (FileNotFoundError, json.JSONDecodeError, OSError):
+        return default
+
+
+def _write_json_locked(path, obj) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_suffix(".tmp")
+    tmp.write_text(json.dumps(obj, indent=2), encoding="utf-8")
+    os.replace(tmp, path)
+    lock_down(path)
+
+
+def load_policy() -> dict:
+    """Sensitivity label -> Tier value, as ints, ready for JSON."""
+    m = gate_mod()
+    if not POLICY:
+        POLICY.update({s.label: t.value for s, t in m.DEFAULT_POLICY.items()})
+        for k, v in _read_json(POLICY_PATH, {}).items():
+            if k in POLICY and isinstance(v, int) and 0 <= v <= int(max(m.Tier)):
+                POLICY[k] = v
+        # SECRET is pinned to LOCAL and the page does not offer to move it:
+        # "the operator cannot read it" is still a claim about somebody else's
+        # hardware, so the top class never leaves this machine at all.
+        POLICY["secret"] = int(m.Tier.LOCAL)
+    return dict(POLICY)
+
+
+def load_catalogue() -> list:
+    return _read_json(CAT_PATH, [])
+
+
+def add_to_catalogue(entries: list) -> None:
+    cat = load_catalogue()
+    cat.extend(entries)
+    _write_json_locked(CAT_PATH, cat[-2000:])
+
+
+def catalogue_entry(res: dict, label: str, sens_label: str) -> dict:
+    return {"index": res.get("index"), "record_id": res.get("record_id"),
+            "label": label[:120], "sensitivity": sens_label,
+            "at": int(time.time())}
 
 # Heartwood is a sibling project (throttle / effort proof). Not vendored — one
 # protocol copy — but treated as a first-class Blindkeep tab: we search common
@@ -563,7 +644,9 @@ class Handler(BaseHTTPRequestHandler):
             from urllib.parse import parse_qs
             tok = (parse_qs(self.path.split("?", 1)[1]).get("t") or [""])[0]
         # compare_digest requires equal length; unequal inputs must not 500.
+        self.caller = None
         if tok and len(tok) == len(TOKEN) and secrets.compare_digest(tok, TOKEN):
+            self.caller = "page"
             return True
         # An agent token, when enabled, reaches memory routes only — never key
         # routes, Heartwood install, or the agent switch itself.
@@ -572,7 +655,14 @@ class Handler(BaseHTTPRequestHandler):
                 and len(tok) == len(agent_tok)
                 and secrets.compare_digest(tok, agent_tok)):
             path = self.path.split("?", 1)[0]
-            return path.startswith(("/api/write", "/api/read/", "/api/state"))
+            if path.startswith(("/api/write", "/api/read/", "/api/state")):
+                # Which caller this is, decided here and read by the routes.
+                # Reaching a route is not the same as being entitled to what it
+                # returns: /api/read and /api/state both hand back memory, and
+                # the answer must depend on who is asking.
+                self.caller = "agent"
+                return True
+            return False
         return False
 
     def do_GET(self):
@@ -606,9 +696,44 @@ class Handler(BaseHTTPRequestHandler):
                 head = c.head()
                 recs = c.list()
                 pin_ok = PIN_PATH.is_file()
+
+                m = gate_mod()
+                pol = load_policy()
+                # Names and classes come from the local catalogue: the node
+                # returns none. Anything absent from it was written before
+                # classes existed, or by another tool -- unclassified is not
+                # public, so it counts as secret, which is what decode_label
+                # would say about it too.
+                bysens = {s.label: 0 for s in m.Sensitivity}
+                cat = {e.get("index"): e for e in load_catalogue()}
+                listed = []
+                for i, r in enumerate(recs):
+                    idx = r.get("index", i)
+                    e = cat.get(idx)
+                    sname = ((e or {}).get("sensitivity")
+                             or m.Sensitivity.SECRET.label)
+                    bysens[sname] = bysens.get(sname, 0) + 1
+                    listed.append({**r, "index": idx,
+                                   "label": (e or {}).get("label") or "",
+                                   "sensitivity": sname,
+                                   "classified": e is not None})
+                granted = m.Tier(AGENT.get("tier", 0))
+                reachable = sum(n for s, n in bysens.items()
+                                if granted >= m.Tier(pol.get(s,
+                                                             int(m.Tier.LOCAL))))
+                if getattr(self, "caller", None) == "agent":
+                    # A label is a disclosure by itself -- "bank details" tells
+                    # you plenty without the record behind it -- so an agent
+                    # must not be able to enumerate what it cannot open.
+                    listed = [x for x in listed
+                              if granted >= m.Tier(pol.get(x["sensitivity"],
+                                                           int(m.Tier.LOCAL)))]
+                recs = listed
                 return self._send(200, {
                     "node": True, "how": how,
                     "records": len(recs),
+                    "by_sensitivity": bysens,
+                    "agent_reachable": reachable,
                     "tree_size": head.get("tree_size"),
                     "root": head.get("root_hex") or head.get("root_hash")
                             or head.get("root"),
@@ -645,6 +770,34 @@ class Handler(BaseHTTPRequestHandler):
                     text = plain.decode("utf-8")
                 except UnicodeDecodeError:
                     text = f"<{len(plain)} bytes of binary>"
+
+                m = gate_mod()
+                # The class comes from the DECRYPTED label, never from the
+                # catalogue, which is plaintext on disk and therefore editable
+                # by anything running as this user. An unreadable or absent
+                # class reads as SECRET, so a typo costs recall, not exposure.
+                sens, shown = m.decode_label(res.get("label", "") or "")
+                res["label"] = shown
+                res["sensitivity"] = sens.label
+
+                if getattr(self, "caller", None) == "agent":
+                    # Decryption already happened -- it had to, the class lives
+                    # inside the ciphertext. The gate governs what is
+                    # TRANSMITTED, and the agent is on the far side of this
+                    # response.
+                    required = m.Tier(load_policy().get(sens.label,
+                                                        int(m.Tier.LOCAL)))
+                    granted = m.Tier(AGENT.get("tier", 0))
+                    if granted < required:
+                        return self._send(403, {
+                            "error": "withheld by policy",
+                            "sensitivity": sens.label,
+                            "requires": required.label,
+                            "agent_tier": granted.label})
+                    AGENT_READS.append({"index": idx, "label": shown,
+                                        "sensitivity": sens.label,
+                                        "at": int(time.time())})
+                    del AGENT_READS[:-READS_LIMIT]
                 return self._send(200, {"text": text, "meta": res})
             if path == "/api/key":
                 # Metadata only. The raw key and its hex never ride on a GET —
@@ -674,9 +827,25 @@ class Handler(BaseHTTPRequestHandler):
                              "cannot read the key without that passphrase."),
                 })
             if path == "/api/agent":
-                return self._send(200, {"enabled": AGENT["on"],
-                                        "token": AGENT["token"] if AGENT["on"] else None,
-                                        "url": f"http://127.0.0.1:{PORT}"})
+                m = gate_mod()
+                return self._send(200, {
+                    "enabled": AGENT["on"],
+                    "token": AGENT["token"] if AGENT["on"] else None,
+                    "url": f"http://127.0.0.1:{PORT}",
+                    "tier": AGENT.get("tier", 0),
+                    "tier_label": m.Tier(AGENT.get("tier", 0)).label,
+                    # The switch is reversible; this is not. It is what the
+                    # agent already took, and no switch un-reads it.
+                    "reads": AGENT_READS[-50:][::-1],
+                    "read_count": len(AGENT_READS)})
+            if path == "/api/policy":
+                m = gate_mod()
+                return self._send(200, {
+                    "policy": load_policy(),
+                    "agent_tier": AGENT.get("tier", 0),
+                    "tiers": [{"value": int(t), "label": t.label} for t in m.Tier],
+                    "sensitivities": [{"value": int(s), "label": s.label}
+                                      for s in m.Sensitivity]})
             if path == "/api/pending":
                 # Jobs only a human can finish -- an authorisation click, an
                 # email. They kept slipping because nothing on screen carried
@@ -759,8 +928,19 @@ class Handler(BaseHTTPRequestHandler):
                                      "disk (agents cannot read it) and builds a "
                                      "portable zip. Or send i_accept_no_backup "
                                      "if you accept permanent loss.")})
-                    res = c.put(text, label=(raw_label or "")[:120])
-                    return self._send(200, {"ok": True, "record": res})
+                    # Unspecified matches the engine's own default rather than
+                    # the strictest class: a memory nobody classified should
+                    # still come back to the person who wrote it.
+                    m = gate_mod()
+                    raw_sens = body.get("sensitivity")
+                    if not isinstance(raw_sens, str) or not raw_sens:
+                        raw_sens = "personal"
+                    sens = m.Sensitivity.parse(raw_sens)
+                    label = (raw_label or "")[:120]
+                    res = c.put(text, label=m.encode_label(sens, label))
+                    add_to_catalogue([catalogue_entry(res, label, sens.label)])
+                    return self._send(200, {"ok": True, "record": res,
+                                            "sensitivity": sens.label})
                 except KeyLocked:
                     return self._send(423, {
                         "error": "unlock your master key first",
@@ -1069,6 +1249,27 @@ class Handler(BaseHTTPRequestHandler):
                 return self._send(200, {"enabled": AGENT["on"],
                                         "token": AGENT["token"],
                                         "url": f"http://127.0.0.1:{PORT}"})
+            if path == "/api/policy":
+                # Page token only. An agent able to widen its own clearance
+                # would walk straight through the gate it is standing behind,
+                # which would make the whole policy decorative.
+                if not _require_session_token(self):
+                    return self._send(403, {"error": "session only — not agent token"})
+                m = gate_mod()
+                load_policy()
+                changed = body.get("policy")
+                if isinstance(changed, dict):
+                    for k, v in changed.items():
+                        if k == "secret" or k not in POLICY:
+                            continue          # SECRET is pinned, see load_policy
+                        if isinstance(v, int) and 0 <= v <= int(max(m.Tier)):
+                            POLICY[k] = v
+                tier = body.get("agent_tier")
+                if isinstance(tier, int) and 0 <= tier <= int(max(m.Tier)):
+                    AGENT["tier"] = tier
+                _write_json_locked(POLICY_PATH, POLICY)
+                return self._send(200, {"policy": load_policy(),
+                                        "agent_tier": AGENT.get("tier", 0)})
             if path == "/api/hw/install":
                 # Session only — never agent. Fixed upstream URL only.
                 if not _require_session_token(self):
