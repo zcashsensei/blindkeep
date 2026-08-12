@@ -562,6 +562,36 @@ def _hosted_completer(args, api_key):
     return complete
 
 
+def _require_api_base_for_tier(args) -> None:
+    """Refuse a missing endpoint before anything that needs a key.
+
+    Every tier above local sends somewhere, and Blindkeep does not pick the
+    somewhere. A shipped default endpoint is an endorsement, and on the paths
+    that disclose it is the one choice the user must make consciously.
+
+    This check is pure (no key, no network) so a fresh clone — no master key
+    yet — still sees the "choose a provider" message rather than a key-path
+    error that buries the real omission.
+    """
+    from .memory_gate import Tier
+
+    tier = Tier[args.tier.upper()]
+    if tier is Tier.LOCAL:
+        return
+    if args.api_base:
+        return
+    raise CliError(
+        f"--api-base is required for --tier {tier.label}\n"
+        f"  Blindkeep does not choose a provider for you, and does not "
+        f"require one API. Closed or open weights, hosted or self-run:\n"
+        f"    --api-base https://api.anthropic.com  --model <claude model>\n"
+        f"    --api-base https://api.x.ai           --model <grok model>\n"
+        f"    --api-base https://api.openai.com     --model <gpt model>\n"
+        f"    --api-base http://127.0.0.1:8000      --model <self-hosted>\n"
+        f"  The wire format is inferred from the endpoint; override it with "
+        f"--dialect ({', '.join(sorted(dialects.DIALECTS))}).")
+
+
 def _gate_backend(args, client):
     """Build the backend named by --tier, with the prover that tier requires."""
     from .memory_gate import (SimpleBackend, Tier, attestation_prover,
@@ -580,20 +610,7 @@ def _gate_backend(args, client):
                                             recall=0),
             prover=loopback_prover(args.ollama_base))
 
-    # Every tier above local sends somewhere, and Blindkeep does not pick the
-    # somewhere. A shipped default endpoint is an endorsement, and on the paths
-    # that disclose it is the one choice the user must make consciously.
-    if not args.api_base:
-        raise CliError(
-            f"--api-base is required for --tier {tier.label}\n"
-            f"  Blindkeep does not choose a provider for you, and does not "
-            f"require one API. Closed or open weights, hosted or self-run:\n"
-            f"    --api-base https://api.anthropic.com  --model <claude model>\n"
-            f"    --api-base https://api.x.ai           --model <grok model>\n"
-            f"    --api-base https://api.openai.com     --model <gpt model>\n"
-            f"    --api-base http://127.0.0.1:8000      --model <self-hosted>\n"
-            f"  The wire format is inferred from the endpoint; override it with "
-            f"--dialect ({', '.join(sorted(dialects.DIALECTS))}).")
+    _require_api_base_for_tier(args)
 
     api_key = args.api_key or os.environ.get("BLINDKEEP_CLOUD_KEY", "")
 
@@ -665,6 +682,11 @@ def cmd_gate_chat(args) -> int:
     """One memory layer, any model, release decided by a PROVEN tier."""
     from .client import BlindkeepClient
     from .memory_gate import MemoryGate, Sensitivity
+
+    # Endpoint before key: a missing --api-base is the user's real omission on
+    # every tier above local, and must name itself rather than hide under
+    # "no master key" when the keep has not been initialised yet.
+    _require_api_base_for_tier(args)
 
     key = _load_key(args.key)
     client = BlindkeepClient(args.url, key, pin_path=args.pin)
