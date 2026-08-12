@@ -236,7 +236,7 @@ The verification layer does not become the bottleneck at any realistic scale.
 
 ## 4. What is verified — as of 2026-08-08
 
-Implemented, running, and covered by tests in this repository. **499 tests
+Implemented, running, and covered by tests in this repository. **507 tests
 across 29 suites**, plus an end-to-end demonstration. Every number in this
 section is computed from source by `blindkeep status` and enforced against this
 document by `tools/check_counts.py`; none of them is typed by hand.
@@ -261,7 +261,7 @@ document by `tools/check_counts.py`; none of them is typed by hand.
 | Attestation framework | Complete | 30 tests; a replayed but genuine report is refused |
 | Release policy across model tiers, including the SEALED tier | Complete | 42 tests; an unproven tier claim is demoted, not honoured |
 | Delegated inference: abstract locally, verify, send a question about nobody | Complete | 31 tests; the leak gate refuses rather than redacts, and a general question skips abstraction entirely |
-| Anonymous entitlement (Chaum blind signatures, RFC 9578) | Complete | 16 tests; proves you may ask without saying who is asking |
+| Anonymous entitlement (Chaum blind signatures — the construction underneath RFC 9578, not the standardised RSABSSA of RFC 9474) | Complete | 24 tests; proves you may ask without saying who is asking, and refuses a key served to one client alone |
 | ZK property proofs — range, membership, equality, without disclosure | Complete | 31 tests; Fiat–Shamir binds the whole statement |
 | ZK membership in the keep, bound to a signed head | Complete | 12 tests |
 | Poseidon tree matching the halo2 circuit | Complete | 15 tests, cross-checked against Rust known-answer vectors |
@@ -275,7 +275,7 @@ document by `tools/check_counts.py`; none of them is typed by hand.
 | Terminal output encoding guard | Complete | 8 tests |
 | Command-line surface | Complete | 19 tests, including that no command creates a master key as a side effect |
 
-<!-- roster --> adversarial 9 · anon-token 16 · attestation 30 · audit 10 · CLI 19 · cloud gate 17 · console 8 · delegate 31 · dialects 10 · discovery 23 · dispatch 20 · hardening 14 · HPKE 10 · local-model memory 13 · memory gate 44 · Merkle 13 · metadata 8 · oblivious HTTP 15 · poseidon 15 · private read 12 · recovery 25 · replication 12 · SEV-SNP 19 · status 15 · store 5 · vault proxy 30 · witness 13 · zk 31 · zk-keep 12
+<!-- roster --> adversarial 9 · anon-token 24 · attestation 30 · audit 10 · CLI 19 · cloud gate 17 · console 8 · delegate 31 · dialects 10 · discovery 23 · dispatch 20 · hardening 14 · HPKE 10 · local-model memory 13 · memory gate 44 · Merkle 13 · metadata 8 · oblivious HTTP 15 · poseidon 15 · private read 12 · recovery 25 · replication 12 · SEV-SNP 19 · status 15 · store 5 · vault proxy 30 · witness 13 · zk 31 · zk-keep 12
 
 The adversarial suites are the substantive claim. They stand up nodes that
 substitute records, fork history at equal length, forge heads, tamper with

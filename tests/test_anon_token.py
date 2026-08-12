@@ -10,6 +10,7 @@ anything the client fully controls is forgeable. Full-domain hashing is what clo
 asserts the closure rather than assuming it.
 """
 
+import hashlib
 import os
 import sys
 
@@ -22,6 +23,7 @@ from blindkeep.anon_token import (
     TokenError,
     full_domain_hash,
     issue,
+    key_id,
 )
 
 # One key for the whole module: 2048-bit RSA keygen is slow and the tests are about the
@@ -201,6 +203,73 @@ def test_a_blinded_value_outside_the_modulus_is_refused():
     expect(lambda: i.sign_blinded(0), contains="outside the modulus")
 
 
+# --- key consistency: the crowd must be blinding under one key ----------------
+
+def test_a_key_served_to_one_client_alone_is_refused():
+    """The attack the whole section exists for.
+
+    A blind signature hides the token, never the modulus. An issuer that gives each client its
+    own key sorts the redeemed tokens by which key verifies them, and every signature is still
+    perfectly unlinkable inside an anonymity set of one.
+    """
+    published = Issuer()
+    targeted = Issuer()                       # minted for one victim
+    assert published.key_id != targeted.key_id
+
+    victim = Client(*targeted.public, expected_key_id=published.key_id)
+    expect(victim.blind, contains="crowd of one")
+
+
+def test_the_expected_key_permits_the_real_one():
+    honest = Issuer()
+    client = Client(*honest.public, expected_key_id=honest.key_id)
+    honest.redeem(client.unblind(honest.sign_blinded(client.blind())))
+
+
+def test_a_rotated_key_is_caught_by_the_pin():
+    """No out-of-band value, so the pin carries it: this key is not the one seen last time."""
+    import tempfile
+    with tempfile.TemporaryDirectory() as d:
+        pin = os.path.join(d, "issuer.json")
+        first = Issuer()
+        Client(*first.public, pin_path=pin).blind()          # pins on first use
+
+        swapped = Client(*Issuer().public, pin_path=pin)
+        expect(swapped.blind, contains="changed since the pinned")
+
+        # and the original still passes, so the pin refuses changes rather than second calls
+        Client(*first.public, pin_path=pin).blind()
+
+
+def test_a_token_names_the_key_it_was_issued_under():
+    i = fresh()
+    t = issue(i)
+    assert t.key_id_hex == i.key_id
+    assert t.as_dict()["key_id"] == i.key_id
+
+
+def test_a_token_from_another_key_is_refused_by_name():
+    """Two issuers, and a token that says so. Refused for the reason, not by accident."""
+    other = Issuer()
+    stolen = issue(other)
+    assert stolen.key_id_hex != ISSUER.key_id
+    assert ISSUER.verify(stolen) is False
+
+
+def test_a_token_predating_the_field_still_verifies():
+    """The field is additive; refusing empty would break every token already issued."""
+    i = fresh()
+    t = issue(i)
+    assert i.verify(Token(value_hex=t.value_hex, signature_hex=t.signature_hex)) is True
+
+
+def test_key_id_is_content_addressed_and_domain_separated():
+    n, e = ISSUER.public
+    assert key_id(n, e) == key_id(n, e)
+    assert key_id(n, e) != key_id(n, e + 2)
+    assert key_id(n, e) != hashlib.sha256(n.to_bytes((n.bit_length() + 7) // 8, "big")).hexdigest()
+
+
 # --- what it does not do ------------------------------------------------------
 
 def test_the_issuer_still_learns_how_many_tokens_it_signed():
@@ -209,6 +278,29 @@ def test_the_issuer_still_learns_how_many_tokens_it_signed():
     for _ in range(3):
         issue(i)
     assert i.issued == 3
+
+
+def test_pinning_cannot_save_a_client_whose_first_contact_is_the_attacker():
+    """The residual hole, asserted so it cannot be mistaken for closed.
+
+    Trust on first use trusts the first use. A client that meets the targeted key before it ever
+    meets the real one pins the targeted key and is satisfied by it forever — the pin detects
+    *change*, and nothing changed. Only `expected_key_id`, carrying a value from somewhere the
+    issuer does not control, answers this.
+    """
+    import tempfile
+    with tempfile.TemporaryDirectory() as d:
+        pin = os.path.join(d, "issuer.json")
+        targeted = Issuer()
+
+        Client(*targeted.public, pin_path=pin).blind()       # attacker met first, and pinned
+
+        again = Client(*targeted.public, pin_path=pin)
+        again.blind()                                        # no complaint: consistent, not safe
+
+        # The out-of-band value is what catches it, and it needs no pin at all.
+        expect(Client(*targeted.public, expected_key_id=Issuer().key_id).blind,
+               contains="crowd of one")
 
 
 def run():

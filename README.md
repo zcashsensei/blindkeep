@@ -12,7 +12,7 @@
 <p align="center">
   <img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License: MIT">
   <img src="https://img.shields.io/badge/python-3.10%2B-blue.svg" alt="Python 3.10+">
-  <img src="https://img.shields.io/badge/tests-499%20passing-brightgreen.svg" alt="499 tests passing">
+  <img src="https://img.shields.io/badge/tests-507%20passing-brightgreen.svg" alt="507 tests passing">
   <img src="https://img.shields.io/badge/status-v0%20alpha-orange.svg" alt="v0 alpha">
   <img src="https://img.shields.io/badge/dependencies-1-lightgrey.svg" alt="1 dependency">
   <img src="https://img.shields.io/badge/zero--knowledge-sigma%20protocols%20%2B%20halo2-6E4B9E.svg" alt="Zero-knowledge: sigma protocols and a halo2 SNARK">
@@ -20,7 +20,7 @@
 </p>
 
 <p align="center">
-  <sub><b>Status as of 2026-08-08</b> · v0 alpha · 499 tests passing ·
+  <sub><b>Status as of 2026-08-08</b> · v0 alpha · 507 tests passing ·
   replication, peer discovery, retrieval audits, key recovery, local-model
   memory, pseudonymisation, an attestation framework and <b>zero-knowledge
   membership</b> implemented · sigma protocols <i>and</i> a halo2 SNARK
@@ -57,7 +57,7 @@ does *not* protect).
 > nobody can reset it. That is the point: an operator who could recover your
 > data could also read it.
 
-**The app is new.** The storage and crypto layers have 499 tests and have been
+**The app is new.** The storage and crypto layers have 507 tests and have been
 built over months; `app.py` is days old and has had several security fixes
 already. It binds to loopback only, holds no data of its own, and locks the key
 file to your account — but it is the youngest code here and the part most worth
@@ -528,7 +528,7 @@ circuits/       halo2 membership circuit + the blindkeep-prove binary (Rust)
   anon_token.py blind-signed entitlement: prove you may ask, not who you are
   _console.py   terminal output helpers
   cli.py        command-line interface
-tests/          29 suites, 499 tests
+tests/          29 suites, 507 tests
 ```
 
 ## Replication

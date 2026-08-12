@@ -306,7 +306,9 @@ def cmd_token(args) -> int:
 
     if args.action == "issue":
         issuer = Issuer()
-        client = Client(*issuer.public)
+        # A real client is told this key by something other than the issuer; here both ends are
+        # ours, so the check is a demonstration of the refusal rather than a defence.
+        client = Client(*issuer.public, expected_key_id=issuer.key_id)
         blinded = client.blind()
         token = client.unblind(issuer.sign_blinded(blinded))
 
@@ -326,7 +328,11 @@ def cmd_token(args) -> int:
 
     with open(args.token, "r", encoding="utf-8") as f:
         blob = json.load(f)
-    tok = Token(value_hex=blob["token_hex"], signature_hex=blob["signature_hex"])
+    tok = Token(value_hex=blob["token_hex"], signature_hex=blob["signature_hex"],
+                key_id_hex=blob.get("key_id", ""))
+    if tok.key_id_hex:
+        print(f"[issued under key {tok.key_id_hex[:16]}… — a verifier holding a different key "
+              f"refuses this by name]", file=sys.stderr)
     print(f"token {tok.value_hex[:16]}… — verification needs the issuer's key, "
           f"which this command does not have.", file=sys.stderr)
     print("A real deployment verifies at the provider. This checks shape only.")

@@ -27,15 +27,30 @@ property that makes blinding work also makes naive blind signing forgeable. Hash
 into the full range of the modulus first removes the attacker's control of the value being
 signed, so the forgery has nothing to build from. `test_anon_token.py` attacks this directly.
 
+**Blinding is worthless under a key only you were given.** An issuer that hands a different
+public key to each client can sort the redeemed tokens by which key verifies them, and the
+anonymity set collapses to one — no crypto broken, just key distribution. The maths above assumes
+every client blinds under the *same* modulus, and nothing in the maths enforces it. `Client` will
+not blind under an unverified key: pass `expected_key_id` when you know it out of band, or
+`pin_path` to pin on first use the way `client.py` pins a node's identity.
+
 **What this is not.** Not RFC 9474 RSABSSA, which uses PSS and has a security proof under
 stronger assumptions; this is the simpler full-domain-hash construction. Unaudited. And it hides
 *who*, never *that*: the provider still learns a request happened, and network-level identity
 (IP, TLS fingerprint, timing) is a separate problem this does not touch.
+
+Nor does pinning *create* consistency — it detects change. A client whose first contact is
+already the attacker pins the attacker's key and is content forever. Closing that needs a source
+the issuer does not control: a published key, a transparency log, or simply fetching the key over
+a path other than the one that asks for the signature. `expected_key_id` is where such a source
+plugs in; the pin is the fallback for when there isn't one.
 """
 
 from __future__ import annotations
 
 import hashlib
+import json
+import os
 import secrets
 from dataclasses import dataclass, field
 from typing import Optional
@@ -72,18 +87,37 @@ def full_domain_hash(token: bytes, n: int) -> int:
     return int.from_bytes(raw, "big") % n
 
 
+def key_id(n: int, e: int) -> str:
+    """Name a public key by its content, so two clients can tell they hold the same one.
+
+    Unlinkability is a property of a *crowd* blinding under one modulus. Without a name for the
+    key there is nothing for a client to compare, pin, or publish, and a targeted key is
+    indistinguishable from the real one. This is that name.
+    """
+    size = (n.bit_length() + 7) // 8
+    return hashlib.sha256(
+        b"blindkeep-anon-token-key-v1\0" + e.to_bytes(8, "big") + n.to_bytes(size, "big")
+    ).hexdigest()
+
+
 @dataclass(frozen=True)
 class Token:
-    """A redeemable, unlinkable proof of entitlement."""
+    """A redeemable, unlinkable proof of entitlement.
+
+    Carries the key it was issued under so a redemption cannot be silently accepted by an issuer
+    running a different one. Older tokens predate the field and leave it empty.
+    """
     value_hex: str
     signature_hex: str
+    key_id_hex: str = ""
 
     @property
     def value(self) -> bytes:
         return bytes.fromhex(self.value_hex)
 
     def as_dict(self) -> dict:
-        return {"token_hex": self.value_hex, "signature_hex": self.signature_hex}
+        return {"token_hex": self.value_hex, "signature_hex": self.signature_hex,
+                "key_id": self.key_id_hex}
 
 
 class Issuer:
@@ -108,6 +142,11 @@ class Issuer:
     def public(self) -> tuple[int, int]:
         return self.n, self.e
 
+    @property
+    def key_id(self) -> str:
+        """What a client should pin, and what it should be told out of band."""
+        return key_id(self.n, self.e)
+
     def sign_blinded(self, blinded: int) -> int:
         """Sign a value the issuer cannot read. This is the whole point of the exchange."""
         if not 0 < blinded < self.n:
@@ -131,19 +170,62 @@ class Issuer:
             return False
         if not 0 < sig < self.n:
             return False
+        # A token naming a different key was issued to a different crowd. The signature check
+        # below would refuse it anyway; refusing here says *why*, and keeps that true if this
+        # issuer ever holds more than one key.
+        if token.key_id_hex and token.key_id_hex != self.key_id:
+            return False
         return pow(sig, self.e, self.n) == full_domain_hash(value, self.n)
 
 
 @dataclass
 class Client:
-    """Holds the blinding factor, which is what makes the issuer's two views independent."""
+    """Holds the blinding factor, which is what makes the issuer's two views independent.
+
+    Also holds the client's belief about *which* key it is blinding under. A blinding factor
+    hides the token from the issuer; it does nothing to hide the client from an issuer that
+    already sorted it into a crowd of one by handing it a private modulus.
+    """
     n: int
     e: int
+    expected_key_id: Optional[str] = None
+    pin_path: Optional[str] = None
     _token: bytes = field(default=b"", repr=False)
     _r: int = field(default=0, repr=False)
 
+    @property
+    def key_id(self) -> str:
+        return key_id(self.n, self.e)
+
+    def _check_key(self) -> None:
+        """Refuse a key this client cannot corroborate. Runs before anything is blinded.
+
+        Two sources, strongest first. `expected_key_id` is a value from somewhere the issuer does
+        not control, and it settles the question. The pin only settles that the key has not
+        *changed* since first contact — worth having, and not the same claim.
+        """
+        seen = self.key_id
+        if self.expected_key_id is not None and seen != self.expected_key_id:
+            raise TokenError(
+                f"issuer key {seen[:16]}… is not the expected {self.expected_key_id[:16]}…; "
+                "a key served to you alone puts you in a crowd of one")
+        if not self.pin_path:
+            return
+        if os.path.exists(self.pin_path):
+            with open(self.pin_path, "r", encoding="utf-8") as f:
+                pinned = json.load(f).get("key_id")
+            if pinned and pinned != seen:
+                raise TokenError(
+                    f"issuer key changed since the pinned {pinned[:16]}…; refusing to blind")
+            if pinned:
+                return
+        os.makedirs(os.path.dirname(self.pin_path) or ".", exist_ok=True)
+        with open(self.pin_path, "w", encoding="utf-8") as f:
+            json.dump({"key_id": seen}, f)
+
     def blind(self) -> int:
         """A fresh token and a fresh blinding factor. Reusing either destroys unlinkability."""
+        self._check_key()
         self._token = secrets.token_bytes(TOKEN_BYTES)
         while True:
             r = secrets.randbelow(self.n - 2) + 2
@@ -162,7 +244,8 @@ class Client:
         if not self._token:
             raise TokenError("nothing was blinded; call blind() first")
         sig = (blinded_signature * pow(self._r, -1, self.n)) % self.n
-        token = Token(value_hex=self._token.hex(), signature_hex=f"{sig:x}")
+        token = Token(value_hex=self._token.hex(), signature_hex=f"{sig:x}",
+                      key_id_hex=self.key_id)
         # Forget the blinding: keeping it would let anyone with this object's memory link the
         # issuance to the redemption, which is precisely what the protocol exists to prevent.
         self._token, self._r = b"", 0
@@ -171,5 +254,5 @@ class Client:
 
 def issue(issuer: Issuer) -> Token:
     """One full exchange, for callers that hold both ends (tests, single-process use)."""
-    client = Client(*issuer.public)
+    client = Client(*issuer.public, expected_key_id=issuer.key_id)
     return client.unblind(issuer.sign_blinded(client.blind()))
