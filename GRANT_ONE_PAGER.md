@@ -77,9 +77,9 @@ The missing layer is memory that is **durable**, **structurally private** (opera
 | Security write-up of fixed bugs | `SECURITY.md` |
 | Cryptographic claim boundaries | `CRYPTO_FOUNDATIONS.md` |
 
-**Automated suite (2026-08-11):** **510 tests** across 31 suites + end-to-end demo. Counts are computed from source by `blindkeep status`, and `tools/check_counts.py` blocks a push that would leave this line stale:
+**Automated suite (2026-08-11):** **515 tests** across 32 suites + end-to-end demo. Counts are computed from source by `blindkeep status`, and `tools/check_counts.py` blocks a push that would leave this line stale:
 
-<!-- roster --> adversarial 9 · anon-token 16 · attestation 30 · audit 10 · CLI 19 · cloud gate 17 · console 8 · delegate 31 · dialects 10 · discovery 23 · dispatch 20 · frontier-gateway 4 · frontier-private 7 · hardening 14 · HPKE 10 · local-model memory 13 · memory gate 44 · Merkle 13 · metadata 8 · oblivious HTTP 15 · poseidon 15 · private read 12 · recovery 25 · replication 12 · SEV-SNP 19 · status 15 · store 5 · vault proxy 30 · witness 13 · zk 31 · zk-keep 12
+<!-- roster --> adversarial 9 · anon-token 16 · app-security 5 · attestation 30 · audit 10 · CLI 19 · cloud gate 17 · console 8 · delegate 31 · dialects 10 · discovery 23 · dispatch 20 · frontier-gateway 4 · frontier-private 7 · hardening 14 · HPKE 10 · local-model memory 13 · memory gate 44 · Merkle 13 · metadata 8 · oblivious HTTP 15 · poseidon 15 · private read 12 · recovery 25 · replication 12 · SEV-SNP 19 · status 15 · store 5 · vault proxy 30 · witness 13 · zk 31 · zk-keep 12
 
 **Not claimed as shipping** (this list is kept in step with `blindkeep status`, which prints the same disclaimers):
 
@@ -121,7 +121,7 @@ Full statement: [`CRYPTO_FOUNDATIONS.md`](CRYPTO_FOUNDATIONS.md).
 
 | Phase | Deliverable | Status |
 |-------|-------------|--------|
-| **M0** | Public MIT repo, docs, 510 tests | **done** |
+| **M0** | Public MIT repo, docs, 515 tests | **done** |
 | **M0b** | Replication, peer discovery, retrieval auditing, key recovery, local-model memory | **done** |
 | **M1** | **Three nodes operated by people who are not the applicant**, serving one client | **the next milestone** |
 | **M2** | Operator runbooks, packaging, CI, free community pool design | funded work |

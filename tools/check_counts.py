@@ -48,6 +48,7 @@ TOTAL_CLAIM_FLOOR = 50
 LABELS = {
     "test_adversarial.py": "adversarial",
     "test_anon_token.py": "anon-token",
+    "test_app_security.py": "app-security",
     "test_attest.py": "attestation",
     "test_audit.py": "audit",
     "test_cli.py": "CLI",

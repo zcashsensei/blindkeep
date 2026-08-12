@@ -206,6 +206,26 @@ reach one.
 
 Full architecture: [`STACK.md`](STACK.md).
 
+## Audit notes (2026-08-11)
+
+Deep review of app + frontier stack. Findings that were fixed or confirmed:
+
+| Finding | Severity | Status |
+|---------|----------|--------|
+| `secrets.compare_digest` on unequal-length tokens raised and became a 500 | Medium (auth DoS / noise) | **Fixed** — length check before compare |
+| Empty `Host` header accepted | Low (DNS-rebinding edge) | **Fixed** — only `127.0.0.1` / `localhost` / `::1` |
+| Heartwood run reachable with agent token | Medium | **Fixed** — session token required |
+| Heartwood missing on fresh clone | UX | **Fixed** — multi-path discover + in-app install (fixed URL only) |
+| Raw master key / hex in app responses | High if present | **Confirmed absent** — sealed zip / metadata only |
+| Agent token cannot fetch key routes | — | **Confirmed** |
+| Gateway requires one-time blind token; replay refused | — | **Confirmed** by tests |
+| Session token in query string for SSE/download | Low (local log leakage) | Accepted for EventSource; loopback-only + Host check |
+| Legacy plaintext `master.key` if never migrated | Medium | Migrated on unlock/setup; prefer sealed at rest |
+| OHTTP void if one operator runs relay+gateway | Design | Documented; not a code bug |
+| Provider API key identity on direct frontier path | Design | Receipt sets `identity_private=false` unless gateway path |
+
+Re-run offline stack proof: `python tools/demo_historic_stack.py`.
+
 ### Gated hosted-model path
 
 This path **discloses by design**, and the protection is that it cannot be
