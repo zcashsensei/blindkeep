@@ -18,6 +18,10 @@ These tests must run in a SUBPROCESS. Redirecting stdout in-process gives a
 StringIO, which is Unicode-safe and would pass no matter how broken the code is --
 which is precisely how a guard like this ends up green for its whole life without
 ever having run.
+
+``progress.py`` is a maintainer-only file (gitignored; CLI registers the
+subcommand only when the file is present). Progress-specific tests skip on a
+clean clone so the published suite stays green without the personal task board.
 """
 
 import ast
@@ -26,11 +30,15 @@ import subprocess
 import sys
 from io import StringIO
 
+import pytest
+
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from blindkeep._console import use_utf8_stdout
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+PROGRESS_PY = os.path.join(ROOT, "blindkeep", "progress.py")
+HAS_PROGRESS = os.path.isfile(PROGRESS_PY)
 
 # Entry points are discovered, not listed, so a new one cannot quietly skip the
 # guard. Anything with an ``if __name__ == "__main__"`` block is a console entry
@@ -85,6 +93,8 @@ def test_guard_makes_the_same_print_succeed():
     assert "\u2713" in r.stdout.decode("utf-8"), "check mark missing from output"
 
 
+@pytest.mark.skipif(not HAS_PROGRESS,
+                    reason="progress.py is maintainer-only (gitignored on clean clones)")
 def test_progress_reports_fully_under_cp1252():
     """The original failure, end to end: exit 0 and a COMPLETE report."""
     r = _run([sys.executable, "-m", "blindkeep", "progress"], env=_cp1252_env())
@@ -97,6 +107,8 @@ def test_progress_reports_fully_under_cp1252():
     assert len(detectors) >= 15, f"expected the full detector list, got {len(detectors)} lines:\n{out[:400]}"
 
 
+@pytest.mark.skipif(not HAS_PROGRESS,
+                    reason="progress.py is maintainer-only (gitignored on clean clones)")
 def test_progress_output_is_identical_piped_and_utf8():
     """Encoding must change nothing about WHAT is reported."""
     a = _run([sys.executable, "-m", "blindkeep", "progress"], env=_cp1252_env())
@@ -139,6 +151,8 @@ def test_every_entry_point_calls_the_guard_first():
     assert not offenders, "; ".join(offenders)
 
 
+@pytest.mark.skipif(not HAS_PROGRESS,
+                    reason="progress.py is maintainer-only (gitignored on clean clones)")
 def test_progress_still_runs_as_a_bare_script():
     """Adding the guard must not cost progress.py its script entry point.
 
@@ -179,8 +193,12 @@ def test_guard_is_idempotent():
 
 def run():
     tests = [(k, v) for k, v in sorted(globals().items()) if k.startswith("test_")]
-    passed, failed = [], []
+    passed, failed, skipped = [], [], []
     for name, fn in tests:
+        if name.startswith("test_progress") and not HAS_PROGRESS:
+            skipped.append(name)
+            print(f"  SKIP  {name}  (no progress.py)")
+            continue
         try:
             fn()
             passed.append(name)
@@ -191,7 +209,8 @@ def run():
         except Exception as exc:
             failed.append(name)
             print(f"  ERROR {name}\n          {type(exc).__name__}: {exc}")
-    print(f"\n{len(passed)} passed, {len(failed)} failed")
+    print(f"\n{len(passed)} passed, {len(failed)} failed"
+          + (f", {len(skipped)} skipped" if skipped else ""))
     return 1 if failed else 0
 
 
