@@ -47,7 +47,6 @@ class FrontierPrivateError(Exception):
 # Residual risks that ALWAYS remain on a commercial frontier endpoint when
 # the user supplies their own API key. Listed so a UI cannot paper over them.
 DEFAULT_RESIDUAL = (
-    "The API key (or the gateway's key) is still an account identity for billing.",
     "The provider learns that someone asked a question of roughly this shape.",
     "Your IP is visible to whoever terminates TLS unless independent OHTTP "
     "relay + gateway operators are used (not the same person).",
@@ -58,6 +57,12 @@ CONTENT_CLAIMS = (
     "Private facts from your message and keep context must not appear on the wire.",
     "LeakGate refuses the send if identifying terms or copied phrases survive.",
     "The specialised answer is produced only on this machine.",
+)
+
+ACCOUNT_DECOUPLED_CLAIMS = (
+    "The client presents no provider API key — only a one-time blind token.",
+    "Issuance and redemption of the token are unlinkable (Chaum / Privacy Pass shape).",
+    "The frontier account credential lives only on the gateway.",
 )
 
 
@@ -76,6 +81,7 @@ class FrontierReceipt:
     residual: list[str] = field(default_factory=list)
     route_reasons: list[str] = field(default_factory=list)
     ohttp_independent: Optional[bool] = None
+    account_decoupled: bool = False
     notice: str = ""
 
     def as_dict(self) -> dict[str, Any]:
@@ -88,10 +94,13 @@ class FrontierReceipt:
             "residual": list(self.residual),
             "route_reasons": list(self.route_reasons),
             "ohttp_independent": self.ohttp_independent,
+            "account_decoupled": self.account_decoupled,
             "notice": self.notice,
             "content_private": True,
-            "identity_private": False,   # never claim this with a user API key
-            "metadata_private": False,
+            # True only when client used a gateway + blind token (no user API key).
+            "identity_private": self.account_decoupled,
+            # True only when caller asserts independent OHTTP operators.
+            "metadata_private": self.ohttp_independent is True,
         }
 
 
@@ -119,12 +128,14 @@ def frontier_chat(
     accept_residual_risks: bool = False,
     max_specificity: Optional[int] = 24,
     ohttp_independent_operators: Optional[bool] = None,
+    account_decoupled: bool = False,
     extra_residual: Sequence[str] = (),
 ) -> FrontierReceipt:
-    """Run the maximum-effort content-private path to a frontier model.
+    """Run the maximum-effort path to a frontier model.
 
     ``local`` must be on this machine (Ollama or equivalent).
-    ``remote`` may call any hosted API — this module never imports a provider.
+    ``remote`` may be a direct provider call **or** ``make_gateway_remote``
+    (client holds no API key — historic account decoupling).
     """
     _require_frontier_opt_in(enable_frontier, accept_residual_risks)
     text = (message or "").strip()
@@ -144,6 +155,16 @@ def frontier_chat(
 
     mode = "general_direct" if result.attempts == 0 else "abstracted"
     residual = list(DEFAULT_RESIDUAL) + list(extra_residual)
+    claims = list(CONTENT_CLAIMS)
+
+    if account_decoupled:
+        claims = claims + list(ACCOUNT_DECOUPLED_CLAIMS)
+    else:
+        residual = [
+            "The client's API key is still an account identity for billing.",
+            *residual,
+        ]
+
     if ohttp_independent_operators is True:
         residual = [r for r in residual if "IP is visible" not in r]
         residual.append(
@@ -154,24 +175,35 @@ def frontier_chat(
             "OHTTP operators are NOT independent — IP + content can recombine "
             "at one party. Network anonymity is void.")
 
-    notice = (
-        "CONTENT gated: private facts should not be on the wire. "
-        "IDENTITY and METADATA are not solved by this path alone."
-    )
+    if account_decoupled and ohttp_independent_operators is True:
+        notice = (
+            "HISTORIC STACK (claimed): content gated + account decoupled via "
+            "blind token + OHTTP IP split asserted independent. Verify operators."
+        )
+    elif account_decoupled:
+        notice = (
+            "CONTENT gated + ACCOUNT decoupled (no client API key; blind token). "
+            "Metadata/IP not private without independent OHTTP operators."
+        )
+    else:
+        notice = (
+            "CONTENT gated: private facts should not be on the wire. "
+            "Account identity still follows the client's API key."
+        )
     if mode == "general_direct":
         notice += (
-            " This question took the general path (no private overlap detected) "
-            "— the exact text was sent because abstraction would only cost quality.")
+            " General path: exact text sent (no private overlap detected).")
 
     return FrontierReceipt(
         reply=result.reply,
         sent=result.sent,
         mode=mode,
         attempts=result.attempts,
-        claims=list(CONTENT_CLAIMS),
+        claims=claims,
         residual=residual,
         route_reasons=[],
         ohttp_independent=ohttp_independent_operators,
+        account_decoupled=account_decoupled,
         notice=notice,
     )
 

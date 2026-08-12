@@ -56,6 +56,7 @@ LABELS = {
     "test_delegate.py": "delegate",
     "test_dialects.py": "dialects",
     "test_discover.py": "discovery",
+    "test_frontier_gateway.py": "frontier-gateway",
     "test_frontier_private.py": "frontier-private",
     "test_dispatch.py": "dispatch",
     "test_hardening.py": "hardening",
