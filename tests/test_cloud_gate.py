@@ -202,10 +202,19 @@ def test_no_default_module_imports_the_cloud_gate():
     # nineteen included `__init__.py`, which is what runs on `import blindkeep`: the single
     # most default path there is was the one path never checked.
     #
-    # Two modules are allowed to reach the gate, and both are opt-in by construction:
-    #   cli.py         imports it lazily, inside the one command that offers the cloud path
-    #   vault_proxy.py IS the pseudonymising cloud path; importing it is choosing it
-    allowed = {"cli.py", "vault_proxy.py", "cloud_gate.py"}
+    # These modules are allowed to reach the gate, and each is opt-in by construction:
+    #   cli.py              imports it lazily, inside the one command that offers the cloud path
+    #   vault_proxy.py      IS the pseudonymising cloud path; importing it is choosing it
+    #   frontier_gateway.py IS the frontier cloud path, reachable only through the
+    #                       `frontier` CLI commands, which import it lazily
+    #   frontier_private.py same, for the blind-token variant of that path
+    #
+    # Adding a module here is a claim that nothing reaches it by default, and this list
+    # is NOT the proof of that -- `test_importing_the_package_does_not_load_any_cloud_module`
+    # is, because it imports in a clean interpreter and asks what actually loaded. Check a
+    # new entry against that test rather than against this comment.
+    allowed = {"cli.py", "vault_proxy.py", "cloud_gate.py",
+               "frontier_gateway.py", "frontier_private.py"}
     pkg = os.path.join(root, "blindkeep")
     names = sorted(f for f in os.listdir(pkg) if f.endswith(".py"))
     assert len(names) > 11, "module enumeration failed; this guard would pass vacuously"

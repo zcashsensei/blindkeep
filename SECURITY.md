@@ -1,6 +1,6 @@
 # Security
 
-**Version 0.4 · 2026-08-07 · applies to Blindkeep v0 alpha**
+**Version 0.5 · 2026-08-11 · applies to Blindkeep v0 alpha**
 
 ## Threat model
 
@@ -186,6 +186,45 @@ The endpoint must resolve to a loopback address; anything else is refused unless
 a caller passes `allow_remote=True` deliberately. A test asserts the module
 contains no reference to any hosted provider endpoint, so no code path there can
 reach one.
+
+### Master key sealing (app)
+
+| Attack | Defence |
+|--------|---------|
+| Agent or browser scrapes hex from the page | Raw key and hex are never returned in app JSON; export is passphrase-sealed zip only |
+| Plaintext `master.key` on disk for agents to open | Working key is `master.key.sealed` (Scrypt + AES-GCM); memory only while unlocked |
+| Accidental raw download | `GET /api/key/download` is disabled (405) |
+
+### Historic frontier path
+
+| Attack | Defence |
+|--------|---------|
+| Silent cloud disclosure | Dual acknowledgements; no default path imports a provider |
+| Client API key = account identity | Prefer `frontier-gateway` + one-time blind token; client holds no provider key |
+| Token replay | Issuer spent-set; second redeem refused |
+| Over-claiming privacy | Receipts set `identity_private` / `metadata_private` only when the path supports them |
+
+Full architecture: [`STACK.md`](STACK.md).
+
+## Audit notes (2026-08-11)
+
+Deep review of app + frontier stack. Findings that were fixed or confirmed:
+
+| Finding | Severity | Status |
+|---------|----------|--------|
+| `secrets.compare_digest` on unequal-length tokens raised and became a 500 | Medium (auth DoS / noise) | **Fixed** — length check before compare |
+| Empty `Host` header accepted | Low (DNS-rebinding edge) | **Fixed** — only `127.0.0.1` / `localhost` / `::1` |
+| Heartwood run reachable with agent token | Medium | **Fixed** — session token required |
+| Heartwood missing on fresh clone | UX | **Fixed** — multi-path discover + in-app install (fixed URL only) |
+| Raw master key / hex in app responses | High if present | **Confirmed absent** — sealed zip / metadata only |
+| Agent token cannot fetch key routes | — | **Confirmed** |
+| Gateway requires one-time blind token; replay refused | — | **Confirmed** by tests |
+| Session token in query string for SSE/download | Low (local log leakage) | Accepted for EventSource; loopback-only + Host check |
+| Legacy plaintext `master.key` if never migrated | Medium | Migrated on unlock/setup; prefer sealed at rest |
+| OHTTP void if one operator runs relay+gateway | Design | Documented; not a code bug |
+| Provider API key identity on direct frontier path | Design | Receipt sets `identity_private=false` unless gateway path |
+
+Re-run offline stack proof: `python tools/demo_historic_stack.py`.
 
 ### Gated hosted-model path
 

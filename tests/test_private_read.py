@@ -9,8 +9,11 @@ stated*. A privacy feature whose price is hidden gets switched off the first tim
 the bandwidth, and one whose residual leaks are unstated gets trusted for things it never did.
 """
 
+import atexit
 import os
+import shutil
 import sys
+import tempfile
 import threading
 from http.server import ThreadingHTTPServer
 
@@ -29,12 +32,30 @@ from blindkeep.private_read import (
 from blindkeep.store import MemoryStore
 
 SERVERS = []
-TMP = os.path.join(os.path.dirname(os.path.abspath(__file__)), "_pir_tmp")
+TMPDIRS = []
+
+
+def _cleanup():
+    for h in SERVERS:
+        try:
+            h.shutdown()
+            h.server_close()
+        except Exception:
+            pass
+    for d in TMPDIRS:
+        shutil.rmtree(d, ignore_errors=True)
+
+
+atexit.register(_cleanup)
 
 
 def keep(n=5, tag="a", label="note"):
-    d = os.path.join(TMP, tag)
-    os.makedirs(d, exist_ok=True)
+    # Fresh directory every call. A fixed path under tests/ re-loaded prior-run
+    # ciphertext under a new master key, so the second pytest session failed
+    # with InvalidTag and inflated tree sizes (the __main__ runner cleaned up;
+    # pytest did not).
+    d = tempfile.mkdtemp(prefix=f"blindkeep-pir-{tag}-")
+    TMPDIRS.append(d)
     store = MemoryStore(os.path.join(d, "node"))
     handler = type("B", (_Handler,), {"store": store, "log_message": lambda *a, **k: None})
     httpd = ThreadingHTTPServer(("127.0.0.1", 0), handler)
@@ -148,7 +169,6 @@ def test_negative_padding_is_refused():
 
 
 def run():
-    os.makedirs(TMP, exist_ok=True)
     tests = [(k, v) for k, v in sorted(globals().items()) if k.startswith("test_")]
     passed, failed = [], []
     for name, fn in tests:
@@ -164,13 +184,7 @@ def run():
             failed.append(name)
             print(f"  ERROR {name}")
             print(f"          {type(exc).__name__}: {exc}")
-    for h in SERVERS:
-        try:
-            h.shutdown(); h.server_close()
-        except Exception:
-            pass
-    import shutil
-    shutil.rmtree(TMP, ignore_errors=True)
+    _cleanup()
     print()
     print(f"{len(passed)} passed, {len(failed)} failed")
     return 1 if failed else 0

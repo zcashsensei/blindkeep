@@ -10,25 +10,18 @@ when you pick one company is not a property, it is a dependency.
 """
 
 import json
+import os
 import sys
-from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from blindkeep import dialects
 from blindkeep.dialects import ANTHROPIC, OLLAMA, OPENAI, DialectError
 
-PASS = 0
-FAIL = 0
-
 
 def check(name, cond):
-    global PASS, FAIL
-    if cond:
-        PASS += 1
-    else:
-        FAIL += 1
-        print(f"  FAIL: {name}")
+    """Assert with a named failure — works under pytest and as a bare script."""
+    assert cond, name
 
 
 def test_openai_shape():
@@ -143,9 +136,23 @@ def test_no_dialect_is_privileged():
         check(f"{name} exposes no bespoke surface", set(dir(d)) == base)
 
 
-for fn in list(globals().values()):
-    if callable(fn) and getattr(fn, "__name__", "").startswith("test_"):
-        fn()
+def run():
+    tests = [(k, v) for k, v in sorted(globals().items()) if k.startswith("test_")]
+    passed, failed = [], []
+    for name, fn in tests:
+        try:
+            fn()
+            passed.append(name)
+            print(f"  PASS  {name}")
+        except AssertionError as exc:
+            failed.append(name)
+            print(f"  FAIL  {name}\n          {exc}")
+        except Exception as exc:
+            failed.append(name)
+            print(f"  ERROR {name}\n          {type(exc).__name__}: {exc}")
+    print(f"\n{len(passed)} passed, {len(failed)} failed")
+    return 1 if failed else 0
 
-print(f"{PASS} passed, {FAIL} failed")
-sys.exit(1 if FAIL else 0)
+
+if __name__ == "__main__":
+    raise SystemExit(run())

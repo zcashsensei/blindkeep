@@ -5,8 +5,11 @@ against a different keep, a later head, or a set the prover supplied. A
 membership proof whose set comes from the prover is not a proof of anything.
 """
 
+import atexit
 import os
+import shutil
 import sys
+import tempfile
 import threading
 from http.server import ThreadingHTTPServer
 
@@ -25,13 +28,30 @@ from blindkeep.zk_keep import (
 )
 
 SERVERS = []
-TMP = os.path.join(os.path.dirname(os.path.abspath(__file__)), "_zkkeep_tmp")
+TMPDIRS = []
+
+
+def _cleanup():
+    for h in SERVERS:
+        try:
+            h.shutdown()
+            h.server_close()
+        except Exception:
+            pass
+    for d in TMPDIRS:
+        shutil.rmtree(d, ignore_errors=True)
+
+
+atexit.register(_cleanup)
 
 
 def keep(n=4, tag="a"):
     """A live node with n records, and a client for it."""
-    d = os.path.join(TMP, tag)
-    os.makedirs(d, exist_ok=True)
+    # Fresh directory every call — same isolation fix as test_private_read.
+    # Reusing a fixed path under tests/ made the second pytest session load
+    # prior-run leaves under a new key (wrong branch counts / tree sizes).
+    d = tempfile.mkdtemp(prefix=f"blindkeep-zkkeep-{tag}-")
+    TMPDIRS.append(d)
     store = MemoryStore(os.path.join(d, "node"))
     handler = type("B", (_Handler,), {"store": store, "log_message": lambda *a, **k: None})
     httpd = ThreadingHTTPServer(("127.0.0.1", 0), handler)
@@ -154,7 +174,6 @@ def test_an_oversized_keep_is_refused_with_the_reason():
 
 
 def run():
-    os.makedirs(TMP, exist_ok=True)
     tests = [(k, v) for k, v in sorted(globals().items()) if k.startswith("test_")]
     passed, failed = [], []
     for name, fn in tests:
@@ -168,13 +187,7 @@ def run():
         except Exception as exc:
             failed.append(name)
             print(f"  ERROR {name}\n          {type(exc).__name__}: {exc}")
-    for h in SERVERS:
-        try:
-            h.shutdown(); h.server_close()
-        except Exception:
-            pass
-    import shutil
-    shutil.rmtree(TMP, ignore_errors=True)
+    _cleanup()
     print(f"\n{len(passed)} passed, {len(failed)} failed")
     return 1 if failed else 0
 

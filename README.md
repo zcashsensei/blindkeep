@@ -12,22 +12,21 @@
 <p align="center">
   <img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License: MIT">
   <img src="https://img.shields.io/badge/python-3.10%2B-blue.svg" alt="Python 3.10+">
-  <img src="https://img.shields.io/badge/tests-507%20passing-brightgreen.svg" alt="507 tests passing">
+  <img src="https://img.shields.io/badge/tests-541%20passing-brightgreen.svg" alt="541 tests passing">
   <img src="https://img.shields.io/badge/status-v0%20alpha-orange.svg" alt="v0 alpha">
   <img src="https://img.shields.io/badge/dependencies-1-lightgrey.svg" alt="1 dependency">
   <img src="https://img.shields.io/badge/zero--knowledge-sigma%20protocols%20%2B%20halo2-6E4B9E.svg" alt="Zero-knowledge: sigma protocols and a halo2 SNARK">
   <img src="https://img.shields.io/badge/SNARK-halo2%20%C2%B7%20no%20trusted%20setup-6E4B9E.svg" alt="halo2 SNARK, no trusted setup">
+  <img src="https://img.shields.io/badge/frontier-content%20gate%20%2B%20account%20decoupled-6E4B9E.svg" alt="Frontier: content gate and account-decoupled gateway">
 </p>
 
 <p align="center">
-  <sub><b>Status as of 2026-08-08</b> · v0 alpha · 507 tests passing ·
-  replication, peer discovery, retrieval audits, key recovery, local-model
-  memory, pseudonymisation, an attestation framework and <b>zero-knowledge
-  membership</b> implemented · sigma protocols <i>and</i> a halo2 SNARK
-  (3,040-byte constant-size membership proof) — no zkML ·
-  <b>runs on one machine today — no public node
-  network exists, and no node has ever been run by anyone but the author</b> ·
-  run <code>blindkeep status</code> for a count computed from the source</sub>
+  <sub><b>Status as of 2026-08-11</b> · v0 alpha · 541 tests ·
+  encrypted keep · ZK membership · frontier stack ·
+  <b>Heartwood</b> throttle audit (in-app install) ·
+  <a href="STACK.md">STACK.md</a> · <a href="SECURITY.md">SECURITY.md</a> ·
+  run <code>blindkeep status</code> ·
+  <code>python tools/demo_historic_stack.py</code></sub>
 </p>
 
 ---
@@ -45,26 +44,64 @@ your own master key, and never sends either anywhere — everything is encrypted
 on your machine before it reaches storage. Nothing to sign up for, no server of
 ours involved, and it keeps working when we are offline.
 
-Five tabs: **Your keep** (what you have stored) · **Remember** (save something)
-· **Proof** (the signed log head, your master key, and agent access) · **Check
-your AI** (whether a provider is quietly throttling the model you pay for —
-needs [Heartwood](https://github.com/zcashsensei/heartwood), a separate project,
-cloned alongside) · **How it works** (the mechanism, and what it deliberately
-does *not* protect).
+Tabs: **Your keep** · **Remember** · **Security** (plain-English protections
+for everyone) · **Heartwood** (is your AI throttling you?) · **Proof** ·
+**Privacy truth** (deep threat model) · **How it works**.
 
-> **Back up your master key** — `data/master.key` — before you store anything
-> you would mind losing. It is the only thing that can decrypt your keep, and
-> nobody can reset it. That is the point: an operator who could recover your
-> data could also read it.
+A privacy strip on every page shows the posture at a glance. The first time you
+save a memory you set a **passphrase** that (1) seals the key **at rest** as
+`data/master.key.sealed` and (2) downloads `blindkeep-master-key.zip`. The raw
+key lives in process memory only while unlocked — never as hex in the page, never
+as a plaintext download. Agents that open the project folder or Downloads still
+need your passphrase.
 
-**The app is new.** The storage and crypto layers have 507 tests and have been
-built over months; `app.py` is days old and has had several security fixes
-already. It binds to loopback only, holds no data of its own, and locks the key
-file to your account — but it is the youngest code here and the part most worth
-your review.
+**Storage privacy ≠ frontier-model privacy.** The keep can stay unreadable to a
+node; talking to a hosted model is a different threat model (API account, prompt
+content, timing, IP). The app states that plainly and does not phone home.
 
-Prefer a terminal? The `blindkeep` CLI does everything the app does and more —
-see [Install](#install).
+### Historic stack: content-gated + account-decoupled frontier chat
+
+Open-source path where the **client never holds the frontier API key**.
+Entitlement is a **one-time blind token**. Private facts are **LeakGate-blocked**
+before leave. Optional OHTTP relay for IP split (only if relay ≠ gateway operator).
+
+```bash
+# 1) Gateway (holds the API key; issues are separate)
+python -m blindkeep frontier-gateway \
+  --api-base https://api.x.ai --api-key "$BLINDKEEP_CLOUD_KEY" \
+  --issuer-key data/gateway_issuer.pem --port 8751
+
+# 2) Issue a one-time unlinkable token (same issuer key)
+python -m blindkeep token issue --issuer-key data/gateway_issuer.pem --out token.json
+
+# 3) Client: Ollama abstracts + gates; gateway redeems token; no client API key
+python -m blindkeep frontier-chat \
+  --enable-frontier --accept-residual-risks \
+  --gateway-url http://127.0.0.1:8751 --token token.json --model <model> \
+  --text "Sarah in Truro owes me £4000 — what can I do?"
+```
+
+**Defensible claim:** an open stack that combines encrypted keep + ZK membership
++ local abstraction + mechanical leak gate + Chaum blind entitlement + optional
+OHTTP + a gateway that holds the provider credential so the client is not a
+named API customer. Offline proof: `python tools/demo_historic_stack.py`.
+
+**Not claimed:** zero-metadata anonymity; IP privacy when one party runs both
+relay and gateway; a public multi-operator network. Receipts list residual risks.
+
+**Direct path (content only, account still yours):** omit gateway; pass
+`--api-base` and `--api-key` as before.
+
+> **Remember the passphrase** — there is no reset. That is the point: an
+> operator who could recover your data could also read it.
+
+The local app binds to loopback only, never phones home, and never ships the
+raw master key in page state. Prefer a terminal? The `blindkeep` CLI covers the
+same surfaces and the full frontier stack — see [Install](#install).
+
+**Docs for reviewers:** [STACK.md](STACK.md) · [SECURITY.md](SECURITY.md) ·
+[CRYPTO_FOUNDATIONS.md](CRYPTO_FOUNDATIONS.md) · [WHITEPAPER.md](WHITEPAPER.md) ·
+[CONTRIBUTING.md](CONTRIBUTING.md)
 
 ---
 
@@ -525,10 +562,15 @@ circuits/       halo2 membership circuit + the blindkeep-prove binary (Rust)
   cloud_gate.py  opt-in hosted-model path — NOT PRIVATE
   vault_proxy.py reversible pseudonymisation for that path — SMALLER disclosure
   delegate.py   abstract locally, verify, send a question about nobody
+  frontier_private.py  content gate + receipts
+  frontier_gateway.py  account-decoupled gateway (holds API key)
+  frontier_relay.py    OHTTP relay surface
   anon_token.py blind-signed entitlement: prove you may ask, not who you are
   _console.py   terminal output helpers
   cli.py        command-line interface
-tests/          29 suites, 507 tests
+tests/          33 suites, 541 tests
+STACK.md        historic frontier stack architecture
+tools/demo_historic_stack.py   offline proof (no API key)
 ```
 
 ## Replication

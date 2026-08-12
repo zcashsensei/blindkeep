@@ -305,12 +305,34 @@ def cmd_token(args) -> int:
     from .anon_token import Client, Issuer, Token, TokenError
 
     if args.action == "issue":
-        issuer = Issuer()
-        # A real client is told this key by something other than the issuer; here both ends are
-        # ours, so the check is a demonstration of the refusal rather than a defence.
+        # Prefer the gateway's issuer so tokens redeem on frontier-gateway.
+        issuer_path = getattr(args, "issuer_key", None) or "data/gateway_issuer.pem"
+        if os.path.exists(issuer_path):
+            from .frontier_gateway import load_issuer, save_issuer
+            issuer = load_issuer(issuer_path)
+        else:
+            issuer = Issuer()
+            if getattr(args, "issuer_key", None) or True:
+                try:
+                    from .frontier_gateway import save_issuer
+                    save_issuer(issuer, issuer_path)
+                    print(f"issuer key written to {issuer_path}", file=sys.stderr)
+                except Exception:
+                    pass
+        # A persisted gateway issuer is exactly what a client should be pinning: one key, one
+        # crowd. Both ends are ours here, so this demonstrates the refusal rather than defending
+        # against it — a real client learns this id from somewhere the gateway does not control.
         client = Client(*issuer.public, expected_key_id=issuer.key_id)
+        print(f"[issuer key {issuer.key_id[:16]}… — a client blinding under any other key is "
+              f"in a crowd of one]", file=sys.stderr)
         blinded = client.blind()
         token = client.unblind(issuer.sign_blinded(blinded))
+        if os.path.exists(issuer_path):
+            try:
+                from .frontier_gateway import save_issuer
+                save_issuer(issuer, issuer_path)
+            except Exception:
+                pass
 
         out = token.as_dict()
         text = json.dumps(out, indent=2)
@@ -514,6 +536,180 @@ def cmd_private_chat(args) -> int:
     return 0
 
 
+def cmd_frontier_chat(args) -> int:
+    """Maximum-effort path: content gate + optional account-decoupled gateway.
+
+    With --gateway-url + --token: client holds NO provider API key (historic
+    account decoupling via blind token). With --api-base + --api-key: classic
+    content-only path (account still yours).
+    """
+    from .frontier_private import (
+        FrontierPrivateError,
+        default_api_key,
+        frontier_chat,
+        make_cloud_remote,
+        make_ollama_local,
+    )
+
+    if not args.enable_frontier or not args.accept_residual_risks:
+        raise CliError(
+            "frontier-chat needs both acknowledgements:\n"
+            "  --enable-frontier\n"
+            "  --accept-residual-risks\n"
+            "Content is gated either way. Account identity is only decoupled "
+            "when you use --gateway-url + --token (no client API key).")
+
+    context: list[str] = []
+    if args.with_keep:
+        key = _load_key(args.key)
+        from .client import BlindkeepClient
+        from .memory_gate import Sensitivity, decode_label
+        c = BlindkeepClient(args.url, key, pin_path=args.pin)
+        try:
+            for rec in c.list()[-args.recall:]:
+                try:
+                    opened = c.get(int(rec["index"]))
+                    sens, _ = decode_label(opened.get("label") or "")
+                    if sens is Sensitivity.SECRET:
+                        continue
+                    pt = opened["plaintext"]
+                    if isinstance(pt, bytes):
+                        pt = pt.decode("utf-8", "replace")
+                    if pt:
+                        context.append(pt)
+                except Exception:
+                    continue
+        except Exception:
+            pass
+
+    local = make_ollama_local(args.ollama_base, args.local_model)
+    account_decoupled = False
+
+    if args.gateway_url:
+        if not args.token:
+            raise CliError(
+                "--gateway-url requires --token (a blind token from the issuer).\n"
+                "  blindkeep token issue --out token.json   # with issuer key\n"
+                "  Or redeem against the gateway's issuer.")
+        from .anon_token import Token
+        from .frontier_gateway import make_gateway_remote
+        with open(args.token, "r", encoding="utf-8") as f:
+            blob = json.load(f)
+        tok = Token(value_hex=blob["token_hex"], signature_hex=blob["signature_hex"])
+        if not args.model:
+            raise CliError("--model is required")
+        remote = make_gateway_remote(
+            args.gateway_url, tok, model=args.model,
+            use_ohttp=bool(args.relay_url),
+            ohttp_key_config_b64=args.ohttp_config,
+            relay_url=args.relay_url,
+        )
+        account_decoupled = True
+    else:
+        api_key = args.api_key or default_api_key()
+        if not args.api_base:
+            raise CliError(
+                "pass --api-base + key, OR --gateway-url + --token "
+                "(account-decoupled historic path)")
+        if not args.model:
+            raise CliError("--model is required")
+        if not api_key:
+            raise CliError(
+                "no API key: pass --api-key or set BLINDKEEP_CLOUD_KEY, "
+                "or use --gateway-url + --token so the client never holds one")
+        remote = make_cloud_remote(
+            api_base=args.api_base, api_key=api_key, model=args.model,
+            dialect=args.dialect)
+
+    try:
+        receipt = frontier_chat(
+            args.text,
+            local=local,
+            remote=remote,
+            context=context,
+            enable_frontier=True,
+            accept_residual_risks=True,
+            max_specificity=args.max_specificity,
+            ohttp_independent_operators=(
+                True if getattr(args, "ohttp_independent", False) else None),
+            account_decoupled=account_decoupled,
+        )
+    except FrontierPrivateError as exc:
+        print(f"REFUSED: {exc}", file=sys.stderr)
+        return 1
+
+    print(f"[{receipt.notice}]", file=sys.stderr)
+    print(f"[mode: {receipt.mode} · attempts: {receipt.attempts} · "
+          f"account_decoupled: {receipt.account_decoupled}]", file=sys.stderr)
+    print(f"[sent toward provider / gateway:]", file=sys.stderr)
+    print(receipt.sent, file=sys.stderr)
+    print("[claims]", file=sys.stderr)
+    for c in receipt.claims:
+        print(f"  + {c}", file=sys.stderr)
+    print("[residual — not claimed]", file=sys.stderr)
+    for r in receipt.residual:
+        print(f"  - {r}", file=sys.stderr)
+    print(receipt.reply)
+    return 0
+
+
+def cmd_frontier_gateway(args) -> int:
+    """Run the account-decoupled frontier gateway (holds the API key)."""
+    from .frontier_gateway import (
+        FrontierGateway, load_issuer, save_issuer, serve_gateway,
+    )
+    from .anon_token import Issuer
+
+    api_key = args.api_key or os.environ.get("BLINDKEEP_CLOUD_KEY", "")
+    if not api_key or not args.api_base:
+        raise CliError("--api-base and --api-key (or BLINDKEEP_CLOUD_KEY) required")
+    if args.issuer_key and os.path.exists(args.issuer_key):
+        issuer = load_issuer(args.issuer_key)
+    else:
+        issuer = Issuer()
+        if args.issuer_key:
+            save_issuer(issuer, args.issuer_key)
+            print(f"issuer key written to {args.issuer_key}", file=sys.stderr)
+    gw = FrontierGateway(
+        api_base=args.api_base, api_key=api_key,
+        default_model=args.model or "default",
+        dialect=args.dialect, issuer=issuer,
+    )
+    httpd = serve_gateway(gw, host=args.host, port=args.port)
+    params = gw.public_params()
+    print(f"frontier-gateway -> http://{args.host}:{args.port}", file=sys.stderr)
+    print(f"  params: GET /v1/params", file=sys.stderr)
+    print(f"  complete: POST /v1/complete  (header Blindkeep-Token)", file=sys.stderr)
+    print(f"  ohttp: POST /ohttp", file=sys.stderr)
+    print(f"  issuer n…{params['issuer_n_hex'][-16:]}", file=sys.stderr)
+    print("  Ctrl-C to stop. Clients should NOT send a provider API key.",
+          file=sys.stderr)
+    try:
+        httpd.serve_forever()
+    except KeyboardInterrupt:
+        print("\nstopped", file=sys.stderr)
+        if args.issuer_key:
+            save_issuer(gw.issuer, args.issuer_key)
+    return 0
+
+
+def cmd_frontier_relay(args) -> int:
+    """Run an OHTTP relay (sees IPs, never plaintext)."""
+    from .frontier_relay import serve_relay
+    if not args.gateway:
+        raise CliError("--gateway is required (gateway base URL)")
+    httpd = serve_relay(args.gateway, host=args.host, port=args.port)
+    print(f"frontier-relay -> http://{args.host}:{args.port}", file=sys.stderr)
+    print(f"  forwards OHTTP to {args.gateway}", file=sys.stderr)
+    print("  If YOU also run the gateway, network anonymity is VOID.",
+          file=sys.stderr)
+    try:
+        httpd.serve_forever()
+    except KeyboardInterrupt:
+        print("\nstopped", file=sys.stderr)
+    return 0
+
+
 def cmd_attest(args) -> int:
     """Challenge a model host to prove it cannot read what it computes."""
     from .attest import AttestationError, Policy, attest_host
@@ -568,6 +764,36 @@ def _hosted_completer(args, api_key):
     return complete
 
 
+def _require_api_base_for_tier(args) -> None:
+    """Refuse a missing endpoint before anything that needs a key.
+
+    Every tier above local sends somewhere, and Blindkeep does not pick the
+    somewhere. A shipped default endpoint is an endorsement, and on the paths
+    that disclose it is the one choice the user must make consciously.
+
+    This check is pure (no key, no network) so a fresh clone — no master key
+    yet — still sees the "choose a provider" message rather than a key-path
+    error that buries the real omission.
+    """
+    from .memory_gate import Tier
+
+    tier = Tier[args.tier.upper()]
+    if tier is Tier.LOCAL:
+        return
+    if args.api_base:
+        return
+    raise CliError(
+        f"--api-base is required for --tier {tier.label}\n"
+        f"  Blindkeep does not choose a provider for you, and does not "
+        f"require one API. Closed or open weights, hosted or self-run:\n"
+        f"    --api-base https://api.anthropic.com  --model <claude model>\n"
+        f"    --api-base https://api.x.ai           --model <grok model>\n"
+        f"    --api-base https://api.openai.com     --model <gpt model>\n"
+        f"    --api-base http://127.0.0.1:8000      --model <self-hosted>\n"
+        f"  The wire format is inferred from the endpoint; override it with "
+        f"--dialect ({', '.join(sorted(dialects.DIALECTS))}).")
+
+
 def _gate_backend(args, client):
     """Build the backend named by --tier, with the prover that tier requires."""
     from .memory_gate import (SimpleBackend, Tier, attestation_prover,
@@ -586,20 +812,7 @@ def _gate_backend(args, client):
                                             recall=0),
             prover=loopback_prover(args.ollama_base))
 
-    # Every tier above local sends somewhere, and Blindkeep does not pick the
-    # somewhere. A shipped default endpoint is an endorsement, and on the paths
-    # that disclose it is the one choice the user must make consciously.
-    if not args.api_base:
-        raise CliError(
-            f"--api-base is required for --tier {tier.label}\n"
-            f"  Blindkeep does not choose a provider for you, and does not "
-            f"require one API. Closed or open weights, hosted or self-run:\n"
-            f"    --api-base https://api.anthropic.com  --model <claude model>\n"
-            f"    --api-base https://api.x.ai           --model <grok model>\n"
-            f"    --api-base https://api.openai.com     --model <gpt model>\n"
-            f"    --api-base http://127.0.0.1:8000      --model <self-hosted>\n"
-            f"  The wire format is inferred from the endpoint; override it with "
-            f"--dialect ({', '.join(sorted(dialects.DIALECTS))}).")
+    _require_api_base_for_tier(args)
 
     api_key = args.api_key or os.environ.get("BLINDKEEP_CLOUD_KEY", "")
 
@@ -671,6 +884,11 @@ def cmd_gate_chat(args) -> int:
     """One memory layer, any model, release decided by a PROVEN tier."""
     from .client import BlindkeepClient
     from .memory_gate import MemoryGate, Sensitivity
+
+    # Endpoint before key: a missing --api-base is the user's real omission on
+    # every tier above local, and must name itself rather than hide under
+    # "no master key" when the keep has not been initialised yet.
+    _require_api_base_for_tier(args)
 
     key = _load_key(args.key)
     client = BlindkeepClient(args.url, key, pin_path=args.pin)
@@ -1011,6 +1229,8 @@ def build_parser() -> argparse.ArgumentParser:
     tk.add_argument("action", choices=["issue", "inspect"])
     tk.add_argument("--out", default=None)
     tk.add_argument("--token", default=None, help="for inspect")
+    tk.add_argument("--issuer-key", default="data/gateway_issuer.pem",
+                    help="RSA PEM shared with frontier-gateway (created if missing)")
     tk.set_defaults(func=cmd_token)
 
     rp = sub.add_parser("read-private",
@@ -1126,6 +1346,65 @@ def build_parser() -> argparse.ArgumentParser:
                     help="reject reports older than this many seconds")
     at.add_argument("--timeout", type=float, default=10.0)
     at.set_defaults(func=cmd_attest)
+
+    fc = sub.add_parser(
+        "frontier-chat",
+        help="max-effort frontier path: content gate; optional "
+             "account-decoupled gateway (no client API key)")
+    fc.add_argument("--text", required=True)
+    fc.add_argument("--api-base", default=None,
+                    help="direct path only — omit when using --gateway-url")
+    fc.add_argument("--model", default=None)
+    fc.add_argument("--api-key", default=None)
+    fc.add_argument("--dialect", default=None, choices=sorted(dialects.DIALECTS))
+    fc.add_argument("--gateway-url", default=None,
+                    help="account-decoupled gateway (client sends blind token only)")
+    fc.add_argument("--token", default=None,
+                    help="JSON token file for gateway path")
+    fc.add_argument("--relay-url", default=None,
+                    help="OHTTP relay base (with --gateway-url + --ohttp-config)")
+    fc.add_argument("--ohttp-config", default=None,
+                    help="gateway ohttp_key_config_b64 from GET /v1/params")
+    fc.add_argument("--local-model", default="llama3.2",
+                    help="Ollama model that abstracts and re-specialises")
+    fc.add_argument("--ollama-base", default="http://127.0.0.1:11434")
+    fc.add_argument("--max-specificity", type=int, default=24)
+    fc.add_argument("--with-keep", action="store_true",
+                    help="use recent keep memories as private context for the gate")
+    fc.add_argument("--url", default="http://127.0.0.1:8741")
+    fc.add_argument("--key", default="data/client/master.key")
+    fc.add_argument("--pin", default="data/client/pin.json")
+    fc.add_argument("--index", default="data/client/gate_index.json")
+    fc.add_argument("--recall", type=int, default=6)
+    fc.add_argument("--ohttp-independent", action="store_true",
+                    help="you assert relay≠gateway operators (code cannot verify)")
+    fc.add_argument("--enable-frontier", action="store_true",
+                    help="turn on the frontier-private path")
+    fc.add_argument("--accept-residual-risks", action="store_true",
+                    help="accept residual risks listed in the receipt")
+    fc.set_defaults(func=cmd_frontier_chat)
+
+    fg = sub.add_parser(
+        "frontier-gateway",
+        help="run account-decoupled gateway (holds API key; redeems blind tokens)")
+    fg.add_argument("--host", default="127.0.0.1")
+    fg.add_argument("--port", type=int, default=8751)
+    fg.add_argument("--api-base", required=True)
+    fg.add_argument("--api-key", default=None)
+    fg.add_argument("--model", default=None)
+    fg.add_argument("--dialect", default=None, choices=sorted(dialects.DIALECTS))
+    fg.add_argument("--issuer-key", default="data/gateway_issuer.pem",
+                    help="RSA PEM for blind tokens; created if missing")
+    fg.set_defaults(func=cmd_frontier_gateway)
+
+    fr = sub.add_parser(
+        "frontier-relay",
+        help="run OHTTP relay (sees IPs; never plaintext)")
+    fr.add_argument("--host", default="127.0.0.1")
+    fr.add_argument("--port", type=int, default=8750)
+    fr.add_argument("--gateway", required=True,
+                    help="gateway base URL (…/ohttp appended if needed)")
+    fr.set_defaults(func=cmd_frontier_relay)
 
     gc = sub.add_parser(
         "gate-chat",

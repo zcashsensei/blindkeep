@@ -47,7 +47,9 @@ TOTAL_CLAIM_FLOOR = 50
 # without a label here fails the completeness check rather than being skipped.
 LABELS = {
     "test_adversarial.py": "adversarial",
+    "test_agent_gate.py": "agent gate",
     "test_anon_token.py": "anon-token",
+    "test_app_security.py": "app-security",
     "test_attest.py": "attestation",
     "test_audit.py": "audit",
     "test_cli.py": "CLI",
@@ -56,6 +58,8 @@ LABELS = {
     "test_delegate.py": "delegate",
     "test_dialects.py": "dialects",
     "test_discover.py": "discovery",
+    "test_frontier_gateway.py": "frontier-gateway",
+    "test_frontier_private.py": "frontier-private",
     "test_dispatch.py": "dispatch",
     "test_hardening.py": "hardening",
     "test_hpke.py": "HPKE",

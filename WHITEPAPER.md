@@ -1,6 +1,8 @@
 # Blindkeep — Architecture and Feasibility
 
 **Version 0.7 · 2026-08-08 · zcashsensei**
+*v0.8 2026-08-11: historic frontier stack — content gate + account-decoupled
+gateway (blind tokens); client holds no provider API key; STACK.md. See status.
 *v0.1 2026-08-05: initial. v0.2: peer discovery, retrieval auditing,
 local-model memory and a gated hosted-model path implemented; limits revised.
 v0.3: pseudonymisation, an attestation framework and a tiered release policy
@@ -236,8 +238,8 @@ The verification layer does not become the bottleneck at any realistic scale.
 
 ## 4. What is verified — as of 2026-08-08
 
-Implemented, running, and covered by tests in this repository. **507 tests
-across 29 suites**, plus an end-to-end demonstration. Every number in this
+Implemented, running, and covered by tests in this repository. **541 tests
+across 33 suites**, plus an end-to-end demonstration. Every number in this
 section is computed from source by `blindkeep status` and enforced against this
 document by `tools/check_counts.py`; none of them is typed by hand.
 
@@ -274,8 +276,11 @@ document by `tools/check_counts.py`; none of them is typed by hand.
 | Self-reporting inventory | Complete | 15 tests; counts computed from source, non-claims listed |
 | Terminal output encoding guard | Complete | 8 tests |
 | Command-line surface | Complete | 19 tests, including that no command creates a master key as a side effect |
+| Max-effort content-private frontier path | Complete | 7 tests; identity claimed only when account-decoupled |
+| Account-decoupled frontier gateway (blind token, no client API key) | Complete | 4 tests; historic open stack for entitlement decoupling |
+| App security regressions (auth length, Host, Heartwood session) | Complete | 5 tests |
 
-<!-- roster --> adversarial 9 · anon-token 24 · attestation 30 · audit 10 · CLI 19 · cloud gate 17 · console 8 · delegate 31 · dialects 10 · discovery 23 · dispatch 20 · hardening 14 · HPKE 10 · local-model memory 13 · memory gate 44 · Merkle 13 · metadata 8 · oblivious HTTP 15 · poseidon 15 · private read 12 · recovery 25 · replication 12 · SEV-SNP 19 · status 15 · store 5 · vault proxy 30 · witness 13 · zk 31 · zk-keep 12
+<!-- roster --> adversarial 9 · agent gate 18 · anon-token 24 · app-security 5 · attestation 30 · audit 10 · CLI 19 · cloud gate 17 · console 8 · delegate 31 · dialects 10 · discovery 23 · dispatch 20 · frontier-gateway 4 · frontier-private 7 · hardening 14 · HPKE 10 · local-model memory 13 · memory gate 44 · Merkle 13 · metadata 8 · oblivious HTTP 15 · poseidon 15 · private read 12 · recovery 25 · replication 12 · SEV-SNP 19 · status 15 · store 5 · vault proxy 30 · witness 13 · zk 31 · zk-keep 12
 
 The adversarial suites are the substantive claim. They stand up nodes that
 substitute records, fork history at equal length, forge heads, tamper with
