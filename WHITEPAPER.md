@@ -1,6 +1,8 @@
 # Blindkeep — Architecture and Feasibility
 
 **Version 0.7 · 2026-08-08 · zcashsensei**
+*v0.8 2026-08-11: historic frontier stack — content gate + account-decoupled
+gateway (blind tokens); client holds no provider API key; STACK.md. See status.
 *v0.1 2026-08-05: initial. v0.2: peer discovery, retrieval auditing,
 local-model memory and a gated hosted-model path implemented; limits revised.
 v0.3: pseudonymisation, an attestation framework and a tiered release policy

@@ -1260,14 +1260,13 @@ body.hastodo{padding-bottom:5.5rem}
 
   <div class=card>
     <h2>Your master key</h2>
-    <p class=note>The working key stays on this machine under
-    <span class=mono>data/master.key</span>. Backups are always a
-    <b style="color:var(--ink)">passphrase-sealed zip</b> — never raw bytes,
-    never hex in the page. Agents and APIs that open the zip without your
-    passphrase learn nothing.</p>
-    <div id=keystatus class=warnbox>Not backed up yet as a sealed zip.</div>
-    <label>Working key path (local only · not for sharing)</label>
-    <div class=mono id=keypath>data/master.key</div>
+    <p class=note>On disk the key is <span class=mono>data/master.key.sealed</span>
+    (passphrase-wrapped). In process it lives in memory only while unlocked.
+    Portable backups are a <b style="color:var(--ink)">sealed zip</b> — never
+    raw bytes, never hex in the page.</p>
+    <div id=keystatus class=warnbox>Not sealed yet.</div>
+    <label>Sealed key path (local only · not for sharing)</label>
+    <div class=mono id=keypath>data/master.key.sealed</div>
     <div class=actions>
       <button class=go id=keyprompt style="margin-top:0">Download sealed backup zip</button>
     </div>

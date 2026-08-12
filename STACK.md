@@ -1,4 +1,4 @@
-# Blindkeep historic stack
+# Blindkeep frontier stack
 
 **What this is:** an open, end-to-end path for *content-gated* and
 *account-decoupled* frontier inference — with receipts that refuse to over-claim.

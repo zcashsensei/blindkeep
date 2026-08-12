@@ -83,14 +83,13 @@ python -m blindkeep frontier-chat \
   --text "Sarah in Truro owes me £4000 — what can I do?"
 ```
 
-**What is historic (defensible):** first open stack combining encrypted keep +
-ZK membership + local abstraction + mechanical leak gate + Chaum blind
-entitlement + optional OHTTP + a gateway that holds the provider credential so
-the client is not a named API customer.
+**Defensible claim:** an open stack that combines encrypted keep + ZK membership
++ local abstraction + mechanical leak gate + Chaum blind entitlement + optional
+OHTTP + a gateway that holds the provider credential so the client is not a
+named API customer. Offline proof: `python tools/demo_historic_stack.py`.
 
-**What is still not magic:** if one person runs relay and gateway, IP anonymity
-is void. The gateway operator can still see cleared prompts. The provider still
-sees that *someone* asked a generic question. Receipts print claims vs residual.
+**Not claimed:** zero-metadata anonymity; IP privacy when one party runs both
+relay and gateway; a public multi-operator network. Receipts list residual risks.
 
 **Direct path (content only, account still yours):** omit gateway; pass
 `--api-base` and `--api-key` as before.
@@ -98,14 +97,13 @@ sees that *someone* asked a generic question. Receipts print claims vs residual.
 > **Remember the passphrase** — there is no reset. That is the point: an
 > operator who could recover your data could also read it.
 
-**The app is new.** The storage and crypto layers have 510 tests and have been
-built over months; `app.py` is days old and has had several security fixes
-already. It binds to loopback only, holds no data of its own, and locks the key
-file to your account — but it is the youngest code here and the part most worth
-your review.
+The local app binds to loopback only, never phones home, and never ships the
+raw master key in page state. Prefer a terminal? The `blindkeep` CLI covers the
+same surfaces and the full frontier stack — see [Install](#install).
 
-Prefer a terminal? The `blindkeep` CLI does everything the app does and more —
-see [Install](#install).
+**Docs for reviewers:** [STACK.md](STACK.md) · [SECURITY.md](SECURITY.md) ·
+[CRYPTO_FOUNDATIONS.md](CRYPTO_FOUNDATIONS.md) · [WHITEPAPER.md](WHITEPAPER.md) ·
+[CONTRIBUTING.md](CONTRIBUTING.md)
 
 ---
 
