@@ -4,7 +4,7 @@
 **Applicant / maintainer:** zcashsensei ([GitHub](https://github.com/zcashsensei))  
 **Repository:** https://github.com/zcashsensei/blindkeep  
 **License:** MIT  
-**Date:** 2026-08-08 (v0.4)  
+**Date:** 2026-08-11 (v0.5)  
 **Status:** Runnable open-source reference implementation (v0 alpha)
 
 *One page for Zcash Community Grants / Zcash Foundation-style review. Full technical detail: [`WHITEPAPER.md`](WHITEPAPER.md), [`CRYPTO_FOUNDATIONS.md`](CRYPTO_FOUNDATIONS.md), [`SECURITY.md`](SECURITY.md).*

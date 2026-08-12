@@ -1,6 +1,6 @@
 # Security
 
-**Version 0.4 · 2026-08-07 · applies to Blindkeep v0 alpha**
+**Version 0.5 · 2026-08-11 · applies to Blindkeep v0 alpha**
 
 ## Threat model
 
@@ -186,6 +186,25 @@ The endpoint must resolve to a loopback address; anything else is refused unless
 a caller passes `allow_remote=True` deliberately. A test asserts the module
 contains no reference to any hosted provider endpoint, so no code path there can
 reach one.
+
+### Master key sealing (app)
+
+| Attack | Defence |
+|--------|---------|
+| Agent or browser scrapes hex from the page | Raw key and hex are never returned in app JSON; export is passphrase-sealed zip only |
+| Plaintext `master.key` on disk for agents to open | Working key is `master.key.sealed` (Scrypt + AES-GCM); memory only while unlocked |
+| Accidental raw download | `GET /api/key/download` is disabled (405) |
+
+### Historic frontier path
+
+| Attack | Defence |
+|--------|---------|
+| Silent cloud disclosure | Dual acknowledgements; no default path imports a provider |
+| Client API key = account identity | Prefer `frontier-gateway` + one-time blind token; client holds no provider key |
+| Token replay | Issuer spent-set; second redeem refused |
+| Over-claiming privacy | Receipts set `identity_private` / `metadata_private` only when the path supports them |
+
+Full architecture: [`STACK.md`](STACK.md).
 
 ### Gated hosted-model path
 

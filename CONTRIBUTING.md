@@ -1,6 +1,6 @@
 # Contributing to Blindkeep
 
-**Version 0.2 · 2026-08-06**
+**Version 0.3 · 2026-08-11**
 
 Read this before opening a pull request. It records the design constraints that
 are not up for renegotiation, and the reasoning behind them.
@@ -12,9 +12,10 @@ are not up for renegotiation, and the reasoning behind them.
 | Rule | Meaning |
 |------|---------|
 | **Ciphertext only on nodes** | The client encrypts. A node must never receive a master key or plaintext. |
-| **No third-party data paths by default** | Do not add a code path that forwards user prompts or records to an external API. If one is ever added it must be opt-in and explicitly labelled as not private. |
-| **The current release calls no external model APIs** | Keep it that way until a deliberate gateway design exists. |
-| **Privacy is structural, not contractual** | A guarantee holds because data is never sent, not because a provider promises not to look. |
+| **No third-party data paths by default** | Default `put` / `get` / local `chat` never call an external model API. |
+| **Frontier paths are opt-in and receipted** | `frontier-chat`, `frontier-gateway`, and the app historic stack require explicit flags / dual acknowledgements and must emit claims vs residual risks. Do not add a silent cloud default. |
+| **Account decoupling is preferred over client API keys** | When a hosted model is needed, prefer the gateway + blind-token path so the client is not a named provider customer. |
+| **Privacy is structural, not contractual** | A guarantee holds because data is never sent (or is gated), not because a provider promises not to look. |
 
 ### Cryptography
 
