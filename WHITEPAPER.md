@@ -1,9 +1,17 @@
 # Blindkeep — Architecture and Feasibility
 
-**Version 0.7 · 2026-08-08 · zcashsensei**
-*v0.8 2026-08-11: historic frontier stack — content gate + account-decoupled
+**Version 0.9 · 2026-08-13 · zcashsensei**
+
+*Revision history —
+v0.9 2026-08-13: a real-hardware validation path for the SEV-SNP verifier
+(`docs/SEV_SNP_VALIDATION.md`, `tools/sev_snp_capture.sh`,
+`tools/sev_snp_ingest.py`) and a known-answer suite that fails if the "not
+validated" disclaimer is ever removed without a vector to replace it. No
+capability change: `sev-snp` still refuses on the default path, and §7 still
+says so.
+v0.8 2026-08-11: historic frontier stack — content gate + account-decoupled
 gateway (blind tokens); client holds no provider API key; STACK.md. See status.
-*v0.1 2026-08-05: initial. v0.2: peer discovery, retrieval auditing,
+v0.1 2026-08-05: initial. v0.2: peer discovery, retrieval auditing,
 local-model memory and a gated hosted-model path implemented; limits revised.
 v0.3: pseudonymisation, an attestation framework and a tiered release policy
 implemented; a SEV-SNP verifier written but deliberately disabled; §7 revised to

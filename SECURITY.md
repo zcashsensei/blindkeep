@@ -1,6 +1,6 @@
 # Security
 
-**Version 0.5 · 2026-08-11 · applies to Blindkeep v0 alpha**
+**Version 0.6 · 2026-08-13 · applies to Blindkeep v0 alpha**
 
 ## Threat model
 
@@ -308,6 +308,11 @@ SHA-384 against a VCEK, walks ARK → ASK → VCEK, and handles AMD's little-end
 `r`/`s` encoding. It is **not** in `attest.default_registry()`, and `sev-snp`
 refuses on the default path, because **no report from real hardware has ever
 been run through it**.
+
+The procedure that would change this is `docs/SEV_SNP_VALIDATION.md`, with
+tooling in `tools/sev_snp_capture.sh` and `tools/sev_snp_ingest.py`. Until a
+vector exists, `tests/test_sev_snp_vector.py` asserts that this section still
+says so — removing the disclaimer without adding the evidence fails the suite.
 
 An unvalidated parser fails one of two ways: it always errors, or it reads the
 wrong 48 bytes as the measurement and passes. The second is unacceptable in a

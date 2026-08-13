@@ -943,12 +943,27 @@ that passing means something.
 
 Validating it is not a coding task. It needs one report captured from a real
 SEV-SNP guest (Azure DCasv5/DCadsv5, AWS SEV-SNP instances or GCP N2D
-confidential VMs), its VCEK from AMD's KDS, and that report added to
-`tests/test_sev_snp.py` as a known-answer vector — confirming specifically that
+confidential VMs) and its VCEK from AMD's KDS — confirming specifically that
 `MEASUREMENT` begins at `0x090`, that the signature covers exactly the first
 `0x2A0` bytes, and that `r`/`s` really are 72-byte little-endian fields. Still
 out of scope after that: VCEK fetch from AMD's KDS, revocation, and TCB policy
 beyond an equality check.
+
+The procedure is written down, and the tooling for it ships in the repo —
+about an hour, and a few dollars of VM time:
+
+```bash
+py -3 tools/sev_snp_ingest.py --nonce          # before you rent anything
+./tools/sev_snp_capture.sh <report_data_hex>   # on the guest, then destroy it
+py -3 tools/sev_snp_ingest.py --capture ./blindkeep-snp-capture
+```
+
+See [`docs/SEV_SNP_VALIDATION.md`](docs/SEV_SNP_VALIDATION.md). The ingest step
+**refuses to write a vector if any check fails** — a vector built from a bad
+capture would bake the bug in as the expected answer, which is worse than having
+none. `tests/test_sev_snp_vector.py` then holds the result permanently, and
+while no vector exists it asserts that this disclaimer is still being made, so
+the claim and the evidence cannot drift apart in either direction.
 
 ## Roadmap
 
