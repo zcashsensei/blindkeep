@@ -277,7 +277,8 @@ def cmd_zk_prove(args) -> int:
         # codepage turns "·" into "Â·" and "…" into "â€¦". Same class as the console guard —
         # a child's output is UTF-8 whatever the parent's locale happens to be.
         proc = subprocess.run(cmd, capture_output=True, text=True,
-                              encoding="utf-8", errors="replace")
+                              encoding="utf-8", errors="replace",
+                              creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
         if proc.returncode != 0:
             print(proc.stderr.strip() or "the prover failed", file=sys.stderr)
             return 1

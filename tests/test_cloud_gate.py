@@ -253,7 +253,8 @@ def test_importing_the_package_does_not_load_any_cloud_module():
             "print(','.join(sorted(m for m in sys.modules "
             "if 'cloud_gate' in m or 'vault_proxy' in m)))"
         )
-        out = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True)
+        out = subprocess.run([sys.executable, "-c", code], capture_output=True,
+                             text=True, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
         assert out.returncode == 0, f"import {entry} failed: {out.stderr[-300:]}"
         loaded = out.stdout.strip()
         assert not loaded, f"import {entry} loaded a cloud path: {loaded}"

@@ -250,7 +250,8 @@ def lock_down(path: pathlib.Path) -> None:
             user = os.environ.get("USERNAME") or ""
             subprocess.run(["icacls", str(path), "/inheritance:r",
                             "/grant:r", f"{user}:F"],
-                           capture_output=True, check=False, timeout=15)
+                           capture_output=True, check=False, timeout=15,
+                           creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
         else:
             os.chmod(path, 0o600)
     except Exception as exc:                                 # pragma: no cover

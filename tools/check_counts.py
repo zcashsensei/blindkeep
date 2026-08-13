@@ -199,6 +199,7 @@ def run_tests() -> list[str]:
             [sys.executable, str(path)],
             cwd=ROOT,
             capture_output=True,
+            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
         )
         if r.returncode != 0:
             failed.append(f"tests/{path.name} exited {r.returncode}")

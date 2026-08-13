@@ -53,7 +53,11 @@ def _boot():
     proc = subprocess.Popen(
         [sys.executable, "-m", "blindkeep", "node",
          "--data-dir", str(tmp / "keep"), "--port", str(NODE_PORT)],
-        cwd=ROOT, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        cwd=ROOT, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+        # Windowless: the engines were windowless but the code WATCHING them
+        # was not, and supervisors popped a console every cycle for days.
+        # A test harness spawning a child is the same shape.
+        creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
     PROCS.append(proc)
 
     node_url = f"http://127.0.0.1:{NODE_PORT}"

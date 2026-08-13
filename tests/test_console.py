@@ -54,7 +54,8 @@ def _cp1252_env():
 
 def _run(args, env=None):
     return subprocess.run(args, cwd=ROOT, env=env, capture_output=True,
-                          timeout=120)
+                          timeout=120,
+                          creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
 
 
 def _entry_points():
