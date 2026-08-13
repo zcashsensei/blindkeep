@@ -2718,10 +2718,16 @@ def main():
     print(f"Blindkeep -> {url}")
     print(f"  node: {'up (' + how + ')' if ok else 'FAILED: ' + how}")
     print("  bound to localhost only. Ctrl-C to stop.")
-    try:
-        webbrowser.open(url)
-    except Exception:
-        pass
+    # Interactive launches only (2026-08-13). Opening unconditionally meant every restart
+    # — including a supervised one — stole focus with a new tab. `launch.pyw` is the
+    # deliberate "open the app" entry point and still opens a browser; this path is the
+    # server, and a server should not. `--open` forces, `--no-open` always wins.
+    _interactive = bool(getattr(sys.stdout, "isatty", lambda: False)())
+    if "--no-open" not in sys.argv and ("--open" in sys.argv or _interactive):
+        try:
+            webbrowser.open(url)
+        except Exception:
+            pass
     try:
         srv.serve_forever()
     except KeyboardInterrupt:
