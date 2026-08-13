@@ -14,6 +14,7 @@ from blindkeep.frontier_gateway import (
     GatewayError,
     make_gateway_remote,
     serve_gateway,
+    transport_of,
 )
 from blindkeep.frontier_private import frontier_chat
 
@@ -91,6 +92,23 @@ def test_public_params_expose_issuer_not_api_key():
     assert "issuer_n_hex" in p
     assert "sk-secret" not in json.dumps(p)
     assert "api_key" not in p
+
+
+def test_the_completer_reports_the_transport_it_actually_uses():
+    # app.py asks the completer rather than the request body. Without this the
+    # two can disagree, and the receipt believes the body.
+    tok = Token(value_hex="aa" * 32, signature_hex="bb" * 32)
+    direct = make_gateway_remote("http://gw.example", tok, model="m")
+    assert transport_of(direct) == "direct"
+    ohttp = make_gateway_remote(
+        "http://gw.example", tok, model="m", use_ohttp=True,
+        relay_url="http://relay.other", ohttp_key_config_b64="AAAA")
+    assert transport_of(ohttp) == "ohttp"
+
+
+def test_an_untagged_completer_claims_the_least():
+    # A user's own API-key completer, or a stub, is not from this module.
+    assert transport_of(lambda p, system=None: "x") == "direct"
 
 
 def run():

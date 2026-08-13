@@ -1128,12 +1128,30 @@ class Handler(BaseHTTPRequestHandler):
                         "hint": "content is gated; identity only with gateway"})
                 model = (body.get("model") or "").strip()
                 gateway_url = (body.get("gateway_url") or "").strip()
+                # OHTTP: the client posts opaque bytes to the RELAY, which
+                # forwards them to the gateway. The relay sees an IP and no
+                # plaintext; the gateway sees plaintext and no IP.
+                relay_url = (body.get("relay_url") or "").strip()
+                # The gateway's key config is supplied, never fetched from the
+                # gateway here: asking it for its own key would open exactly
+                # the direct connection OHTTP exists to avoid. Read it from
+                # GET /v1/params out of band, as the CLI does.
+                ohttp_config = (body.get("ohttp_config") or "").strip()
                 token_blob = body.get("token")  # {token_hex, signature_hex}
                 local_model = (body.get("local_model") or "llama3.2").strip()
                 ollama_base = (body.get("ollama_base")
                                or "http://127.0.0.1:11434").strip()
                 if not model:
                     return self._send(400, {"error": "model is required"})
+                if relay_url and not gateway_url:
+                    return self._send(400, {
+                        "error": "relay_url needs gateway_url — a relay "
+                                 "forwards to a gateway"})
+                if relay_url and not ohttp_config:
+                    return self._send(400, {
+                        "error": "relay_url needs ohttp_config",
+                        "hint": "GET /v1/params on the gateway gives "
+                                "ohttp_key_config_b64; pass it here"})
                 account_decoupled = False
                 context: list = []
                 if body.get("with_keep"):
@@ -1167,7 +1185,10 @@ class Handler(BaseHTTPRequestHandler):
                             signature_hex=str(
                                 token_blob.get("signature_hex") or ""))
                         remote = make_gateway_remote(
-                            gateway_url, tok, model=model)
+                            gateway_url, tok, model=model,
+                            use_ohttp=bool(relay_url),
+                            ohttp_key_config_b64=ohttp_config or None,
+                            relay_url=relay_url or None)
                         account_decoupled = True
                     else:
                         api_base = (body.get("api_base") or "").strip()
@@ -1182,6 +1203,10 @@ class Handler(BaseHTTPRequestHandler):
                         remote = make_cloud_remote(
                             api_base=api_base, api_key=api_key, model=model,
                             dialect=body.get("dialect") or None)
+                    # Ask the completer what it sends over, rather than
+                    # restating the request body. These disagree exactly when
+                    # the receipt would otherwise be wrong.
+                    from blindkeep.frontier_gateway import transport_of
                     receipt = frontier_chat(
                         text,
                         local=local,
@@ -1193,6 +1218,9 @@ class Handler(BaseHTTPRequestHandler):
                         ohttp_independent_operators=(
                             True if body.get("ohttp_independent") else None),
                         account_decoupled=account_decoupled,
+                        transport=transport_of(remote),
+                        gateway_url=gateway_url or None,
+                        relay_url=relay_url or None,
                     )
                 except FrontierPrivateError as exc:
                     return self._send(409, {"error": str(exc),
@@ -1916,9 +1944,18 @@ body.hastodo{padding-bottom:5.5rem}
         <input id=ft-base placeholder="https://api.x.ai" autocomplete=off></div>
       <div id=ft-key-wrap style="display:none"><label for=ft-key>API key</label>
         <input id=ft-key type=password autocomplete=off placeholder="not stored"></div>
+      <div id=ft-relay-wrap><label for=ft-relay>OHTTP relay URL (optional)</label>
+        <input id=ft-relay placeholder="http://relay.example:8750 — leave blank for a direct send" autocomplete=off></div>
+      <div id=ft-ohttp-wrap><label for=ft-ohttp>Gateway ohttp_key_config_b64</label>
+        <input id=ft-ohttp placeholder="from GET /v1/params on the gateway" autocomplete=off></div>
       <div><label for=ft-local>Local Ollama model</label>
         <input id=ft-local value="llama3.2" autocomplete=off></div>
     </div>
+    <p class=note id=ft-relay-note style="margin-top:.5rem">
+      A relay splits the roles: it sees your IP and never your request; the
+      gateway sees your request and never your IP. It only buys you anything
+      when <b>a different person</b> runs each one — two on your own machine is
+      a direct send with extra steps, and the receipt will say so.</p>
     <label style="margin-top:.8rem;display:flex;gap:.5rem;align-items:flex-start;color:var(--muted);font-size:.86rem">
       <input type=checkbox id=ft-enable style="width:auto;margin-top:.2rem">
       Enable frontier path</label>
@@ -2488,6 +2525,10 @@ function ftModePaint(){
   const gw = ($('ft-mode').value==='gateway');
   $('ft-gw-wrap').style.display = gw?'block':'none';
   $('ft-tok-wrap').style.display = gw?'block':'none';
+  // OHTTP splits the gateway's roles, so it only exists on the gateway path.
+  $('ft-relay-wrap').style.display = gw?'block':'none';
+  $('ft-ohttp-wrap').style.display = gw?'block':'none';
+  $('ft-relay-note').style.display = gw?'block':'none';
   $('ft-base-wrap').style.display = gw?'none':'block';
   $('ft-key-wrap').style.display = gw?'none':'block';
 }
@@ -2513,6 +2554,15 @@ $('ft-go').onclick = async ()=>{
     body.gateway_url = $('ft-gw').value.trim();
     try { body.token = JSON.parse($('ft-token').value||'{}'); }
     catch(e){ $('ft-out').innerHTML='<div class=warnbox>Token JSON is invalid.</div>'; return; }
+    const relay = $('ft-relay').value.trim();
+    const cfg = $('ft-ohttp').value.trim();
+    if(relay && !cfg){
+      $('ft-out').innerHTML='<div class=warnbox>A relay needs the gateway\'s '
+        +'ohttp_key_config_b64 (GET /v1/params). Without it there is no OHTTP '
+        +'send, and this refuses rather than quietly going direct.</div>';
+      return;
+    }
+    if(relay){ body.relay_url = relay; body.ohttp_config = cfg; }
   } else {
     body.api_base = $('ft-base').value.trim();
     body.api_key = $('ft-key').value;
@@ -2533,6 +2583,10 @@ $('ft-go').onclick = async ()=>{
     const claims = (r.claims||[]).map(c=>`<li>${esc(c)}</li>`).join('');
     const residual = (r.residual||[]).map(c=>`<li>${esc(c)}</li>`).join('');
     const idOk = r.identity_private ? 'var(--good)' : 'var(--warn)';
+    const mdOk = r.metadata_private ? 'var(--good)' : 'var(--warn)';
+    // Why metadata privacy was or was not granted. Shown always: the refusal
+    // reason is the part a reader needs, and it used to be invisible.
+    const mdWhy = (r.metadata_reasons||[]).map(c=>`<li>${esc(c)}</li>`).join('');
     $('ft-out').innerHTML = `
       <div class=res style="border-color:var(--good)">
         <b style="color:var(--good)">Reply</b>
@@ -2543,6 +2597,12 @@ $('ft-go').onclick = async ()=>{
         <p class=note>${esc(r.notice||'')}</p>
         <label>Mode</label><div class=mono>${esc(r.mode)} · attempts ${esc(r.attempts)} ·
           account_decoupled=${esc(r.account_decoupled)}</div>
+        <label>Transport that actually carried it</label>
+        <div class=mono>${esc(r.transport||'direct')}${
+          r.transport==='ohttp'?' — client → relay → gateway':' — client → gateway'}</div>
+        <div class="${r.metadata_private?'okbox':'warnbox'}" style="margin-top:.7rem">
+          <b>Network metadata${r.metadata_private?'' : ' — not private'}</b>
+          <ul class=plain>${mdWhy}</ul></div>
         <label>Exactly what left toward the provider / gateway</label>
         <pre class=mono style="white-space:pre-wrap;font-size:.78rem;background:rgba(0,0,0,.3);
           border:1px solid var(--line);border-radius:.45rem;padding:.7rem">${esc(r.sent||'')}</pre>
@@ -2550,7 +2610,8 @@ $('ft-go').onclick = async ()=>{
         <div class=warnbox style="margin-top:.7rem"><b>Residual — not claimed</b><ul class=plain>${residual}</ul></div>
         <p class=note style="margin-top:.6rem">
           <span style="color:${idOk}">identity_private=${esc(r.identity_private)}</span> ·
-          metadata_private=${esc(r.metadata_private)} · content_private=${esc(r.content_private)}</p>
+          <span style="color:${mdOk}">metadata_private=${esc(r.metadata_private)}</span> ·
+          content_private=${esc(r.content_private)}</p>
       </div>`;
   }catch(e){
     $('ft-out').innerHTML = `<div class=res style="border-color:var(--bad)"><b style="color:var(--bad)">Error</b>

@@ -12,7 +12,10 @@ What this path CAN do for a normal person today
 * Pull context from the encrypted keep without ever uploading raw memories.
 * Emit a **receipt** of exactly what left, what is claimed, and what is not.
 * Optionally attach a blind entitlement token (Privacy Pass shape).
-* Optionally mark OHTTP independent-operator status when you supply one.
+* Report an OHTTP IP split **only when the transport actually took one** —
+  ``assess_network`` decides ``metadata_private`` from the socket that was
+  used, the relay and gateway hosts, and only then your unverifiable claim of
+  operator independence. Passing a flag cannot turn it on.
 
 What this path CANNOT do (and will not claim)
 ---------------------------------------------
@@ -33,9 +36,11 @@ drift apart.
 
 from __future__ import annotations
 
+import ipaddress
 import os
 from dataclasses import dataclass, field
 from typing import Any, Callable, Optional, Sequence
+from urllib.parse import urlparse
 
 from .delegate import LeakError, ask
 
@@ -69,6 +74,93 @@ ACCOUNT_DECOUPLED_CLAIMS = (
 Completer = Callable[[str, Optional[str]], str]
 
 
+def _host_of(url: Optional[str]) -> str:
+    """Lowercased hostname of a URL, or "" when there isn't one."""
+    if not url:
+        return ""
+    parsed = urlparse(url if "//" in url else "//" + url)
+    return (parsed.hostname or "").lower()
+
+
+def _is_local(host: str) -> bool:
+    """True only when the host is DEMONSTRABLY this machine or a private LAN.
+
+    Literal addresses and the reserved local names only. No DNS resolution:
+    a lookup here would be a network round trip inside the privacy path, and
+    the answer could differ from the one the transport later gets. An
+    unresolvable-by-inspection name reads as NOT local, so this can never be
+    the reason a path is waved through -- it is only ever used to REFUSE.
+    """
+    if not host:
+        return False
+    if host == "localhost" or host.endswith((".localhost", ".local")):
+        return True
+    try:
+        addr = ipaddress.ip_address(host)
+    except ValueError:
+        return False
+    return addr.is_loopback or addr.is_private or addr.is_link_local
+
+
+@dataclass
+class NetworkPosture:
+    """What the code KNOWS about the network path, apart from what is CLAIMED.
+
+    ``metadata_private`` is never set from an assertion alone. Three facts have
+    to hold first -- OHTTP was really the transport, the relay and the gateway
+    are different hosts, and they are not both on this machine -- and only then
+    does the caller's unverifiable independence claim count for anything.
+    """
+
+    transport: str
+    metadata_private: bool
+    reasons: list[str] = field(default_factory=list)
+
+
+def assess_network(
+    *,
+    transport: str,
+    gateway_url: Optional[str] = None,
+    relay_url: Optional[str] = None,
+    independent_operators: Optional[bool] = None,
+) -> NetworkPosture:
+    """Decide metadata privacy from transport facts, not from the caller's word.
+
+    Ordered so the first FAILING fact is the reason given. Every branch except
+    the last returns False: this function's job is to refuse.
+    """
+    gw_host, relay_host = _host_of(gateway_url), _host_of(relay_url)
+
+    if transport != "ohttp":
+        return NetworkPosture(transport, False, [
+            "The client connected to the gateway directly, so the gateway "
+            "sees the client IP. OHTTP was not the transport."])
+    if not relay_host:
+        return NetworkPosture(transport, False, [
+            "OHTTP was requested but no relay URL was supplied, so there is "
+            "no party to split IP from content."])
+    if gw_host and relay_host == gw_host:
+        return NetworkPosture(transport, False, [
+            f"Relay and gateway are the same host ({relay_host}). One party "
+            f"sees both the client IP and the decrypted request -- that is a "
+            f"rename of a direct send, not an IP split."])
+    if _is_local(relay_host) and _is_local(gw_host):
+        return NetworkPosture(transport, False, [
+            f"Relay ({relay_host}) and gateway ({gw_host}) are both on this "
+            f"machine or LAN. Running both roles yourself voids the split."])
+    if independent_operators is not True:
+        return NetworkPosture(transport, False, [
+            "OHTTP is in use and the hosts differ, but operator independence "
+            "was not asserted. Two hosts can still be one operator."])
+
+    return NetworkPosture(transport, True, [
+        f"OHTTP transport confirmed: the client reached {relay_host}, which "
+        f"forwarded opaque bytes to {gw_host or 'the gateway'}.",
+        "Operator independence is ASSERTED BY YOU and cannot be verified from "
+        "here. If one party runs both, this claim is void.",
+    ])
+
+
 @dataclass
 class FrontierReceipt:
     """What happened — including what is NOT claimed."""
@@ -80,9 +172,12 @@ class FrontierReceipt:
     claims: list[str] = field(default_factory=list)
     residual: list[str] = field(default_factory=list)
     route_reasons: list[str] = field(default_factory=list)
-    ohttp_independent: Optional[bool] = None
+    ohttp_independent: Optional[bool] = None   # what the caller CLAIMED
     account_decoupled: bool = False
     notice: str = ""
+    transport: str = "direct"                  # what actually carried the request
+    metadata_private: bool = False             # decided by assess_network, not by a flag
+    metadata_reasons: list[str] = field(default_factory=list)
 
     def as_dict(self) -> dict[str, Any]:
         return {
@@ -96,11 +191,15 @@ class FrontierReceipt:
             "ohttp_independent": self.ohttp_independent,
             "account_decoupled": self.account_decoupled,
             "notice": self.notice,
+            "transport": self.transport,
+            "metadata_reasons": list(self.metadata_reasons),
             "content_private": True,
             # True only when client used a gateway + blind token (no user API key).
             "identity_private": self.account_decoupled,
-            # True only when caller asserts independent OHTTP operators.
-            "metadata_private": self.ohttp_independent is True,
+            # Decided by assess_network from the transport actually used. A
+            # caller cannot turn this on by passing a flag -- that was the
+            # defect this field exists to prevent.
+            "metadata_private": self.metadata_private,
         }
 
 
@@ -130,12 +229,20 @@ def frontier_chat(
     ohttp_independent_operators: Optional[bool] = None,
     account_decoupled: bool = False,
     extra_residual: Sequence[str] = (),
+    transport: str = "direct",
+    gateway_url: Optional[str] = None,
+    relay_url: Optional[str] = None,
 ) -> FrontierReceipt:
     """Run the maximum-effort path to a frontier model.
 
     ``local`` must be on this machine (Ollama or equivalent).
     ``remote`` may be a direct provider call **or** ``make_gateway_remote``
     (client holds no API key — historic account decoupling).
+
+    ``transport`` is the FACT of what carried the request — pass
+    ``frontier_gateway.transport_of(remote)`` rather than restating it, so the
+    receipt cannot disagree with the socket. ``ohttp_independent_operators``
+    remains a caller assertion and, on its own, no longer buys anything.
     """
     _require_frontier_opt_in(enable_frontier, accept_residual_risks)
     text = (message or "").strip()
@@ -165,20 +272,28 @@ def frontier_chat(
             *residual,
         ]
 
-    if ohttp_independent_operators is True:
+    posture = assess_network(
+        transport=transport,
+        gateway_url=gateway_url,
+        relay_url=relay_url,
+        independent_operators=ohttp_independent_operators,
+    )
+
+    if posture.metadata_private:
+        # Only a CONFIRMED OHTTP split may retire the IP warning. Retiring it
+        # on the caller's say-so is what let a direct send read as private.
         residual = [r for r in residual if "IP is visible" not in r]
-        residual.append(
-            "OHTTP independent operators claimed by the caller — this code "
-            "cannot verify corporate separation.")
-    elif ohttp_independent_operators is False:
+    residual.extend(posture.reasons)
+    if ohttp_independent_operators is False:
         residual.append(
             "OHTTP operators are NOT independent — IP + content can recombine "
             "at one party. Network anonymity is void.")
 
-    if account_decoupled and ohttp_independent_operators is True:
+    if account_decoupled and posture.metadata_private:
         notice = (
-            "HISTORIC STACK (claimed): content gated + account decoupled via "
-            "blind token + OHTTP IP split asserted independent. Verify operators."
+            "HISTORIC STACK: content gated + account decoupled via blind token "
+            "+ OHTTP IP split confirmed in transport. Operator independence is "
+            "your assertion — verify it."
         )
     elif account_decoupled:
         notice = (
@@ -205,6 +320,9 @@ def frontier_chat(
         ohttp_independent=ohttp_independent_operators,
         account_decoupled=account_decoupled,
         notice=notice,
+        transport=posture.transport,
+        metadata_private=posture.metadata_private,
+        metadata_reasons=posture.reasons,
     )
 
 

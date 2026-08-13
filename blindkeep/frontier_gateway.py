@@ -315,4 +315,19 @@ def make_gateway_remote(
         raw = client.send(relay, inner, client_address="client")
         return json.loads(raw.decode("utf-8"))["reply"]
 
+    # The completer carries its own transport so a caller cannot describe the
+    # request as something other than what it sent. A receipt that took the
+    # caller's word for this reported an IP split across a direct socket.
+    complete_direct.blindkeep_transport = "direct"      # type: ignore[attr-defined]
+    complete_ohttp.blindkeep_transport = "ohttp"        # type: ignore[attr-defined]
     return complete_ohttp if use_ohttp else complete_direct
+
+
+def transport_of(completer: Callable[..., Any]) -> str:
+    """What actually carries this completer's requests: "ohttp" or "direct".
+
+    Anything not built by ``make_gateway_remote`` -- a user's own API-key
+    completer, a test stub -- is untagged and reads as "direct", which is the
+    answer that claims least.
+    """
+    return getattr(completer, "blindkeep_transport", "direct")

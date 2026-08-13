@@ -8,6 +8,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from blindkeep.delegate import LeakError
 from blindkeep.frontier_private import (
     FrontierPrivateError,
+    assess_network,
     frontier_chat,
 )
 
@@ -163,6 +164,106 @@ def test_empty_question_refused():
         raise AssertionError("empty should refuse")
     except FrontierPrivateError:
         pass
+
+
+# --- metadata privacy is decided by the transport, never by a flag ----------
+#
+# The defect these pin: /api/frontier-chat took `ohttp_independent` from the
+# request body and reported metadata_private=True on a direct socket. A caller
+# asserting privacy was enough to be granted it. Every case below except the
+# last must refuse, so the honest answer is the default and the one True has
+# to be earned by facts the code can check.
+
+def metadata_receipt(**kw):
+    return frontier_chat(
+        "what is the capital of France",
+        local=local_stub("a generic question"),
+        remote=remote_stub("a generic answer"),
+        enable_frontier=True, accept_residual_risks=True,
+        account_decoupled=True, **kw).as_dict()
+
+
+SPLIT = dict(gateway_url="https://gw.example", relay_url="https://relay.other")
+
+
+def test_metadata_privacy_refused_on_a_direct_socket():
+    d = metadata_receipt(transport="direct", gateway_url="https://gw.example",
+                         ohttp_independent_operators=True)
+    assert d["metadata_private"] is False, "a flag must not buy metadata privacy"
+    assert d["transport"] == "direct"
+    assert "not the transport" in " ".join(d["metadata_reasons"])
+
+
+def test_metadata_privacy_refused_when_ohttp_has_no_relay():
+    d = metadata_receipt(transport="ohttp", gateway_url="https://gw.example",
+                         ohttp_independent_operators=True)
+    assert d["metadata_private"] is False
+
+
+def test_metadata_privacy_refused_when_relay_and_gateway_share_a_host():
+    d = metadata_receipt(transport="ohttp", gateway_url="https://same.example",
+                         relay_url="https://same.example/forward",
+                         ohttp_independent_operators=True)
+    assert d["metadata_private"] is False
+    assert "same host" in " ".join(d["metadata_reasons"])
+
+
+def test_metadata_privacy_refused_when_both_roles_run_on_loopback():
+    # The demo shape: gateway and relay on loopback, different PORTS. The
+    # module docstring calls this "a rename of direct send" -- so must the
+    # code. Same address on two ports is one host, so the stricter same-host
+    # rule answers first; what matters is that it refuses.
+    d = metadata_receipt(transport="ohttp", gateway_url="http://127.0.0.1:8751",
+                         relay_url="http://127.0.0.1:8750",
+                         ohttp_independent_operators=True)
+    assert d["metadata_private"] is False
+    assert "same host" in " ".join(d["metadata_reasons"])
+
+
+def test_metadata_privacy_refused_across_two_machines_on_one_LAN():
+    # Distinct hosts, so the same-host rule does NOT fire -- this is the case
+    # only the private-address check can refuse.
+    d = metadata_receipt(transport="ohttp", gateway_url="http://192.168.1.50:8751",
+                         relay_url="http://127.0.0.1:8750",
+                         ohttp_independent_operators=True)
+    assert d["metadata_private"] is False
+    assert "this machine" in " ".join(d["metadata_reasons"])
+
+
+def test_metadata_privacy_refused_without_an_independence_assertion():
+    assert metadata_receipt(transport="ohttp", **SPLIT)["metadata_private"] is False
+
+
+def test_metadata_privacy_granted_only_on_a_confirmed_split():
+    d = metadata_receipt(transport="ohttp", ohttp_independent_operators=True,
+                         **SPLIT)
+    assert d["metadata_private"] is True
+    assert d["transport"] == "ohttp"
+    # Even when granted, the unverifiable half is stated rather than hidden.
+    assert "cannot be verified" in " ".join(d["metadata_reasons"])
+
+
+def test_ip_warning_survives_an_unbacked_independence_claim():
+    # Claiming independence used to delete the IP warning from the receipt.
+    d = metadata_receipt(transport="direct", gateway_url="https://gw.example",
+                         ohttp_independent_operators=True)
+    assert any("IP is visible" in r for r in d["residual"])
+
+
+def test_localhost_names_count_as_this_machine():
+    posture = assess_network(transport="ohttp", gateway_url="http://localhost:1",
+                             relay_url="http://localhost:2",
+                             independent_operators=True)
+    assert posture.metadata_private is False
+
+
+def test_an_unresolvable_name_is_never_treated_as_local():
+    # _is_local does no DNS. An unknown name must not read as local, or the
+    # "both on this machine" refusal could be dodged by naming a host.
+    posture = assess_network(transport="ohttp", gateway_url="https://gw.example",
+                             relay_url="https://relay.other",
+                             independent_operators=True)
+    assert posture.metadata_private is True
 
 
 def run():

@@ -621,6 +621,10 @@ def cmd_frontier_chat(args) -> int:
             api_base=args.api_base, api_key=api_key, model=args.model,
             dialect=args.dialect)
 
+    # Lazy, like the gateway import above: keeps frontier_gateway off the
+    # default import graph that test_cloud_gate.py asserts.
+    from .frontier_gateway import transport_of
+
     try:
         receipt = frontier_chat(
             args.text,
@@ -633,6 +637,9 @@ def cmd_frontier_chat(args) -> int:
             ohttp_independent_operators=(
                 True if getattr(args, "ohttp_independent", False) else None),
             account_decoupled=account_decoupled,
+            transport=transport_of(remote),
+            gateway_url=args.gateway_url or None,
+            relay_url=getattr(args, "relay_url", None) or None,
         )
     except FrontierPrivateError as exc:
         print(f"REFUSED: {exc}", file=sys.stderr)
@@ -641,6 +648,8 @@ def cmd_frontier_chat(args) -> int:
     print(f"[{receipt.notice}]", file=sys.stderr)
     print(f"[mode: {receipt.mode} · attempts: {receipt.attempts} · "
           f"account_decoupled: {receipt.account_decoupled}]", file=sys.stderr)
+    print(f"[transport: {receipt.transport} · "
+          f"metadata_private: {receipt.metadata_private}]", file=sys.stderr)
     print(f"[sent toward provider / gateway:]", file=sys.stderr)
     print(receipt.sent, file=sys.stderr)
     print("[claims]", file=sys.stderr)

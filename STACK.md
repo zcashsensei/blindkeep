@@ -94,6 +94,21 @@ python -m blindkeep frontier-relay --gateway http://GATEWAY:8751 --port 8750
 # Only meaningful if a *different* party runs the gateway.
 ```
 
+The client then needs the gateway's key config, read from `GET /v1/params`:
+
+```bash
+python -m blindkeep frontier-chat … \
+  --relay-url http://RELAY:8750 \
+  --ohttp-config "<ohttp_key_config_b64 from /v1/params>" \
+  --ohttp-independent            # your assertion; nothing can verify it
+```
+
+The same two fields work on `POST /api/frontier-chat` as `relay_url` and
+`ohttp_config`. The config is **passed in, never fetched by the client from the
+gateway** — asking the gateway for its own key would open the very connection
+OHTTP exists to avoid. A `relay_url` without an `ohttp_config` is refused rather
+than quietly downgraded to a direct send.
+
 ---
 
 ## Receipt flags
@@ -102,8 +117,15 @@ python -m blindkeep frontier-relay --gateway http://GATEWAY:8751 --port 8750
 |------|---------|
 | `content_private` | Private facts must not appear on the wire (gate-enforced) |
 | `identity_private` | Client presented no provider API key (gateway + token) |
-| `metadata_private` | Only if caller asserts independent OHTTP operators |
+| `metadata_private` | OHTTP was the actual transport, relay and gateway are different non-local hosts, **and** the caller asserts independence. Asserting alone earns nothing |
 | `account_decoupled` | Same as identity path via gateway |
+| `transport` | What carried the request: `ohttp` or `direct`. Read from the completer, not from the request |
+
+`metadata_private` is computed by `frontier_private.assess_network` from the
+transport that actually ran. Until 2026-08-13 it was set from a request-body
+flag, so `/api/frontier-chat` reported an IP split while talking straight to the
+gateway — the endpoint had no way to reach the OHTTP transport at all. The
+reason for every refusal is returned in `metadata_reasons`.
 
 ---
 
