@@ -625,6 +625,11 @@ def cmd_frontier_chat(args) -> int:
     # default import graph that test_cloud_gate.py asserts.
     from .frontier_gateway import transport_of
 
+    ledger = None
+    if args.ledger:
+        from .dp import PrivacyLedger
+        ledger = PrivacyLedger.load(args.ledger, epsilon_budget=args.epsilon_budget)
+
     try:
         receipt = frontier_chat(
             args.text,
@@ -640,6 +645,9 @@ def cmd_frontier_chat(args) -> int:
             transport=transport_of(remote),
             gateway_url=args.gateway_url or None,
             relay_url=getattr(args, "relay_url", None) or None,
+            dp_epsilon=args.dp_epsilon,
+            dp_candidates=args.dp_candidates,
+            ledger=ledger,
         )
     except FrontierPrivateError as exc:
         print(f"REFUSED: {exc}", file=sys.stderr)
@@ -650,6 +658,21 @@ def cmd_frontier_chat(args) -> int:
           f"account_decoupled: {receipt.account_decoupled}]", file=sys.stderr)
     print(f"[transport: {receipt.transport} · "
           f"metadata_private: {receipt.metadata_private}]", file=sys.stderr)
+    if receipt.dp:
+        led = receipt.dp.get("ledger")
+        led_s = (f" · ledger ε {led['epsilon_spent']}/{led['epsilon_budget']}"
+                 if led else "")
+        print(f"[dp: selection ε={receipt.dp['selection_epsilon']} over "
+              f"{receipt.dp['pool_cleared']} cleared candidates{led_s}]",
+              file=sys.stderr)
+    if receipt.length_channel and receipt.length_channel.get("bucketed"):
+        print(f"[length: padded to {receipt.length_channel['bucket_bytes']}B "
+              f"bucket · ≤{receipt.length_channel['length_bits_bound']} bits]",
+              file=sys.stderr)
+    if receipt.response_streaming is False:
+        print("[response: single body, not streamed — no per-token packets]",
+              file=sys.stderr)
+    print(f"[attestation: {receipt.attestation}]", file=sys.stderr)
     print(f"[sent toward provider / gateway:]", file=sys.stderr)
     print(receipt.sent, file=sys.stderr)
     print("[claims]", file=sys.stderr)
@@ -1391,6 +1414,16 @@ def build_parser() -> argparse.ArgumentParser:
                     help="turn on the frontier-private path")
     fc.add_argument("--accept-residual-risks", action="store_true",
                     help="accept residual risks listed in the receipt")
+    fc.add_argument("--dp-epsilon", type=float, default=2.0,
+                    help="exponential-mechanism selection epsilon for the "
+                         "abstracted path; 0 restores first-past-the-gate")
+    fc.add_argument("--dp-candidates", type=int, default=4,
+                    help="abstraction candidates the local model writes")
+    fc.add_argument("--ledger", default="data/dp_ledger.json",
+                    help="privacy-ledger file; '' disables the budget")
+    fc.add_argument("--epsilon-budget", type=float, default=16.0,
+                    help="refuse to send once the ledger's epsilon total "
+                         "would exceed this")
     fc.set_defaults(func=cmd_frontier_chat)
 
     fg = sub.add_parser(

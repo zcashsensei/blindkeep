@@ -65,6 +65,14 @@ data/policy.json
 dashboard.py
 data/plan.json
 blindkeep/progress.py
+# The dashboard's desktop launcher. Follows dashboard.py: a launcher for a file
+# a clone does not have would be an icon that fails on the first click.
+launch_dashboard.pyw
+
+# Local working state: the maintainer's pending board and the one-shot nonce
+# minted for a SEV-SNP capture. Both are this machine's, not the project's.
+data/pending.json
+data/sev_snp_nonce.json
 
 # -----------------------------------------------------------------------------
 # Working notes and unfiled drafts.

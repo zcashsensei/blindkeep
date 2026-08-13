@@ -266,6 +266,45 @@ def test_an_unresolvable_name_is_never_treated_as_local():
     assert posture.metadata_private is True
 
 
+# --- documented attacks must appear in the receipt --------------------------
+#
+# A receipt that omits a known attack overclaims by silence. Each of these is
+# published and undefended here, so each must be visible to the reader. Pinned
+# by test because a residual list is exactly the thing that quietly shrinks.
+# Sources: docs/ENDPOINT_PRIVACY_RESEARCH.md
+
+def test_receipt_discloses_the_stylometry_channel():
+    d = metadata_receipt(transport="direct")
+    joined = " ".join(d["residual"]).lower()
+    assert "style" in joined, "prompts are a behavioural biometric; say so"
+
+
+def test_receipt_discloses_the_token_length_side_channel():
+    joined = " ".join(metadata_receipt(transport="direct")["residual"]).lower()
+    assert "packet sizes" in joined or "whisper leak" in joined
+
+
+def test_receipt_discloses_that_ohttp_has_no_forward_secrecy():
+    joined = " ".join(metadata_receipt(transport="direct")["residual"]).lower()
+    assert "forward secrecy" in joined
+
+
+def test_receipt_discloses_the_anonymity_set_problem():
+    joined = " ".join(metadata_receipt(transport="direct")["residual"]).lower()
+    assert "anonymity set" in joined
+
+
+def test_disclosure_survives_the_most_privileged_path():
+    """The best case is where a reader is likeliest to stop reading."""
+    d = metadata_receipt(transport="ohttp", ohttp_independent_operators=True,
+                         gateway_url="https://gw.example",
+                         relay_url="https://relay.other")
+    assert d["metadata_private"] is True
+    joined = " ".join(d["residual"]).lower()
+    for topic in ("style", "forward secrecy", "anonymity set"):
+        assert topic in joined, f"{topic} vanished on the strongest path"
+
+
 def run():
     tests = [(k, v) for k, v in sorted(globals().items()) if k.startswith("test_")]
     failed = []

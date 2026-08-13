@@ -12,7 +12,7 @@
 <p align="center">
   <img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License: MIT">
   <img src="https://img.shields.io/badge/python-3.10%2B-blue.svg" alt="Python 3.10+">
-  <img src="https://img.shields.io/badge/tests-562%20passing-brightgreen.svg" alt="562 tests passing">
+  <img src="https://img.shields.io/badge/tests-588%20passing-brightgreen.svg" alt="588 tests passing">
   <img src="https://img.shields.io/badge/status-v0%20alpha-orange.svg" alt="v0 alpha">
   <img src="https://img.shields.io/badge/dependencies-1-lightgrey.svg" alt="1 dependency">
   <img src="https://img.shields.io/badge/zero--knowledge-sigma%20protocols%20%2B%20halo2-6E4B9E.svg" alt="Zero-knowledge: sigma protocols and a halo2 SNARK">
@@ -21,7 +21,7 @@
 </p>
 
 <p align="center">
-  <sub><b>Status as of 2026-08-11</b> · v0 alpha · 562 tests ·
+  <sub><b>Status as of 2026-08-11</b> · v0 alpha · 588 tests ·
   encrypted keep · ZK membership · frontier stack ·
   <b>Heartwood</b> throttle audit (in-app install) ·
   <a href="STACK.md">STACK.md</a> · <a href="SECURITY.md">SECURITY.md</a> ·
@@ -59,11 +59,19 @@ need your passphrase.
 node; talking to a hosted model is a different threat model (API account, prompt
 content, timing, IP). The app states that plainly and does not phone home.
 
-### Historic stack: content-gated + account-decoupled frontier chat
+### Content-gated + account-decoupled frontier chat
 
 Open-source path where the **client never holds the frontier API key**.
 Entitlement is a **one-time blind token**. Private facts are **LeakGate-blocked**
 before leave. Optional OHTTP relay for IP split (only if relay ≠ gateway operator).
+
+Blind tokens and anonymising proxies are **prior art** — LLM-Tor, DuckDuckGo AI
+Chat, Brave Leo, and the partially-blind-signature literature all hide *who is
+asking*. What is unusual here is that the question is abstracted **before** it
+reaches the proxy, so the gateway operator is denied the private facts too, and
+that the receipt computes each claim from the transport that actually ran rather
+than asserting it. Survey, sources and the attacks this does **not** defend
+against: [`docs/ENDPOINT_PRIVACY_RESEARCH.md`](docs/ENDPOINT_PRIVACY_RESEARCH.md).
 
 ```bash
 # 1) Gateway (holds the API key; issues are separate)
@@ -85,6 +93,18 @@ python -m blindkeep frontier-chat \
 + local abstraction + mechanical leak gate + Chaum blind entitlement + optional
 OHTTP + a gateway that holds the provider credential so the client is not a
 named API customer. Offline proof: `python tools/demo_historic_stack.py`.
+
+The abstracted path additionally ships **calibrated randomness with honest
+accounting** (`blindkeep/dp.py`, [`docs/ENDPOINT_MATH.md`](docs/ENDPOINT_MATH.md)):
+the transmitted abstraction is chosen from the gate-cleared candidates by the
+**exponential mechanism** (`--dp-epsilon`, scoped claim in the receipt — it
+randomises the *choice*, it is not end-to-end DP of the text), every send is
+charged against a **privacy ledger** that refuses when the ε budget is spent
+(`--epsilon-budget`), direct requests are **padded to fixed length buckets** so
+their size leaks at most log₂(N) bits, and the receipt computes from the socket
+that the response came back **unstreamed** — the Whisper Leak channel needs
+per-token packets that this leg never emits. `attestation: none offered` is
+printed as a fact, until some frontier provider makes it verifiable.
 
 **Not claimed:** zero-metadata anonymity; IP privacy when one party runs both
 relay and gateway; a public multi-operator network. Receipts list residual risks.
@@ -568,7 +588,7 @@ circuits/       halo2 membership circuit + the blindkeep-prove binary (Rust)
   anon_token.py blind-signed entitlement: prove you may ask, not who you are
   _console.py   terminal output helpers
   cli.py        command-line interface
-tests/          34 suites, 562 tests
+tests/          36 suites, 588 tests
 STACK.md        historic frontier stack architecture
 tools/demo_historic_stack.py   offline proof (no API key)
 ```

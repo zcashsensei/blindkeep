@@ -109,6 +109,7 @@ def cloud_complete(prompt: str, *,
                    apply_redaction: bool = False,
                    headers: Optional[dict] = None,
                    dialect: Optional[str] = None,
+                   pad_to_buckets: Optional[tuple] = None,
                    timeout: float = 120.0) -> dict:
     """Send one prompt to a hosted model, in whatever API it speaks. NOT PRIVATE.
 
@@ -144,9 +145,23 @@ def cloud_complete(prompt: str, *,
     hdrs = spoken.headers(api_key)
     hdrs.update(headers or {})
 
+    body = spoken.body(model=model, prompt=sent, system=system)
+
+    # Length bucketing lives in a HEADER, never in the prompt: padding the body
+    # would put filler in the one place the model reads (and strict APIs reject
+    # unknown JSON fields). The bound covers body + this header; the remaining
+    # headers add a near-constant offset the bucket absorbs in practice.
+    pad_report: Optional[dict] = None
+    if pad_to_buckets:
+        from .dp import pad_to_bucket
+        frame = len("X-Blindkeep-Pad: \r\n")
+        pad, pad_report = pad_to_bucket(len(body) + frame, pad_to_buckets)
+        if pad_report.get("bucketed"):
+            hdrs["X-Blindkeep-Pad"] = "x" * pad
+
     req = urllib.request.Request(
         spoken.url(api_base),
-        data=spoken.body(model=model, prompt=sent, system=system),
+        data=body,
         headers=hdrs,
         method="POST")
     try:
@@ -200,4 +215,8 @@ def cloud_complete(prompt: str, *,
         "notice": NOT_PRIVATE_NOTICE,
         "dialect": spoken.name,
         "dialect_reason": why,
+        # Wire facts for a receipt: this path reads ONE HTTP body — there were
+        # no per-token packets to observe — and reports what padding really ran.
+        "response_streaming": False,
+        "length_channel": pad_report,
     }
