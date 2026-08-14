@@ -133,6 +133,8 @@ def capabilities(root: Optional[Path] = None) -> list[dict[str, Any]]:
         # The SNARK had no row here for as long as it existed, and the documentation drifted
         # into saying there was no SNARK in the repository while the circuit was proving and
         # verifying in CI. What the status report cannot see, the docs eventually contradict.
+        ("MCP server - any MCP host gets memory through the app's gate",
+         mod("mcp_server.py") and suite("test_mcp.py")),
         ("Succinct membership circuit (halo2)", _circuit_present(r)),
         ("SEV-SNP verifier written", mod("sev_snp.py") and suite("test_sev_snp.py")),
         ("SEV-SNP enabled by default", _sev_snp_enabled()),

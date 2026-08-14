@@ -65,6 +65,7 @@ LABELS = {
     "test_dispatch.py": "dispatch",
     "test_hardening.py": "hardening",
     "test_hpke.py": "HPKE",
+    "test_mcp.py": "MCP",
     "test_memory_gate.py": "memory gate",
     "test_merkle.py": "Merkle",
     "test_metadata.py": "metadata",

@@ -12,7 +12,7 @@
 <p align="center">
   <img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License: MIT">
   <img src="https://img.shields.io/badge/python-3.10%2B-blue.svg" alt="Python 3.10+">
-  <img src="https://img.shields.io/badge/tests-588%20passing-brightgreen.svg" alt="588 tests passing">
+  <img src="https://img.shields.io/badge/tests-610%20passing-brightgreen.svg" alt="610 tests passing">
   <img src="https://img.shields.io/badge/status-v0%20alpha-orange.svg" alt="v0 alpha">
   <img src="https://img.shields.io/badge/dependencies-1-lightgrey.svg" alt="1 dependency">
   <img src="https://img.shields.io/badge/zero--knowledge-sigma%20protocols%20%2B%20halo2-6E4B9E.svg" alt="Zero-knowledge: sigma protocols and a halo2 SNARK">
@@ -21,7 +21,7 @@
 </p>
 
 <p align="center">
-  <sub><b>Status as of 2026-08-11</b> · v0 alpha · 588 tests ·
+  <sub><b>Status as of 2026-08-13</b> · v0 alpha · 610 tests ·
   encrypted keep · ZK membership · frontier stack ·
   <b>Heartwood</b> throttle audit (in-app install) ·
   <a href="STACK.md">STACK.md</a> · <a href="SECURITY.md">SECURITY.md</a> ·
@@ -479,6 +479,63 @@ wrong.**
 care about.** The key is the only thing that can decrypt your records — no node
 can help, by design.
 
+## Use it as Claude's memory (MCP)
+
+Blindkeep speaks the Model Context Protocol, so Claude Desktop, Claude Code, or
+any MCP host can use your keep as persistent memory — with every read and write
+passing through the app's release gate, never around it.
+
+The gate lives in the app, so this path needs a clone (the app is the file
+`app.py` at the repository root, not part of the pip package):
+
+```bash
+# 1) from your clone, run the app (it starts a node if none is running)
+py -3 app.py            # then open http://127.0.0.1:8743
+
+# 2) in the app: switch on Agent access, copy the token it mints
+
+# 3) hand the server to Claude Code:
+claude mcp add blindkeep --env BLINDKEEP_AGENT_TOKEN=<token> -- blindkeep mcp
+```
+
+Claude Desktop takes the same server in its MCP settings:
+
+```json
+{
+  "mcpServers": {
+    "blindkeep": {
+      "command": "blindkeep",
+      "args": ["mcp"],
+      "env": { "BLINDKEEP_AGENT_TOKEN": "<token>" }
+    }
+  }
+}
+```
+
+<sub>If `blindkeep` is not on the PATH the host launches from, use
+`"command": "py", "args": ["-3", "-m", "blindkeep", "mcp"]` (Windows) or
+`"command": "python", "args": ["-m", "blindkeep", "mcp"]` — same server.</sub>
+
+The model gets four tools — `save_memory`, `list_memories`, `read_memory`,
+`keep_status` — and no more authority than the app's agent routes grant. What
+that means in practice:
+
+- **Release is decided by your policy, not the model's request.** A fresh
+  agent is treated as the weakest tier: it sees `public` records and nothing
+  else until you raise its tier in the app. A withheld record is reported to
+  the model as your decision, in words that tell it not to work around you.
+- **Labels are not enumerable past the gate.** What the model cannot open, it
+  cannot list — a label like "bank details" is a disclosure by itself.
+- **Every read lands in the app's agent-reads ledger**, which survives the
+  token. The switch is reversible; what already left is recorded, because it
+  cannot be unread.
+- **The token is the consent.** Turning Agent access off revokes it
+  mid-session; restarting the app mints a fresh one, and the old config fails
+  with instructions rather than silently reconnecting.
+- **`secret` is write-only for the model.** It can store a secret; only you
+  can read it back, in the app. That asymmetry is deliberate: writing adds to
+  the keep, reading discloses from it.
+
 ## Key recovery
 
 A correct encryption design makes key loss fatal. That is also how consumer
@@ -521,13 +578,14 @@ python tests/test_store.py         #  5 — encryption, persistence, rewrite det
 python tests/test_metadata.py      #  8 — encrypted labels, size padding
 python tests/test_adversarial.py   #  9 — real malicious nodes vs. the real client
 python tests/test_replication.py   # 12 — offline, tampered and dishonest nodes
-python tests/test_recovery.py      # 21 — recovery codes, backups, k-of-n shares
-python tests/test_hardening.py     # 12 — resource limits, disclosure, redirects
-python tests/test_discover.py      # 18 — peer discovery, hostile bootstrap
+python tests/test_recovery.py      # 25 — recovery codes, backups, k-of-n shares
+python tests/test_hardening.py     # 14 — resource limits, disclosure, redirects
+python tests/test_discover.py      # 23 — peer discovery, hostile bootstrap
 python tests/test_audit.py         # 10 — retrieval audits, offline vs dishonest
 python tests/test_ollama_mem.py    # 13 — local model memory, privacy boundary
-python tests/test_cloud_gate.py    # 13 — opt-in cloud path stays closed
-python tests/test_cli.py           # 13 — only keygen/recover create key material
+python tests/test_cloud_gate.py    # 17 — opt-in cloud path stays closed
+python tests/test_cli.py           # 19 — only keygen/recover create key material
+python tests/test_mcp.py           # 22 — the MCP bridge, refusals a model acts on
 python demo.py                     # end-to-end walkthrough
 ```
 
@@ -586,9 +644,10 @@ circuits/       halo2 membership circuit + the blindkeep-prove binary (Rust)
   frontier_gateway.py  account-decoupled gateway (holds API key)
   frontier_relay.py    OHTTP relay surface
   anon_token.py blind-signed entitlement: prove you may ask, not who you are
+  mcp_server.py MCP over stdio: any MCP host, through the app's gate
   _console.py   terminal output helpers
   cli.py        command-line interface
-tests/          36 suites, 588 tests
+tests/          37 suites, 610 tests
 STACK.md        historic frontier stack architecture
 tools/demo_historic_stack.py   offline proof (no API key)
 ```

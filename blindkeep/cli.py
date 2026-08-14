@@ -941,6 +941,16 @@ def cmd_gate_chat(args) -> int:
     return 0
 
 
+def cmd_mcp(args) -> int:
+    """Stand as an MCP server so any MCP host gets memory through the gate."""
+    from .mcp_server import serve_stdio
+
+    # The token comes from the app's Agent access switch, via env or flag.
+    # No default and no prompt: an absent token is the user's standing
+    # decision, and the tools themselves explain how to change it.
+    return serve_stdio(url=args.app_url, token=args.token)
+
+
 def _read_passphrase(args, confirm: bool = False) -> str:
     """Take a passphrase from a flag, a file, or an interactive prompt.
 
@@ -1495,6 +1505,19 @@ def build_parser() -> argparse.ArgumentParser:
     gc.add_argument("--enable-cloud", action="store_true")
     gc.add_argument("--i-accept-not-private", action="store_true")
     gc.set_defaults(func=cmd_gate_chat)
+
+    mp = sub.add_parser(
+        "mcp",
+        help="serve the keep to an MCP host (Claude Desktop/Code) over stdio; "
+             "reads and writes pass through the app's release gate")
+    mp.add_argument("--app-url", default=None,
+                    help="the Blindkeep app (default BLINDKEEP_APP_URL or "
+                         "http://127.0.0.1:8743)")
+    mp.add_argument("--token", default=None,
+                    help="agent token from the app's Agent access switch; "
+                         "prefer the BLINDKEEP_AGENT_TOKEN env var — a flag "
+                         "is visible in the process list")
+    mp.set_defaults(func=cmd_mcp)
 
     return p
 
