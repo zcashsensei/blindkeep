@@ -1,5 +1,8 @@
 <p align="center">
-  <img src="assets/oblivio-lockup.svg" alt="Oblivio" width="330">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="assets/oblivio-wordmark-mono-inverse.svg">
+    <img src="assets/oblivio-wordmark-mono.svg" alt="Oblivio" width="330">
+  </picture>
 </p>
 
 <p align="center">

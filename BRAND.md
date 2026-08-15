@@ -2,8 +2,25 @@
 
 ## The mark
 
-`assets/oblivio-lockup.svg` is the primary lockup. `assets/oblivio-mark.svg` is the
-mark alone, for square crops. `assets/favicon.svg` is a separately drawn variant with a
+`assets/oblivio-lockup.svg` is the primary lockup: the **wordmark alone**, centred.
+The shield is not in it. A name and a symbol shown together every time teaches nobody
+which one carries the identity, and the wordmark has to survive on its own anyway — in
+a commit signature, a forum post, a plain-text sponsor list. `assets/oblivio-mark.svg`
+is the shield alone, for square crops and anywhere the name is already present.
+
+`assets/oblivio-wordmark-mono.svg` is the black-and-white proof — one ink, no colour.
+It is the check that the mark still reads through a photocopier, a single-colour print
+run, or a partner's house style. `assets/oblivio-wordmark-mono-inverse.svg` is the same
+in white, drawn rather than derived: inverting the gold gives a muddy olive and screening
+black gives grey.
+
+**The README uses the mono pair, not the gold lockup**, switched by
+`prefers-color-scheme` through `<picture>`. Gold `#F4B728` is legible on the near-black
+this brand assumes, and thin on the white half of GitHub's readership — a logo that only
+works in one of a host's two themes is broken for whoever gets the other one. The gold
+lockup remains primary everywhere the ground is ours to choose.
+
+`assets/favicon.svg` is a separately drawn variant with a
 heavier stroke and a wider door, because the full mark's 4px shield line disappears below
 about 20px and its door closes into a solid block. Scaling one file down is not the same
 as drawing for the size it will be seen at.

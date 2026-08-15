@@ -7,18 +7,15 @@
        to a third party: those need the glyphs converted to outlines first, or the mark
        renders in whatever the recipient happens to have installed. Convert before any
        use where you do not control the renderer. -->
-  <g>
-    <path d="M40 8 L72 19 v28 c0 19-13 32-32 40 C21 79 8 66 8 47 V19 Z"
-          fill="none" stroke="#F4B728" stroke-width="4" stroke-linejoin="round"/>
-    <path fill-rule="evenodd" fill="#F4B728"
-          d="M25 44 h6 v-7 h6 v7 h6 v-7 h6 v7 h6 v26 H25 Z
-             M36 57 h8 v13 h-8 Z"/>
-  </g>
-  <g transform="translate(96 0)">
-    <!-- One word, one weight. The previous lockup split the name across two colours
-         because it was a compound of two words. Oblivio has no such seam, and
-         inventing one to keep the old shape would read as an accident. -->
-    <text x="0" y="62" font-family="ui-sans-serif, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif"
-          font-size="40" letter-spacing="6.5" fill="#F4B728" font-weight="700">OBLIVIO</text>
-  </g>
+
+  <!-- Wordmark alone. Centred with text-anchor rather than a computed x, because the
+       font stack resolves differently per platform and a hardcoded offset would only
+       be centred on the machine it was measured on.
+
+       x is 170 (half of 340) plus half the letter-spacing: SVG adds the tracking after
+       the final glyph as well, so the advance the renderer centres is 6.5px wider than
+       the ink. Without the +3.25 the word sits visibly left of centre. -->
+  <text x="173.25" y="62" text-anchor="middle"
+        font-family="ui-sans-serif, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif"
+        font-size="40" letter-spacing="6.5" fill="#F4B728" font-weight="700">OBLIVIO</text>
 </svg>
