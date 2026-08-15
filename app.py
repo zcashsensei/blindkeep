@@ -861,11 +861,16 @@ class Handler(BaseHTTPRequestHandler):
                 except json.JSONDecodeError:
                     return self._send(200, {"items": []})
                 now = int(time.time())
-                for it in data.get("items", []):
+                # Dismissed items are filtered HERE rather than on the client.
+                # The client used to do it, which meant every poll re-delivered
+                # what had just been dismissed and the bar reappeared.
+                kept = [it for it in (data.get("items") or [])
+                        if not it.get("dismissed")]
+                for it in kept:
                     ttl = it.get("ttl") or 0
                     it["expired"] = bool(ttl and now - it.get("issued", 0) > ttl)
                     it["left"] = max(0, ttl - (now - it.get("issued", 0))) if ttl else None
-                return self._send(200, data)
+                return self._send(200, {"items": kept})
             if path.startswith("/api/hw/events/"):
                 return self._hw_stream(path.rsplit("/", 1)[-1])
             if path.startswith("/api/hw/receipt/"):
@@ -973,6 +978,40 @@ class Handler(BaseHTTPRequestHandler):
                     "sealed_at_rest": key_sealed_at_rest(),
                     "legacy_plaintext": KEY_PATH.is_file(),
                 })
+            if path == "/api/pending/dismiss":
+                # Dismissal has to be written down. The Done button used to set a
+                # flag on a client-side object, and todoPaint() re-fetches this
+                # file every 8 seconds -- so the bar always came back, and the
+                # only way to be rid of an item was to edit the file by hand.
+                # A control that appears to work and does not is worse than no
+                # control: it teaches you to distrust the whole bar.
+                #
+                # Marked rather than deleted, so what was dismissed stays on the
+                # record and can be un-dismissed by flipping one field.
+                item_id = body.get("id")
+                if not isinstance(item_id, str) or not item_id.strip():
+                    return self._send(400, {"error": "id must be text"})
+                f = HERE / "data" / "pending.json"
+                if not f.exists():
+                    return self._send(200, {"ok": True, "items": []})
+                try:
+                    data = json.loads(f.read_text(encoding="utf-8"))
+                except json.JSONDecodeError:
+                    return self._send(400, {"error": "pending.json is not valid JSON"})
+                items = data.get("items") or []
+                hit = [i for i in items if i.get("id") == item_id]
+                if not hit:
+                    # Not an error worth failing on: the item may have been
+                    # cleared by another tab between paint and click.
+                    return self._send(200, {"ok": True, "dismissed": 0})
+                for i in hit:
+                    i["dismissed"] = True
+                    i["dismissed_at"] = int(time.time())
+                data["items"] = items
+                tmp = f.with_suffix(".json.tmp")
+                tmp.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
+                os.replace(tmp, f)          # atomic: never a half-written file
+                return self._send(200, {"ok": True, "dismissed": len(hit)})
             if path == "/api/key/lock":
                 # Drop the in-memory key. Disk stays sealed. Useful when walking
                 # away — and so a process dump is less interesting after.
@@ -2657,12 +2696,24 @@ async function todoPaint(){
      <span class="${dead?'dead':''}"><code>${esc(it.code||'')}</code></span>
      <a class=open href="${esc(safeUrl(it.url))}" target=_blank rel=noopener>Open</a>
      <button class=done data-id="${esc(it.id)}">Done</button>`;
-  $('todorow').querySelector('.done').onclick = e => {
-    it.dismissed = true;
-    const all = d.items.filter(x=>x.id!==e.target.dataset.id);
-    if(!all.length){ $('todo').style.display='none';
-      document.body.classList.remove('hastodo'); return; }
-    d.items = all; todoIdx = 0; todoPaint();
+  $('todorow').querySelector('.done').onclick = async e => {
+    const btn = e.target;
+    btn.disabled = true; btn.textContent = '…';
+    try {
+      // Tell the SERVER. Hiding it locally is what made this button a lie:
+      // the 8 second poll re-delivered the item and the bar came straight back.
+      await api('/api/pending/dismiss',
+                {method:'POST', body: JSON.stringify({id: btn.dataset.id})});
+    } catch(err) {
+      // Say so rather than hiding the row, otherwise a failed write looks
+      // exactly like a successful one until the next poll contradicts it.
+      btn.disabled = false; btn.textContent = 'Done';
+      $('todorow').insertAdjacentHTML('beforeend',
+        '<span class=det style="color:var(--warn)">could not save — still pending</span>');
+      return;
+    }
+    todoIdx = 0;
+    todoPaint();
   };
   if(live.length>1) todoIdx++;
 }
