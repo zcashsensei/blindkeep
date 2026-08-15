@@ -80,6 +80,7 @@ LABELS = {
     "test_status.py": "status",
     "test_store.py": "store",
     "test_vault_proxy.py": "vault proxy",
+    "test_walkthrough.py": "walkthrough",
     "test_witness.py": "witness",
     "test_zk.py": "zk",
     "test_zk_keep.py": "zk-keep",

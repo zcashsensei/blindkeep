@@ -12,7 +12,7 @@
 <p align="center">
   <img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License: MIT">
   <img src="https://img.shields.io/badge/python-3.10%2B-blue.svg" alt="Python 3.10+">
-  <img src="https://img.shields.io/badge/tests-610%20passing-brightgreen.svg" alt="610 tests passing">
+  <img src="https://img.shields.io/badge/tests-621%20passing-brightgreen.svg" alt="621 tests passing">
   <img src="https://img.shields.io/badge/status-v0%20alpha-orange.svg" alt="v0 alpha">
   <img src="https://img.shields.io/badge/dependencies-1-lightgrey.svg" alt="1 dependency">
   <img src="https://img.shields.io/badge/zero--knowledge-sigma%20protocols%20%2B%20halo2-6E4B9E.svg" alt="Zero-knowledge: sigma protocols and a halo2 SNARK">
@@ -21,7 +21,7 @@
 </p>
 
 <p align="center">
-  <sub><b>Status as of 2026-08-13</b> · v0 alpha · 610 tests ·
+  <sub><b>Status as of 2026-08-13</b> · v0 alpha · 621 tests ·
   encrypted keep · ZK membership · frontier stack ·
   <b>Heartwood</b> throttle audit (in-app install) ·
   <a href="STACK.md">STACK.md</a> · <a href="SECURITY.md">SECURITY.md</a> ·
@@ -647,7 +647,7 @@ circuits/       halo2 membership circuit + the oblivio-prove binary (Rust)
   mcp_server.py MCP over stdio: any MCP host, through the app's gate
   _console.py   terminal output helpers
   cli.py        command-line interface
-tests/          37 suites, 610 tests
+tests/          38 suites, 621 tests
 STACK.md        historic frontier stack architecture
 tools/demo_historic_stack.py   offline proof (no API key)
 ```
