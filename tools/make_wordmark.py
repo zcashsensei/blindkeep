@@ -1,27 +1,25 @@
 #!/usr/bin/env python3
-"""Generate the wordmark SVGs: solid word, with the proof set beneath it.
+"""Generate the wordmark SVGs: solid word over a field of the project's own maths.
 
     python tools/make_wordmark.py
 
 Writes assets/oblivio-wordmark-mono.svg (black, light ground) and
 assets/oblivio-wordmark-mono-inverse.svg (white, dark ground).
 
+The texture
+-----------
+Rows of the actual statements this repository implements, one family per module,
+cycled and staggered so no two rows align. Not lorem ipsum with Greek letters in
+it: each line is the thing the corresponding file does, written the way the file
+documents it. A reader who knows what they are looking at can check the mark
+against the code, and a reader who does not still sees that the claim is
+arithmetic rather than adjectives.
+
 Why a generator rather than two hand-written files
 --------------------------------------------------
 The two differ only in ink. Hand-maintaining both guarantees they drift, and a
 mark that renders differently on GitHub's two themes is worse than one that only
 works on one -- at least the second failure is visible to its author.
-
-Why the proof is under the word and not inside it
--------------------------------------------------
-An earlier version clipped the hex into the letterforms. It looked like texture
-rather than evidence: at README width the digits were far too small to make out,
-so the mark displayed a proof nobody could actually check. A mark that shows an
-unreadable proof is decoration claiming to be a guarantee. Solid word, legible
-root underneath.
-
-The root is real: the one the README's succinct-membership demo prints. Checkable
-against a published value rather than hex chosen to look cryptographic.
 """
 
 from __future__ import annotations
@@ -30,45 +28,88 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 
-# The root printed by the succinct-membership demo in README.md.
-MERKLE_ROOT = "1d5e3e4a5fb29328"
+# One line per module, in the order a record actually travels through them.
+# Keep these true: the mark is only worth having if the maths on it is the maths
+# in the files named beside it.
+FORMULAE = [
+    # crypto.py / store.py -- per-record key, AEAD, and what "secure" means
+    "k_r = HKDF(K, tag ‖ id)    c = AES-GCM(k_r, nonce, m, aad)    Adv(A) ≤ negl(λ)",
+    # merkle.py -- RFC 6962 domain separation, proof size, signed head
+    "leaf = H(0x00 ‖ rec)    node = H(0x01 ‖ L ‖ R)    |π| = ⌈log₂ N⌉    σ = Sign(sk, N ‖ root)",
+    # zk.py -- Schnorr sigma protocol, and the simulator that makes it zero-knowledge
+    "t = g^k    c = H(x ‖ t)    z = k + c·w    g^z = t·y^c ✓    ∃ S : S(x) ≈ view(V)",
+    # dp.py -- the differential privacy bound and sequential composition
+    "Pr[M(D) ∈ S] ≤ e^ε · Pr[M(D') ∈ S]    Σ ε_i ≤ ε    proven held",
+    # anon_token.py -- Chaum blind signature: blind, sign, unblind, verify
+    "m* = H(t)·r^e mod n    s* = (m*)^d    s = s*·r⁻¹    s^e ≡ H(t) (mod n) ✓",
+]
 
 W, H = 340, 96
 ANCHOR_X = 173.25      # 340/2 + half the letter-spacing; see the SVG comment
-BASELINE = 58
+BASELINE = 62
 FONT_SIZE = 40
 TRACKING = 6.5
 STACK = ("ui-sans-serif, -apple-system, 'Segoe UI', Roboto, "
          "Helvetica, Arial, sans-serif")
 
-# The proof line. Sized to be read, not to be decorative.
-PROOF_SIZE = 9
-PROOF_TRACKING = 2.6
-PROOF_BASELINE = 78
-PROOF_OPACITY = 0.68   # secondary to the word, still plainly legible
-PROOF_STACK = ("ui-monospace, SFMono-Regular, Consolas, "
-               "'Liberation Mono', monospace")
+# The field behind the word. Low enough not to fight the wordmark, high enough
+# that the symbols resolve instead of turning into grey noise.
+MATH_SIZE = 6.4
+MATH_STEP = 8.0        # baseline to baseline
+MATH_TOP = 10
+MATH_OPACITY = 0.20
+MATH_CHARS = 108       # 340px / (6.4px * ~0.55 advance), plus overrun to bleed
+MATH_STACK = ("ui-monospace, SFMono-Regular, Consolas, "
+              "'Liberation Mono', monospace")
+
+
+def rows() -> list[tuple[float, float, str]]:
+    """(x, y, text) per row, staggered so the columns never line up.
+
+    Aligned rows would draw vertical seams down the mark, which reads as a
+    printing fault. Each row starts a little further left than the last and
+    overruns the right edge, so the field bleeds rather than terminating in a
+    ragged column.
+    """
+    out = []
+    i = 0
+    y = MATH_TOP
+    while y <= H - 2:
+        line = FORMULAE[i % len(FORMULAE)]
+        filled = line
+        while len(filled) < MATH_CHARS:
+            filled = f"{filled}    {line}"
+        out.append((-6.0 - (i * 11) % 34, y, filled[:MATH_CHARS]))
+        y += MATH_STEP
+        i += 1
+    return out
 
 
 def svg(ink: str, ground: str) -> str:
     # NB: no "--" anywhere in the comment below. XML forbids it inside a comment,
     # and GitHub renders README SVGs through a sanitiser that drops the file
     # rather than repairing it, so the mark would simply not appear.
+    band = "\n".join(
+        f'    <text x="{x}" y="{y}" font-family="{MATH_STACK}" '
+        f'font-size="{MATH_SIZE}" fill="{ink}">{text}</text>'
+        for x, y, text in rows())
     return f"""<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {W} {H}" width="{W}" height="{H}"
      role="img" aria-label="Oblivio">
   <title>Oblivio</title>
   <!-- GENERATED by tools/make_wordmark.py. Edit that, not this.
 
-       Solid {ink} wordmark on a {ground} ground, with the proof beneath it:
-       {MERKLE_ROOT} is the Merkle root the README's membership demo prints. Real,
-       published, checkable, rather than hex chosen to look cryptographic.
+       Solid {ink} wordmark on a {ground} ground, over a field of the statements
+       this project actually implements: the AEAD and per record key derivation
+       from crypto.py, the RFC 6962 leaf and node hashing and signed head from
+       merkle.py, the Schnorr sigma protocol and its simulator from zk.py, the
+       differential privacy bound and sequential composition from dp.py, and the
+       Chaum blind signature from anon_token.py.
 
-       An earlier version clipped the hex into the letterforms. It read as texture
-       instead of evidence, because at README width the digits were far too small
-       to make out, and a mark showing an unreadable proof is decoration claiming
-       to be a guarantee. Solid word, legible root.
+       The maths is real and checkable against those files. That is the whole
+       point of putting it here: a mark can assert that a project is rigorous, or
+       it can show the arithmetic and let the reader decide.
 
-       The pair is switched by prefers-color-scheme in the README: a single-ink
+       The pair is switched by prefers-color-scheme in the README: a single ink
        mark needs both inks, or half the readers get nothing.
 
        The wordmark is live <text>. Convert to outlines before print, embroidery,
@@ -78,16 +119,14 @@ def svg(ink: str, ground: str) -> str:
        differently per platform and a measured offset is only centred on the
        machine that measured it. x is {ANCHOR_X} rather than {W // 2} because SVG
        adds the tracking after the final glyph too, so the advance being centred
-       is {TRACKING}px wider than the ink. The proof line is nudged the same way
-       for its own tracking. -->
+       is {TRACKING}px wider than the ink. -->
+  <g opacity="{MATH_OPACITY}">
+{band}
+  </g>
   <text x="{ANCHOR_X}" y="{BASELINE}" text-anchor="middle"
         font-family="{STACK}"
         font-size="{FONT_SIZE}" letter-spacing="{TRACKING}"
         fill="{ink}" font-weight="700">OBLIVIO</text>
-  <text x="{W / 2 + PROOF_TRACKING / 2}" y="{PROOF_BASELINE}" text-anchor="middle"
-        font-family="{PROOF_STACK}"
-        font-size="{PROOF_SIZE}" letter-spacing="{PROOF_TRACKING}"
-        fill="{ink}" opacity="{PROOF_OPACITY}">{MERKLE_ROOT}</text>
 </svg>
 """
 
@@ -97,9 +136,11 @@ def main() -> int:
         ("assets/oblivio-wordmark-mono.svg", "#000000", "light"),
         ("assets/oblivio-wordmark-mono-inverse.svg", "#FFFFFF", "dark"),
     ]
+    n = len(rows())
     for rel, ink, ground in targets:
         (ROOT / rel).write_text(svg(ink, ground), encoding="utf-8")
-        print(f"wrote {rel}  (solid {ink} on {ground}, proof {MERKLE_ROOT})")
+        print(f"wrote {rel}  (solid {ink} on {ground}, {n} rows of maths "
+              f"at {MATH_OPACITY})")
     return 0
 
 
