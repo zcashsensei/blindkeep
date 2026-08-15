@@ -15,9 +15,9 @@
              M36 57 h8 v13 h-8 Z"/>
   </g>
   <g transform="translate(96 0)">
-    <!-- One word, one weight. The old lockup split BLIND|KEEP across two colours because
-         the name was a compound; Oblivio is not, and splitting it would invent a seam
-         that is not in the word. -->
+    <!-- One word, one weight. The previous lockup split the name across two colours
+         because it was a compound of two words. Oblivio has no such seam, and
+         inventing one to keep the old shape would read as an accident. -->
     <text x="0" y="62" font-family="ui-sans-serif, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif"
           font-size="40" letter-spacing="6.5" fill="#F4B728" font-weight="700">OBLIVIO</text>
   </g>
