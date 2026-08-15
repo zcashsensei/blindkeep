@@ -1,34 +1,35 @@
 #!/usr/bin/env python3
-"""Generate the wordmark SVGs: the letterforms filled with the project's own maths.
+"""Generate the lockup: a Merkle tree, then the word filled with the maths.
 
     python tools/make_wordmark.py
 
 Writes assets/oblivio-wordmark-mono.svg (black, light ground) and
 assets/oblivio-wordmark-mono-inverse.svg (white, dark ground).
 
-What is inside the letters
---------------------------
-The glyphs are a clipping path. What shows through them is the set of statements
-this repository actually implements, one family per module, cycled and staggered
-so no two rows align. Not lorem ipsum with Greek letters in it: each line is the
-thing the corresponding file does, written the way the file documents it.
+The mark
+--------
+A Merkle tree, because it is the one structure the whole project rests on:
+sealed leaves at the bottom (encrypted data), a single node at the top (the
+signed head a client pins), and one bolded route between them (an inclusion
+proof). Encrypted data, verified proofs, drawn as the structure that does it.
 
-The word is the container; the maths is the substance. Nothing is drawn outside
-the letterforms, so the mark carries its own claim rather than sitting on a
-decorative background.
+It replaced a shield. A shield is the most generic secure looking object there
+is, and BRAND.md already rules out padlocks, vaults and keyholes on exactly that
+ground: it said nothing this project could not have claimed before writing any
+code.
 
-Legibility
-----------
-Inside a 40px cap height there is room for about seven rows at this size, which
-is enough that the symbols resolve as symbols at README width rather than
-collapsing into grey. A solid backing sits under them at BACKING so the
-letterforms hold their shape; set it to 0 to see why it is there.
+The mark is solid, not filled with maths like the word. At 44px the formulae
+would be an illegible smear, and a mark showing text nobody can read is the same
+defect as a proof nobody can check.
 
-Why a generator rather than two hand-written files
---------------------------------------------------
-The two differ only in ink. Hand-maintaining both guarantees they drift, and a
-mark that renders differently on GitHub's two themes is worse than one that only
-works on one -- at least the second failure is visible to its author.
+The word
+--------
+UNCHANGED. The letterforms are a clipping path filled with the statements this
+project implements, seven staggered rows cycling five families. Every parameter
+below the WORD heading is carried over verbatim; the only difference from the
+previous lockup is the anchor, which moves from centred to start because the
+mark now occupies the left. If you are editing this file, the word's appearance
+is the one thing not to touch.
 """
 
 from __future__ import annotations
@@ -37,6 +38,9 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 
+W, H = 330, 96
+
+# ---------------------------------------------------------------- WORD ----
 # One line per module, in the order a record actually travels through them.
 # Keep these true: the mark is only worth having if the maths on it is the maths
 # in the files named beside it.
@@ -53,23 +57,33 @@ FORMULAE = [
     "m* = H(t)·r^e mod n   s* = (m*)^d   s = s*·r⁻¹   s^e ≡ H(t) (mod n) ✓",
 ]
 
-W, H = 340, 96
-ANCHOR_X = 173.25      # 340/2 + half the letter-spacing; see the SVG comment
 BASELINE = 62
 FONT_SIZE = 40
 TRACKING = 6.5
+WORD_X = 94            # start anchor, clear of the mark
 STACK = ("ui-sans-serif, -apple-system, 'Segoe UI', Roboto, "
          "Helvetica, Arial, sans-serif")
 
-# The fill. Rows only need to cover the cap band: the baseline is 62 and the caps
-# rise about 28px above it, so anything outside 30..64 is clipped away anyway.
 MATH_SIZE = 5.4
 MATH_STEP = 5.6
 MATH_TOP, MATH_BOTTOM = 30, 64
-MATH_CHARS = 128       # overruns 340px on purpose so rows bleed past both edges
+MATH_CHARS = 128       # overruns the canvas on purpose so rows bleed past it
 BACKING = 0.30         # solid under the maths, so the letterforms hold their shape
 MATH_STACK = ("ui-monospace, SFMono-Regular, Consolas, "
               "'Liberation Mono', monospace")
+
+# ---------------------------------------------------------------- MARK ----
+# Absolute coordinates in the 330x96 canvas, drawn directly rather than scaled
+# from a 96 grid, so the stroke weights are the real rendered ones. 44 square
+# against a 28px cap height: matching the cap exactly makes a mark look timid,
+# much past 1.5x makes it shout over the name.
+ROOT_XY = (52, 28)
+MID = [(40, 45), (64, 45)]
+LEAF_X = [33, 45, 59, 71]
+LEAF_Y = 62            # top edge of the leaf squares; the word's baseline too
+LEAF = 8
+EDGE, PROOF = 2.4, 3.6
+DIM = "0.42"
 
 
 def rows() -> list[tuple[float, float, str]]:
@@ -95,6 +109,34 @@ def rows() -> list[tuple[float, float, str]]:
     return out
 
 
+def mark(ink: str) -> str:
+    rx, ry = ROOT_XY
+    (m1x, m1y), (m2x, m2y) = MID
+    # Leaf 0 is the one the proof path reaches, so it is at full weight and the
+    # rest are dimmed: the mark shows one record proved, not four highlighted.
+    leaf_lines = []
+    for i, x in enumerate(LEAF_X):
+        dim = "" if i == 0 else f' opacity="{DIM}"'
+        leaf_lines.append(
+            f'    <rect x="{x}" y="{LEAF_Y}" width="{LEAF}" height="{LEAF}"'
+            f' rx="1.5" fill="{ink}"{dim}/>')
+    leaves = "\n".join(leaf_lines)
+    return f"""  <g>
+    <path d="M{rx} {ry} L{m2x} {m2y} M{m1x} {m1y} L{LEAF_X[1] + LEAF / 2} {LEAF_Y}
+             M{m2x} {m2y} L{LEAF_X[2] + LEAF / 2} {LEAF_Y}
+             M{m2x} {m2y} L{LEAF_X[3] + LEAF / 2} {LEAF_Y}"
+          fill="none" stroke="{ink}" stroke-width="{EDGE}" opacity="{DIM}"
+          stroke-linecap="round"/>
+    <path d="M{rx} {ry} L{m1x} {m1y} L{LEAF_X[0] + LEAF / 2} {LEAF_Y}"
+          fill="none" stroke="{ink}" stroke-width="{PROOF}"
+          stroke-linecap="round" stroke-linejoin="round"/>
+    <circle cx="{m2x}" cy="{m2y}" r="3" fill="{ink}" opacity="{DIM}"/>
+    <circle cx="{m1x}" cy="{m1y}" r="3.6" fill="{ink}"/>
+    <circle cx="{rx}" cy="{ry}" r="5.2" fill="{ink}"/>
+{leaves}
+  </g>"""
+
+
 def svg(ink: str, ground: str) -> str:
     # NB: no "--" anywhere in the comment below. XML forbids it inside a comment,
     # and GitHub renders README SVGs through a sanitiser that drops the file
@@ -108,36 +150,34 @@ def svg(ink: str, ground: str) -> str:
   <title>Oblivio</title>
   <!-- GENERATED by tools/make_wordmark.py. Edit that, not this.
 
-       The letterforms are a clipping path, and what shows through them is the set
-       of statements this project actually implements: the per record key
-       derivation and AEAD from crypto.py and store.py, the RFC 6962 leaf and node
-       hashing with the signed head from merkle.py, the Schnorr sigma protocol and
-       its simulator from zk.py, the differential privacy bound and sequential
-       composition from dp.py, and the Chaum blind signature from anon_token.py.
+       A Merkle tree, then the word. Sealed leaves at the bottom are the
+       encrypted data, the node at the top is the signed head a client pins, and
+       the one bolded route between them is an inclusion proof. Encrypted data,
+       verified proofs, drawn as the structure that does it.
 
-       Nothing is drawn outside the glyphs. The word is the container and the
-       maths is the substance, which is the only arrangement where the mark
-       carries its own claim instead of standing on a decorative background.
+       The letterforms are a clipping path filled with the statements this
+       project implements: the per record key derivation and AEAD from crypto.py
+       and store.py, the RFC 6962 leaf and node hashing with the signed head from
+       merkle.py, the Schnorr sigma protocol and its simulator from zk.py, the
+       differential privacy bound and sequential composition from dp.py, and the
+       Chaum blind signature from anon_token.py. If any of those files change
+       what they prove, this mark is wrong and has to be regenerated.
 
-       The maths is checkable against those files. If any of them change what they
-       prove, this mark is wrong and has to be regenerated.
+       The tree is solid rather than filled the same way: at 44px the formulae
+       would be an illegible smear, and a mark showing text nobody can read is
+       the same defect as a proof nobody can check.
 
-       Ink {ink} on a {ground} ground. The pair is switched by prefers-color-scheme
-       in the README: a single ink mark needs both inks, or half the readers get
-       nothing.
+       Ink {ink} on a {ground} ground. The pair is switched by
+       prefers-color-scheme in the README: a single ink mark needs both inks, or
+       half the readers get nothing.
 
-       The wordmark is live <text>, so the clip depends on the reader's font stack.
-       Convert to outlines before print, embroidery, or handing this to anyone
-       whose renderer you do not control.
-
-       Centred with text-anchor rather than a computed x: the stack resolves
-       differently per platform and a measured offset is only centred on the
-       machine that measured it. x is {ANCHOR_X} rather than {W // 2} because SVG
-       adds the tracking after the final glyph too, so the advance being centred
-       is {TRACKING}px wider than the ink. -->
+       The wordmark is live <text>, so the clip depends on the reader's font
+       stack. Convert to outlines before print, embroidery, or handing this to
+       anyone whose renderer you do not control. -->
+{mark(ink)}
   <defs>
     <clipPath id="oblivio-wordmark">
-      <text x="{ANCHOR_X}" y="{BASELINE}" text-anchor="middle"
+      <text x="{WORD_X}" y="{BASELINE}"
             font-family="{STACK}"
             font-size="{FONT_SIZE}" letter-spacing="{TRACKING}"
             font-weight="700">OBLIVIO</text>
@@ -158,11 +198,9 @@ def main() -> int:
         ("assets/oblivio-wordmark-mono.svg", "#000000", "light"),
         ("assets/oblivio-wordmark-mono-inverse.svg", "#FFFFFF", "dark"),
     ]
-    n = len(rows())
     for rel, ink, ground in targets:
         (ROOT / rel).write_text(svg(ink, ground), encoding="utf-8")
-        print(f"wrote {rel}  ({ink} on {ground}, {n} rows of maths clipped "
-              f"inside the glyphs, backing {BACKING})")
+        print(f"wrote {rel}  (merkle mark + maths-filled word, {ink} on {ground})")
     return 0
 
 

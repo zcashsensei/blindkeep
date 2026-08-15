@@ -2,11 +2,22 @@
 
 ## The mark
 
-`assets/oblivio-lockup.svg` is the primary lockup: the **wordmark alone**, centred.
-The shield is not in it. A name and a symbol shown together every time teaches nobody
-which one carries the identity, and the wordmark has to survive on its own anyway — in
-a commit signature, a forum post, a plain-text sponsor list. `assets/oblivio-mark.svg`
-is the shield alone, for square crops and anywhere the name is already present.
+The mark is a **Merkle tree**: sealed leaves at the bottom are the encrypted data, the
+node at the top is the signed head a client pins, and the one bolded route between them
+is an inclusion proof. *Encrypted data, verified proofs* — drawn as the structure that
+actually does it, at 44px against a 28px cap height.
+
+**It replaced a shield.** A shield is the most generic secure-looking object there is,
+and the list below already rules out padlocks, vaults and keyholes on exactly that
+ground. It said nothing this project could not have claimed before writing a line of
+code. The tree says something only this project can back.
+
+The tree is **solid**, not filled with formulae the way the word is: at 44px the maths
+would be an illegible smear, and a mark showing text nobody can read is the same defect
+as a proof nobody can check.
+
+`assets/oblivio-lockup.svg` is the gold brand lockup. `assets/oblivio-mark.svg` is the
+old shield, kept only until the tree is cut as a standalone square mark.
 
 `assets/oblivio-wordmark-mono.svg` and `assets/oblivio-wordmark-mono-inverse.svg` are the
 black-and-white pair — one ink, no colour, black for a light ground and white for a dark
