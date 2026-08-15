@@ -1,19 +1,28 @@
 #!/usr/bin/env python3
-"""Generate the wordmark SVGs: solid word over a field of the project's own maths.
+"""Generate the wordmark SVGs: the letterforms filled with the project's own maths.
 
     python tools/make_wordmark.py
 
 Writes assets/oblivio-wordmark-mono.svg (black, light ground) and
 assets/oblivio-wordmark-mono-inverse.svg (white, dark ground).
 
-The texture
------------
-Rows of the actual statements this repository implements, one family per module,
-cycled and staggered so no two rows align. Not lorem ipsum with Greek letters in
-it: each line is the thing the corresponding file does, written the way the file
-documents it. A reader who knows what they are looking at can check the mark
-against the code, and a reader who does not still sees that the claim is
-arithmetic rather than adjectives.
+What is inside the letters
+--------------------------
+The glyphs are a clipping path. What shows through them is the set of statements
+this repository actually implements, one family per module, cycled and staggered
+so no two rows align. Not lorem ipsum with Greek letters in it: each line is the
+thing the corresponding file does, written the way the file documents it.
+
+The word is the container; the maths is the substance. Nothing is drawn outside
+the letterforms, so the mark carries its own claim rather than sitting on a
+decorative background.
+
+Legibility
+----------
+Inside a 40px cap height there is room for about seven rows at this size, which
+is enough that the symbols resolve as symbols at README width rather than
+collapsing into grey. A solid backing sits under them at BACKING so the
+letterforms hold their shape; set it to 0 to see why it is there.
 
 Why a generator rather than two hand-written files
 --------------------------------------------------
@@ -33,15 +42,15 @@ ROOT = Path(__file__).resolve().parent.parent
 # in the files named beside it.
 FORMULAE = [
     # crypto.py / store.py -- per-record key, AEAD, and what "secure" means
-    "k_r = HKDF(K, tag ‖ id)    c = AES-GCM(k_r, nonce, m, aad)    Adv(A) ≤ negl(λ)",
+    "k_r = HKDF(K, tag ‖ id)   c = AES-GCM(k_r, nonce, m, aad)   Adv(A) ≤ negl(λ)",
     # merkle.py -- RFC 6962 domain separation, proof size, signed head
-    "leaf = H(0x00 ‖ rec)    node = H(0x01 ‖ L ‖ R)    |π| = ⌈log₂ N⌉    σ = Sign(sk, N ‖ root)",
+    "leaf = H(0x00 ‖ rec)   node = H(0x01 ‖ L ‖ R)   |π| = ⌈log₂ N⌉   σ = Sign(sk, N ‖ root)",
     # zk.py -- Schnorr sigma protocol, and the simulator that makes it zero-knowledge
-    "t = g^k    c = H(x ‖ t)    z = k + c·w    g^z = t·y^c ✓    ∃ S : S(x) ≈ view(V)",
+    "t = g^k   c = H(x ‖ t)   z = k + c·w   g^z = t·y^c ✓   ∃ S : S(x) ≈ view(V)",
     # dp.py -- the differential privacy bound and sequential composition
-    "Pr[M(D) ∈ S] ≤ e^ε · Pr[M(D') ∈ S]    Σ ε_i ≤ ε    proven held",
+    "Pr[M(D) ∈ S] ≤ e^ε · Pr[M(D') ∈ S]   Σ ε_i ≤ ε   proven held",
     # anon_token.py -- Chaum blind signature: blind, sign, unblind, verify
-    "m* = H(t)·r^e mod n    s* = (m*)^d    s = s*·r⁻¹    s^e ≡ H(t) (mod n) ✓",
+    "m* = H(t)·r^e mod n   s* = (m*)^d   s = s*·r⁻¹   s^e ≡ H(t) (mod n) ✓",
 ]
 
 W, H = 340, 96
@@ -52,13 +61,13 @@ TRACKING = 6.5
 STACK = ("ui-sans-serif, -apple-system, 'Segoe UI', Roboto, "
          "Helvetica, Arial, sans-serif")
 
-# The field behind the word. Low enough not to fight the wordmark, high enough
-# that the symbols resolve instead of turning into grey noise.
-MATH_SIZE = 6.4
-MATH_STEP = 8.0        # baseline to baseline
-MATH_TOP = 10
-MATH_OPACITY = 0.20
-MATH_CHARS = 108       # 340px / (6.4px * ~0.55 advance), plus overrun to bleed
+# The fill. Rows only need to cover the cap band: the baseline is 62 and the caps
+# rise about 28px above it, so anything outside 30..64 is clipped away anyway.
+MATH_SIZE = 5.4
+MATH_STEP = 5.6
+MATH_TOP, MATH_BOTTOM = 30, 64
+MATH_CHARS = 128       # overruns 340px on purpose so rows bleed past both edges
+BACKING = 0.30         # solid under the maths, so the letterforms hold their shape
 MATH_STACK = ("ui-monospace, SFMono-Regular, Consolas, "
               "'Liberation Mono', monospace")
 
@@ -66,20 +75,21 @@ MATH_STACK = ("ui-monospace, SFMono-Regular, Consolas, "
 def rows() -> list[tuple[float, float, str]]:
     """(x, y, text) per row, staggered so the columns never line up.
 
-    Aligned rows would draw vertical seams down the mark, which reads as a
-    printing fault. Each row starts a little further left than the last and
-    overruns the right edge, so the field bleeds rather than terminating in a
-    ragged column.
+    Aligned rows would draw vertical seams down the letterforms, which reads as a
+    printing fault rather than as structure.
     """
     out = []
     i = 0
-    y = MATH_TOP
-    while y <= H - 2:
+    y = float(MATH_TOP)
+    while y <= MATH_BOTTOM:
         line = FORMULAE[i % len(FORMULAE)]
         filled = line
         while len(filled) < MATH_CHARS:
-            filled = f"{filled}    {line}"
-        out.append((-6.0 - (i * 11) % 34, y, filled[:MATH_CHARS]))
+            filled = f"{filled}   {line}"
+        # Rounded because accumulating a float step writes coordinates like
+        # 63.60000000000001 into the file: noise that survives every future diff.
+        out.append((round(-8.0 - (i * 13) % 40, 2), round(y, 2),
+                    filled[:MATH_CHARS]))
         y += MATH_STEP
         i += 1
     return out
@@ -90,7 +100,7 @@ def svg(ink: str, ground: str) -> str:
     # and GitHub renders README SVGs through a sanitiser that drops the file
     # rather than repairing it, so the mark would simply not appear.
     band = "\n".join(
-        f'    <text x="{x}" y="{y}" font-family="{MATH_STACK}" '
+        f'      <text x="{x}" y="{y}" font-family="{MATH_STACK}" '
         f'font-size="{MATH_SIZE}" fill="{ink}">{text}</text>'
         for x, y, text in rows())
     return f"""<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {W} {H}" width="{W}" height="{H}"
@@ -98,35 +108,47 @@ def svg(ink: str, ground: str) -> str:
   <title>Oblivio</title>
   <!-- GENERATED by tools/make_wordmark.py. Edit that, not this.
 
-       Solid {ink} wordmark on a {ground} ground, over a field of the statements
-       this project actually implements: the AEAD and per record key derivation
-       from crypto.py, the RFC 6962 leaf and node hashing and signed head from
-       merkle.py, the Schnorr sigma protocol and its simulator from zk.py, the
-       differential privacy bound and sequential composition from dp.py, and the
-       Chaum blind signature from anon_token.py.
+       The letterforms are a clipping path, and what shows through them is the set
+       of statements this project actually implements: the per record key
+       derivation and AEAD from crypto.py and store.py, the RFC 6962 leaf and node
+       hashing with the signed head from merkle.py, the Schnorr sigma protocol and
+       its simulator from zk.py, the differential privacy bound and sequential
+       composition from dp.py, and the Chaum blind signature from anon_token.py.
 
-       The maths is real and checkable against those files. That is the whole
-       point of putting it here: a mark can assert that a project is rigorous, or
-       it can show the arithmetic and let the reader decide.
+       Nothing is drawn outside the glyphs. The word is the container and the
+       maths is the substance, which is the only arrangement where the mark
+       carries its own claim instead of standing on a decorative background.
 
-       The pair is switched by prefers-color-scheme in the README: a single ink
-       mark needs both inks, or half the readers get nothing.
+       The maths is checkable against those files. If any of them change what they
+       prove, this mark is wrong and has to be regenerated.
 
-       The wordmark is live <text>. Convert to outlines before print, embroidery,
-       or handing this to anyone whose renderer you do not control.
+       Ink {ink} on a {ground} ground. The pair is switched by prefers-color-scheme
+       in the README: a single ink mark needs both inks, or half the readers get
+       nothing.
+
+       The wordmark is live <text>, so the clip depends on the reader's font stack.
+       Convert to outlines before print, embroidery, or handing this to anyone
+       whose renderer you do not control.
 
        Centred with text-anchor rather than a computed x: the stack resolves
        differently per platform and a measured offset is only centred on the
        machine that measured it. x is {ANCHOR_X} rather than {W // 2} because SVG
        adds the tracking after the final glyph too, so the advance being centred
        is {TRACKING}px wider than the ink. -->
-  <g opacity="{MATH_OPACITY}">
+  <defs>
+    <clipPath id="oblivio-wordmark">
+      <text x="{ANCHOR_X}" y="{BASELINE}" text-anchor="middle"
+            font-family="{STACK}"
+            font-size="{FONT_SIZE}" letter-spacing="{TRACKING}"
+            font-weight="700">OBLIVIO</text>
+    </clipPath>
+  </defs>
+  <g clip-path="url(#oblivio-wordmark)">
+    <rect x="0" y="0" width="{W}" height="{H}" fill="{ink}" opacity="{BACKING}"/>
+    <g>
 {band}
+    </g>
   </g>
-  <text x="{ANCHOR_X}" y="{BASELINE}" text-anchor="middle"
-        font-family="{STACK}"
-        font-size="{FONT_SIZE}" letter-spacing="{TRACKING}"
-        fill="{ink}" font-weight="700">OBLIVIO</text>
 </svg>
 """
 
@@ -139,8 +161,8 @@ def main() -> int:
     n = len(rows())
     for rel, ink, ground in targets:
         (ROOT / rel).write_text(svg(ink, ground), encoding="utf-8")
-        print(f"wrote {rel}  (solid {ink} on {ground}, {n} rows of maths "
-              f"at {MATH_OPACITY})")
+        print(f"wrote {rel}  ({ink} on {ground}, {n} rows of maths clipped "
+              f"inside the glyphs, backing {BACKING})")
     return 0
 
 
