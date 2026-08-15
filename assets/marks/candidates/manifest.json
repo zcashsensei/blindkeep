@@ -1,0 +1,62 @@
+[
+  {
+    "id": "inclusion-path",
+    "name": "Inclusion Path",
+    "claim": "This record is in the log, and the path is the proof",
+    "why": "merkle.py. The one picture of an inclusion proof: a tree with a single route from leaf to root picked out. Reads as structure even when the thin edges vanish at favicon size."
+  },
+  {
+    "id": "three-move",
+    "name": "Three Move",
+    "claim": "Commit, challenge, response \u2014 the sigma protocol itself",
+    "why": "zk.py. Two parties, three messages, and the middle one comes back the other way. The only mark here that draws a protocol rather than an object."
+  },
+  {
+    "id": "commitment",
+    "name": "Commitment",
+    "claim": "Bound to a value before the challenge, without showing it",
+    "why": "zk.py commit(). Brackets that have closed on something you cannot see. Binding and hiding in one shape, which is exactly the two properties a commitment has."
+  },
+  {
+    "id": "the-gap",
+    "name": "The Gap",
+    "claim": "You learn the boundary. You do not learn the centre",
+    "why": "The whole thesis in two circles: an open ring is what the verifier gets, the solid core is what stays. The break in the ring is where the information would have escaped and does not."
+  },
+  {
+    "id": "append-only",
+    "name": "Append Only",
+    "claim": "History grows one way and cannot be rewritten unseen",
+    "why": "merkle.py consistency proofs. Rungs that stack upward off a sealed base. The bar widths differ so it never reads as a signal-strength icon."
+  },
+  {
+    "id": "signed-head",
+    "name": "Signed Head",
+    "claim": "One signed value commits to the entire history",
+    "why": "crypto.py sign_head(). A stack of records collapsing into a single bar with a seal on it. The claim the node is held to, and the thing a client pins."
+  },
+  {
+    "id": "witness-discarded",
+    "name": "Witness Discarded",
+    "claim": "The proof survives. The thing that made it does not",
+    "why": "zk-prove: the witness is destroyed once the proof exists. Solid proof, dashed witness. The only candidate whose meaning is an absence, which is also the riskiest to read at small size."
+  },
+  {
+    "id": "fiat-shamir",
+    "name": "Fiat\u2013Shamir",
+    "claim": "The challenge comes from the statement, not from a verifier",
+    "why": "zk.py _transcript(). A loop that feeds its own output back as its input \u2014 the transform that makes an interactive proof into a file you can hand someone."
+  },
+  {
+    "id": "one-of-many",
+    "name": "One of Many",
+    "claim": "One of these is mine. Which one is not revealed",
+    "why": "prove-in-keep, the membership proof. A row with one member ringed and deliberately no brighter than the rest \u2014 the ring marks the set, not the element."
+  },
+  {
+    "id": "verified-void",
+    "name": "Verified Void",
+    "claim": "Checked, and there was nothing to see",
+    "why": "The receipt in one glyph: a tick cut out of a solid block, so the confirmation is made of the absence rather than drawn on top of it. Strongest at 16px of anything here."
+  }
+]
