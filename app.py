@@ -1,10 +1,10 @@
-"""Blindkeep — the app. Encrypted memory you can prove things about.
+"""Oblivio — the app. Encrypted memory you can prove things about.
 
     python app.py          →  http://127.0.0.1:8743
 
 This is the PRODUCT surface, not the maintainer dashboard. dashboard.py reports
 on the repository — tests, roadmap, todos. This is what someone who uses
-Blindkeep actually touches: write a memory, read it back, prove the keep has
+Oblivio actually touches: write a memory, read it back, prove the keep has
 not been rewritten behind your back.
 
 It starts a local node if one is not already listening, creates a master key on
@@ -67,7 +67,7 @@ KEY_JUST_CREATED = False
 # `tier` is what the agent is TREATED as, and it is a declaration rather than a
 # proof: from inside this process a local script and a frontier model behind a
 # relay are both just something holding a token. It starts at the weakest tier
-# and the page says plainly that Blindkeep cannot verify it.
+# and the page says plainly that Oblivio cannot verify it.
 AGENT = {"on": False, "token": None, "tier": 0}
 
 # The switch above is reversible; this list is not. Turning agent access off
@@ -96,7 +96,7 @@ CAT_PATH = HERE / "data" / "catalogue.json"
 
 def gate_mod():
     """Imported lazily, like the client, so a broken package still renders."""
-    from blindkeep import memory_gate
+    from oblivio import memory_gate
     return memory_gate
 
 
@@ -147,7 +147,7 @@ def catalogue_entry(res: dict, label: str, sens_label: str) -> dict:
             "at": int(time.time())}
 
 # Heartwood is a sibling project (throttle / effort proof). Not vendored — one
-# protocol copy — but treated as a first-class Blindkeep tab: we search common
+# protocol copy — but treated as a first-class Oblivio tab: we search common
 # install locations and can clone the official repo on request.
 HEARTWOOD_REPO = "https://github.com/zcashsensei/heartwood.git"
 _HEARTWOOD_CACHED: pathlib.Path | None = None
@@ -211,7 +211,7 @@ def ensure_node() -> tuple[bool, str]:
     if node_up():
         return True, "already running"
     KEY_PATH.parent.mkdir(parents=True, exist_ok=True)
-    subprocess.Popen([sys.executable, "-m", "blindkeep", "node",
+    subprocess.Popen([sys.executable, "-m", "oblivio", "node",
                       "--data-dir", str(HERE / "data" / "keep"),
                       "--port", str(NODE_PORT)],
                      cwd=str(HERE),
@@ -233,7 +233,7 @@ def safe_error(exc: Exception) -> dict:
     is enough for a user to report; the detail goes to the console, which only
     the person running this can see.
     """
-    print(f"[blindkeep] {type(exc).__name__}: {exc}", file=sys.stderr)
+    print(f"[oblivio] {type(exc).__name__}: {exc}", file=sys.stderr)
     return {"error": type(exc).__name__,
             "hint": "details are in the terminal running this app"}
 
@@ -255,7 +255,7 @@ def lock_down(path: pathlib.Path) -> None:
         else:
             os.chmod(path, 0o600)
     except Exception as exc:                                 # pragma: no cover
-        print(f"[blindkeep] could not tighten permissions on {path.name}: "
+        print(f"[oblivio] could not tighten permissions on {path.name}: "
               f"{type(exc).__name__}", file=sys.stderr)
 
 
@@ -301,7 +301,7 @@ def privacy_snapshot() -> dict:
 # Minimum length for the passphrase that seals at rest and backup zips.
 _MIN_BACKUP_PASSPHRASE = 10
 
-_SEAL_AAD = b"blindkeep-key-backup-v1"
+_SEAL_AAD = b"oblivio-key-backup-v1"
 _SEAL_MAGIC = b"BK1\0"
 
 
@@ -329,7 +329,7 @@ def open_payload(payload: bytes, passphrase: str) -> bytes:
     from cryptography.hazmat.primitives.kdf.scrypt import Scrypt
 
     if not payload.startswith(_SEAL_MAGIC):
-        raise ValueError("not a Blindkeep sealed key")
+        raise ValueError("not a Oblivio sealed key")
     body = payload[len(_SEAL_MAGIC):]
     salt, nonce, sealed = body[:16], body[16:28], body[28:]
     kdf = Scrypt(salt=salt, length=32, n=2**14, r=8, p=1)
@@ -341,7 +341,7 @@ def seal_master_key_zip(raw_key: bytes, passphrase: str) -> bytes:
     """Portable backup zip: ciphertext + README. Useless without passphrase."""
     payload = seal_payload(raw_key, passphrase)
     readme = (
-        "Blindkeep master-key backup\n"
+        "Oblivio master-key backup\n"
         "===========================\n\n"
         "This zip does NOT contain a readable master key.\n"
         "master.key.sealed is encrypted with the passphrase you chose.\n"
@@ -351,7 +351,7 @@ def seal_master_key_zip(raw_key: bytes, passphrase: str) -> bytes:
         "with the same passphrase, or:\n"
         "  python -c \"from app import open_master_key_zip; "
         "open('data/master.key.sealed','wb').write("
-        "open_master_key_zip(open('blindkeep-master-key.zip','rb').read(),"
+        "open_master_key_zip(open('oblivio-master-key.zip','rb').read(),"
         "'YOUR_PASSPHRASE') and b'')\"\n\n"
         "Never put the passphrase in a chat, email, or agent prompt.\n"
     )
@@ -381,7 +381,7 @@ def seal_at_rest(passphrase: str) -> None:
         try:
             KEY_PATH.unlink()
         except OSError as exc:
-            print(f"[blindkeep] could not remove plaintext key: {exc}",
+            print(f"[oblivio] could not remove plaintext key: {exc}",
                   file=sys.stderr)
 
 
@@ -408,7 +408,7 @@ def unlock_session(passphrase: str) -> None:
         seal_at_rest(passphrase)
         return
     # First-time setup: mint in memory, seal at rest.
-    from blindkeep.crypto import generate_master_key
+    from oblivio.crypto import generate_master_key
     SESSION_KEY = generate_master_key()
     KEY_JUST_CREATED = True
     seal_at_rest(passphrase)
@@ -428,7 +428,7 @@ def reset_local_key_material() -> None:
             if p.is_file():
                 p.unlink()
         except OSError as exc:
-            print(f"[blindkeep] could not remove {p.name}: {exc}", file=sys.stderr)
+            print(f"[oblivio] could not remove {p.name}: {exc}", file=sys.stderr)
 
 
 def ensure_session_key() -> bytes:
@@ -443,23 +443,23 @@ def ensure_session_key() -> bytes:
         # Legacy: still readable on disk until the next unlock migrates it.
         SESSION_KEY = KEY_PATH.read_bytes()
         return SESSION_KEY
-    from blindkeep.crypto import generate_master_key
+    from oblivio.crypto import generate_master_key
     SESSION_KEY = generate_master_key()
     KEY_JUST_CREATED = True
     return SESSION_KEY
 
 
 def client(need_key: bool = True):
-    from blindkeep.client import BlindkeepClient
+    from oblivio.client import OblivioClient
     key = b""
     if need_key:
         key = ensure_session_key()
-    return BlindkeepClient(NODE_URL, key, pin_path=str(PIN_PATH))
+    return OblivioClient(NODE_URL, key, pin_path=str(PIN_PATH))
 
 
 def _require_session_token(handler: "Handler") -> bool:
     """Key material is never reachable with an agent token — only the page token."""
-    tok = handler.headers.get("X-Blindkeep-Token") or ""
+    tok = handler.headers.get("X-Oblivio-Token") or ""
     if not tok and "?" in handler.path:
         from urllib.parse import parse_qs
         tok = (parse_qs(handler.path.split("?", 1)[1]).get("t") or [""])[0]
@@ -497,7 +497,7 @@ def heartwood_modules():
 
 
 def install_heartwood() -> tuple[bool, str]:
-    """Clone the official Heartwood repo next to Blindkeep. Fixed URL only."""
+    """Clone the official Heartwood repo next to Oblivio. Fixed URL only."""
     global _HEARTWOOD_CACHED
     existing = resolve_heartwood_dir()
     if existing is not None:
@@ -586,7 +586,7 @@ def hw_run(run_id, choice):
                 break
         cal = {"source": "endpoint_self", "n": calib, "successes": ok,
                "raw_rate": ok / calib, "method": "wilson_lower_99"}
-        rc = H.build_receipt(seed, diff, com, beacon, plan, cal, tr, "blindkeep-app")
+        rc = H.build_receipt(seed, diff, com, beacon, plan, cal, tr, "oblivio-app")
         st["receipt"] = rc
         v = H.verify_receipt(rc)
         anc = H.verify_beacon_online(rc)
@@ -640,7 +640,7 @@ class Handler(BaseHTTPRequestHandler):
         if origin and origin not in (f"http://127.0.0.1:{PORT}",
                                      f"http://localhost:{PORT}"):
             return False
-        tok = self.headers.get("X-Blindkeep-Token") or ""
+        tok = self.headers.get("X-Oblivio-Token") or ""
         if not tok and "?" in self.path:
             from urllib.parse import parse_qs
             tok = (parse_qs(self.path.split("?", 1)[1]).get("t") or [""])[0]
@@ -1044,7 +1044,7 @@ class Handler(BaseHTTPRequestHandler):
                 self.send_header("Content-Type", "application/zip")
                 self.send_header(
                     "Content-Disposition",
-                    'attachment; filename="blindkeep-master-key.zip"')
+                    'attachment; filename="oblivio-master-key.zip"')
                 self.send_header("Content-Length", str(len(blob)))
                 self.send_header("X-Content-Type-Options", "nosniff")
                 self.send_header("Cache-Control", "no-store")
@@ -1098,7 +1098,7 @@ class Handler(BaseHTTPRequestHandler):
                 self.send_header("Content-Type", "application/zip")
                 self.send_header(
                     "Content-Disposition",
-                    'attachment; filename="blindkeep-master-key.zip"')
+                    'attachment; filename="oblivio-master-key.zip"')
                 self.send_header("Content-Length", str(len(blob)))
                 self.send_header("X-Content-Type-Options", "nosniff")
                 self.send_header("Cache-Control", "no-store")
@@ -1111,7 +1111,7 @@ class Handler(BaseHTTPRequestHandler):
                 if not _require_session_token(self):
                     return self._send(403, {
                         "error": "session only — frontier path is human-gated"})
-                from blindkeep.frontier_private import (
+                from oblivio.frontier_private import (
                     FrontierPrivateError,
                     default_api_key,
                     frontier_chat,
@@ -1175,8 +1175,8 @@ class Handler(BaseHTTPRequestHandler):
                 try:
                     local = make_ollama_local(ollama_base, local_model)
                     if gateway_url:
-                        from blindkeep.anon_token import Token
-                        from blindkeep.frontier_gateway import make_gateway_remote
+                        from oblivio.anon_token import Token
+                        from oblivio.frontier_gateway import make_gateway_remote
                         if not isinstance(token_blob, dict):
                             return self._send(400, {
                                 "error": "gateway path needs token object "
@@ -1207,7 +1207,7 @@ class Handler(BaseHTTPRequestHandler):
                     # Ask the completer what it sends over, rather than
                     # restating the request body. These disagree exactly when
                     # the receipt would otherwise be wrong.
-                    from blindkeep.frontier_gateway import transport_of
+                    from oblivio.frontier_gateway import transport_of
                     receipt = frontier_chat(
                         text,
                         local=local,
@@ -1240,7 +1240,7 @@ class Handler(BaseHTTPRequestHandler):
                 idx = int(raw_idx)
                 if idx < 0:
                     return self._send(400, {"error": "index out of range"})
-                from blindkeep.zk_keep import (keep_leaves, prove_in_keep,
+                from oblivio.zk_keep import (keep_leaves, prove_in_keep,
                                                verify_in_keep)
                 try:
                     c = client()
@@ -1270,7 +1270,7 @@ class Handler(BaseHTTPRequestHandler):
             if path == "/api/agent":
                 # Only the page's own token may flip this. An agent holding an
                 # agent token must not be able to keep itself enabled.
-                supplied = self.headers.get("X-Blindkeep-Token") or ""
+                supplied = self.headers.get("X-Oblivio-Token") or ""
                 if not secrets.compare_digest(supplied, TOKEN):
                     return self._send(403, {"error": "only the app can change this"})
                 AGENT["on"] = bool(body.get("enabled"))
@@ -1334,7 +1334,7 @@ class Handler(BaseHTTPRequestHandler):
                 return self._send(200, {"run": rid})
         except Exception as exc:
             if path.startswith("/api/read/"):
-                print(f"[blindkeep] read failed: {type(exc).__name__}: {exc}",
+                print(f"[oblivio] read failed: {type(exc).__name__}: {exc}",
                       file=sys.stderr)
                 return self._send(404, {"error": "no such record"})
             return self._send(500, safe_error(exc))
@@ -1369,7 +1369,7 @@ class Handler(BaseHTTPRequestHandler):
 
 PAGE = r"""<!doctype html><html lang=en><head><meta charset=utf-8>
 <meta name=viewport content="width=device-width,initial-scale=1">
-<title>Blindkeep</title><style>
+<title>Oblivio</title><style>
 /* Same palette as the project dashboard: deep navy ground, cyan brand, blue
    interactive, gold reserved as a minor accent. The first cut of this page was
    gold-on-black throughout and read brown rather than night. */
@@ -1543,7 +1543,7 @@ body.hastodo{padding-bottom:5.5rem}
            placeholder="same passphrase again">
     <div id=keymodalerr class=warnbox style="display:none;margin-top:.7rem"></div>
     <div class=okbox id=keymodalok style="margin-top:.8rem">You get
-    <b style="color:var(--ink)">blindkeep-master-key.zip</b> plus
+    <b style="color:var(--ink)">oblivio-master-key.zip</b> plus
     <span class=mono>data/master.key.sealed</span> — both ciphertext.
     Never put the passphrase in a chat or agent prompt.</div>
     <div class=rowbtns>
@@ -1568,7 +1568,7 @@ body.hastodo{padding-bottom:5.5rem}
       <path fill-rule="evenodd" fill="#F4B728"
             d="M33 44 h6 v-7 h6 v7 h6 v-7 h6 v7 h6 v26 H33 Z M44 57 h8 v13 h-8 Z"/>
     </svg>
-    <div><h1>Blindkeep</h1>
+    <div><h1>Oblivio</h1>
     <div class=tag id=tag>encrypted memory · the node cannot read it</div></div>
   </div>
   <div class=rail id=rail aria-label="Privacy posture"></div>
@@ -1619,7 +1619,7 @@ body.hastodo{padding-bottom:5.5rem}
   <div class=card>
     <h2>Security — plain English</h2>
     <p class=note>This is the page for everyone, not just cryptographers. What
-    Blindkeep does to keep you safer, what it does <b style="color:var(--ink)">not</b>
+    Oblivio does to keep you safer, what it does <b style="color:var(--ink)">not</b>
     do, and what you should do with your key. Live status updates as you use the app.</p>
     <div class=stats id=secstats style="margin-top:1rem"></div>
     <div id=secposture style="margin-top:1rem"></div>
@@ -1637,7 +1637,7 @@ body.hastodo{padding-bottom:5.5rem}
       passphrase-wrapped (<span class=mono>master.key.sealed</span>). Backups
       are a sealed zip — not a raw key file agents can open.</li>
       <li><b>This app does not phone home.</b> It binds to localhost only. No
-      Blindkeep cloud account. No analytics upload of your keep.</li>
+      Oblivio cloud account. No analytics upload of your keep.</li>
       <li><b>You can prove you hold a record without naming which.</b> That is
       the zero-knowledge membership feature on the Proof tab.</li>
     </ul>
@@ -1780,7 +1780,7 @@ body.hastodo{padding-bottom:5.5rem}
     you. But "remembering" normally means a company holds your notes, your
     health, your finances, in a form its staff and its servers can read. You
     are asked to trade privacy for usefulness.</p>
-    <p class=note style="margin-top:.7rem">Blindkeep refuses the trade. The
+    <p class=note style="margin-top:.7rem">Oblivio refuses the trade. The
     thing that stores your memory <b style="color:var(--ink)">cannot read
     it</b> — not because it promises not to, but because it never has the key.</p>
   </div>
@@ -1882,7 +1882,7 @@ body.hastodo{padding-bottom:5.5rem}
       saw a question at all.</li>
     </ul>
     <div class=warnbox>If someone promises “frontier models with zero metadata
-    and zero identity,” treat that as a claim to verify — not as what Blindkeep
+    and zero identity,” treat that as a claim to verify — not as what Oblivio
     ships in this app today.</div>
   </div>
 
@@ -1987,7 +1987,7 @@ body.hastodo{padding-bottom:5.5rem}
     answered without doing the work, binds challenge selection to public
     randomness, and issues a transferable receipt.
     <b style="color:var(--ink)">This is not privacy</b> — that is the rest of
-    Blindkeep. This checks whether the work was done.</p>
+    Oblivio. This checks whether the work was done.</p>
     <div id=hwstatus class=okbox style="display:none;margin-top:.8rem"></div>
     <div id=hwmissing style="display:none;margin-top:1rem;border:1px solid var(--line);
          border-radius:.6rem;padding:1rem 1.15rem;background:rgba(0,0,0,.25)">
@@ -2003,7 +2003,7 @@ body.hastodo{padding-bottom:5.5rem}
            color:var(--ink);font-size:.88rem">View on GitHub</a>
       </div>
       <p class=note style="margin-top:.7rem;font-size:.8rem">Install clones the
-      official repo next to Blindkeep (fixed URL only). Requires <span class=mono>git</span>.</p>
+      official repo next to Oblivio (fixed URL only). Requires <span class=mono>git</span>.</p>
     </div>
     <div class=grid2 id=hwform style="margin-top:1.1rem">
       <div><label for=hw-target>Which AI are you checking?</label>
@@ -2028,7 +2028,7 @@ body.hastodo{padding-bottom:5.5rem}
     </div>
     <div class=warnbox id=hwwarn style="display:none">This calls the provider
     under check. It is an audit of effort, not a private path. API keys are
-    read from your environment by Heartwood (not stored in Blindkeep).</div>
+    read from your environment by Heartwood (not stored in Oblivio).</div>
     <button class=go id=hwgo>Run Heartwood check</button>
     <button class=ghost id=hwsave style="display:none;margin-left:.5rem">Download receipt</button>
     <div class=bar><i id=hwbar></i></div>
@@ -2048,7 +2048,7 @@ const esc = s => String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>
    master key. So any URL coming from data gets its scheme checked, not just
    its characters. Anything not plainly http(s) becomes an inert '#'. */
 const safeUrl = u => /^https?:\/\/[^\s"'<>]+$/i.test(String(u||'')) ? String(u) : '#';
-const api = (p,o={}) => fetch(p,{...o,headers:{'X-Blindkeep-Token':TOKEN,
+const api = (p,o={}) => fetch(p,{...o,headers:{'X-Oblivio-Token':TOKEN,
   ...(o.body?{'Content-Type':'application/json'}:{})}});
 
 /* night sky: a slow drift of stars, drawn once per frame on a canvas so it
@@ -2392,7 +2392,7 @@ $('keymodalsave').onclick = async ()=>{
     if(blob.size < 50){ keyModalErr('Backup download was empty — try again.'); return; }
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
-    a.download = 'blindkeep-master-key.zip';
+    a.download = 'oblivio-master-key.zip';
     document.body.appendChild(a);
     a.click();
     a.remove();
@@ -2492,7 +2492,7 @@ $('provedl').onclick=()=>{
   if(!LAST_PROOF) return;
   const blob = new Blob([JSON.stringify(LAST_PROOF,null,2)],{type:'application/json'});
   const a=document.createElement('a');
-  a.href=URL.createObjectURL(blob); a.download='blindkeep-membership-proof.json';
+  a.href=URL.createObjectURL(blob); a.download='oblivio-membership-proof.json';
   a.click(); URL.revokeObjectURL(a.href);
 };
 
@@ -2507,12 +2507,12 @@ async function agentPaint(a){
   $('agentex').textContent =
 `# save a memory
 curl -s ${a.url}/api/write \\
-  -H "X-Blindkeep-Token: ${a.token}" \\
+  -H "X-Oblivio-Token: ${a.token}" \\
   -H "Content-Type: application/json" \\
   -d '{"text":"remember this","label":"note","i_accept_no_backup":true}'
 
 # read memory #0 back
-curl -s "${a.url}/api/read/0" -H "X-Blindkeep-Token: ${a.token}"`;
+curl -s "${a.url}/api/read/0" -H "X-Oblivio-Token: ${a.token}"`;
 }
 $('agenttoggle').onclick=async()=>{
   const cur=$('agentbox').style.display==='block';
@@ -2708,7 +2708,7 @@ def main():
     # kills the process before it ever binds. This repo already solved that
     # once; dashboard.py calls the same helper on its first line.
     try:
-        from blindkeep._console import use_utf8_stdout
+        from oblivio._console import use_utf8_stdout
         use_utf8_stdout()
     except Exception:
         pass
@@ -2716,7 +2716,7 @@ def main():
     ok, how = ensure_node()
     srv = ThreadingHTTPServer(("127.0.0.1", PORT), Handler)
     url = f"http://127.0.0.1:{PORT}"
-    print(f"Blindkeep -> {url}")
+    print(f"Oblivio -> {url}")
     print(f"  node: {'up (' + how + ')' if ok else 'FAILED: ' + how}")
     print("  bound to localhost only. Ctrl-C to stop.")
     # Interactive launches only (2026-08-13). Opening unconditionally meant every restart

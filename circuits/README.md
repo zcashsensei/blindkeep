@@ -1,4 +1,4 @@
-# blindkeep-circuits — succinct membership proofs over a keep
+# oblivio-circuits — succinct membership proofs over a keep
 
 A halo2 circuit proving **"I hold a record committed in this keep"** without
 revealing which record. The leaf and its Merkle path are private inputs; only
@@ -18,9 +18,9 @@ curves** (Pallas/Vesta), so proofs about a growing log stay cheap to check.
 cargo test --release
 
 # end-to-end against a real keep:
-blindkeep zk-witness --index N --out w.json     # Python CLI exports the witness
-./target/release/blindkeep-prove prove  --witness w.json --out proof.json
-./target/release/blindkeep-prove verify --proof proof.json
+oblivio zk-witness --index N --out w.json     # Python CLI exports the witness
+./target/release/oblivio-prove prove  --witness w.json --out proof.json
+./target/release/oblivio-prove verify --proof proof.json
 ```
 
 ## Measured (2026-08-14, consumer laptop, release build)
@@ -48,10 +48,10 @@ of this crate that downgrades the pin reintroduces a proof-forgery vector.
 
 - **Not PIR.** It hides *which record a proof concerns*; it does not hide
   which record a client fetches from a node. Different problem
-  (`blindkeep read-private` pays the whole-keep cost for that today).
+  (`oblivio read-private` pays the whole-keep cost for that today).
 - **Not zkML.** Nothing here proves a model computed anything.
 - **The verifier checks the root, not the head signature.** Anchoring the
-  root to a live keep is `blindkeep verify-in-keep`'s job; this binary states
+  root to a live keep is `oblivio verify-in-keep`'s job; this binary states
   that plainly in its output rather than implying more than it checked.
 
 MIT, same as the repository. The circuit reuses `halo2_gadgets` Poseidon;

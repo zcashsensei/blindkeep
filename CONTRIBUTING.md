@@ -1,4 +1,4 @@
-# Contributing to Blindkeep
+# Contributing to Oblivio
 
 **Version 0.3 · 2026-08-11**
 
@@ -129,7 +129,7 @@ well (about seven minutes, and what CI should do):
 py -3 tools/check_counts.py --run-tests
 ```
 
-Note that `blindkeep status` **counts** tests by reading the source; it does not
+Note that `oblivio status` **counts** tests by reading the source; it does not
 run them. A green count is not a green run. Only `--run-tests` executes them,
 and it trusts exit codes rather than output text — the suites print `ok`,
 `PASS`, `N passed` and `13 merkle tests passed`, so any parser of that text

@@ -6,7 +6,7 @@ same shape: a commit adds a suite, and the totals in the documents a reader
 actually checks are not updated with it. The numbers are computable, so no
 human should be retyping them.
 
-`blindkeep status` already computes the truth. Nothing forced anyone to compare
+`oblivio status` already computes the truth. Nothing forced anyone to compare
 against it. This does, from `pre-push`.
 
 Three checks, because the bug has appeared in three different shapes:
@@ -34,7 +34,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-from blindkeep.status import count_tests  # noqa: E402
+from oblivio.status import count_tests  # noqa: E402
 
 # A per-suite count and a grand total are both "<n> tests". They are told apart
 # by size: the largest suite is 42, the total is in the hundreds. Anything above

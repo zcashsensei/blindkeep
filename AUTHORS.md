@@ -2,7 +2,7 @@
 
 ## Creator
 
-**Blindkeep was created by zcashsensei** — original concept, product vision, category
+**Oblivio was created by zcashsensei** — original concept, product vision, category
 thesis, licensing model, and direction.
 
 - **Project conceived and first implemented:** 2026-08-05
@@ -10,7 +10,7 @@ thesis, licensing model, and direction.
 - **Role:** creator, original author, and maintainer
 - **Rights:** copyright retained by the creator. See [`LICENSE`](LICENSE). MIT
   grants the public use of the code; it does not transfer authorship,
-  copyright, or the **Blindkeep** name and brand, which remain with the creator.
+  copyright, or the **Oblivio** name and brand, which remain with the creator.
 
 Design principles and the constraints implementation must respect are recorded
 in [`CONTRIBUTING.md`](CONTRIBUTING.md).
@@ -24,13 +24,13 @@ Authorship priority for this work rests on the public record:
 2. **Dated design documents in-repo** — `WHITEPAPER.md`, `CONTRIBUTING.md`,
    `SECURITY.md`, and related doctrine files record design decisions as of
    2026-08-05, not only what was implemented.
-3. **The signed Merkle log itself** — a Blindkeep head is an Ed25519 signature
+3. **The signed Merkle log itself** — a Oblivio head is an Ed25519 signature
    over `(tree_size, root)`. A head published at a known time is a commitment
    to the exact contents of a log at that time.
 
 ### A note on wording, so the claim survives scrutiny
 
-Claim what is true and verifiable: **creator and original author of Blindkeep**,
+Claim what is true and verifiable: **creator and original author of Oblivio**,
 first public release dated by the commit history.
 
 Do **not** claim to be first to invent encrypted storage, Merkle transparency

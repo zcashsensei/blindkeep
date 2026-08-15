@@ -14,10 +14,10 @@ from http.server import ThreadingHTTPServer
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from blindkeep.client import BlindkeepClient
-from blindkeep.crypto import generate_master_key
-from blindkeep.node import _Handler
-from blindkeep.store import (
+from oblivio.client import OblivioClient
+from oblivio.crypto import generate_master_key
+from oblivio.node import _Handler
+from oblivio.store import (
     MemoryStore,
     PAD_BLOCK,
     client_encrypt,
@@ -29,7 +29,7 @@ TMPDIRS = []
 
 
 def tmpdir():
-    d = tempfile.mkdtemp(prefix="blindkeep-meta-")
+    d = tempfile.mkdtemp(prefix="oblivio-meta-")
     TMPDIRS.append(d)
     return d
 
@@ -43,7 +43,7 @@ def node():
     threading.Thread(target=httpd.serve_forever, daemon=True).start()
     SERVERS.append(httpd)
     url = f"http://127.0.0.1:{httpd.server_address[1]}"
-    client = BlindkeepClient(url, generate_master_key(),
+    client = OblivioClient(url, generate_master_key(),
                              pin_path=os.path.join(d, "pin.json"))
     return client, store, d
 

@@ -1,8 +1,8 @@
-# Blindkeep — Grant one-pager
+# Oblivio — Grant one-pager
 
-**Project:** Blindkeep  
+**Project:** Oblivio  
 **Applicant / maintainer:** zcashsensei ([GitHub](https://github.com/zcashsensei))  
-**Repository:** https://github.com/zcashsensei/blindkeep  
+**Repository:** https://github.com/zcashsensei/oblivio  
 **License:** MIT  
 **Date:** 2026-08-11 (v0.5)  
 **Status:** Runnable open-source reference implementation (v0 alpha)
@@ -24,7 +24,7 @@ The missing layer is memory that is **durable**, **structurally private** (opera
 
 ## 2. Solution (one sentence)
 
-**Blindkeep** is open-source infrastructure for AI memory: clients encrypt locally; nodes store only ciphertext in an append-only Merkle log with signed heads; clients verify every response before accepting data.
+**Oblivio** is open-source infrastructure for AI memory: clients encrypt locally; nodes store only ciphertext in an append-only Merkle log with signed heads; clients verify every response before accepting data.
 
 ---
 
@@ -44,10 +44,10 @@ The missing layer is memory that is **durable**, **structurally private** (opera
 
 | Capability | Evidence in repo |
 |------------|------------------|
-| Client-side AES-256-GCM + HKDF per-record keys | `blindkeep/crypto.py`, store tests |
-| RFC 6962-style Merkle inclusion + consistency | `blindkeep/merkle.py`, 13 exhaustive tests |
+| Client-side AES-256-GCM + HKDF per-record keys | `oblivio/crypto.py`, store tests |
+| RFC 6962-style Merkle inclusion + consistency | `oblivio/merkle.py`, 13 exhaustive tests |
 | Ed25519 signed tree heads | crypto + client verification |
-| Full client verify pipeline (5 checks) | `blindkeep/client.py`, 9 adversarial tests with malicious HTTP nodes |
+| Full client verify pipeline (5 checks) | `oblivio/client.py`, 9 adversarial tests with malicious HTTP nodes |
 | Single-node HTTP API + CLI | `node.py`, `demo.py` |
 | Command-line surface, no implicit key creation | `cli.py`, 19 tests |
 | Multi-node replication + quorum reads | `replica.py`, 12 tests |
@@ -72,16 +72,16 @@ The missing layer is memory that is **durable**, **structurally private** (opera
 | **Oblivious HTTP (RFC 9458)**: who is asking is split from what is asked, across two independent operators | `oblivious.py`, 15 tests |
 | **Timing and size privacy**: a constant-rate clock, not jitter; padding in a header, not the prompt | `dispatch.py`, 20 tests |
 | Access-pattern privacy (trivial PIR) and equivocation detection | `private_read.py` 12 tests, `witness.py` 13 tests |
-| Self-reporting inventory — counts computed, non-claims listed | `status.py`, 15 tests (`blindkeep status`) |
+| Self-reporting inventory — counts computed, non-claims listed | `status.py`, 15 tests (`oblivio status`) |
 | Counts in these documents enforced against source at push time | `tools/check_counts.py` |
 | Security write-up of fixed bugs | `SECURITY.md` |
 | Cryptographic claim boundaries | `CRYPTO_FOUNDATIONS.md` |
 
-**Automated suite (2026-08-11):** **610 tests** across 37 suites + end-to-end demo. Counts are computed from source by `blindkeep status`, and `tools/check_counts.py` blocks a push that would leave this line stale:
+**Automated suite (2026-08-11):** **610 tests** across 37 suites + end-to-end demo. Counts are computed from source by `oblivio status`, and `tools/check_counts.py` blocks a push that would leave this line stale:
 
 <!-- roster --> adversarial 9 · agent gate 18 · anon-token 24 · app-security 5 · attestation 30 · audit 10 · CLI 19 · cloud gate 17 · console 8 · delegate 31 · dialects 10 · discovery 23 · dispatch 20 · dp 17 · frontier-endpoint 9 · frontier-gateway 6 · frontier-private 22 · hardening 14 · HPKE 10 · local-model memory 13 · MCP 22 · memory gate 44 · Merkle 13 · metadata 8 · oblivious HTTP 15 · poseidon 15 · private read 12 · recovery 25 · replication 12 · SEV-SNP 19 · SEV-SNP vector 4 · status 15 · store 5 · vault proxy 30 · witness 13 · zk 31 · zk-keep 12
 
-**Not claimed as shipping** (this list is kept in step with `blindkeep status`, which prints the same disclaimers):
+**Not claimed as shipping** (this list is kept in step with `oblivio status`, which prints the same disclaimers):
 
 - **Validated hardware attestation.** The framework and its five checks are implemented and tested; a full SEV-SNP report parser and verifier is implemented (`sev_snp.py`, 19 tests) but has never been run against a report from real hardware, so it is deliberately excluded from the default registry and `sev-snp` refuses on the default path. TDX and NVIDIA GPU formats refuse outright. No vendor root certificates are bundled.
 - **Equivocation *prevention*.** Detection and proof exist (`witness.py`); stopping it needs consensus.
@@ -98,7 +98,7 @@ The missing layer is memory that is **durable**, **structurally private** (opera
 
 ## 5. Security basis (grant-safe wording)
 
-Blindkeep does **not** invent a new zero-knowledge proving system.
+Oblivio does **not** invent a new zero-knowledge proving system.
 
 | Property | Mechanism | Basis |
 |----------|-----------|--------|
@@ -144,7 +144,7 @@ from a well-tested single-user tool.
 | Role | |
 |------|--|
 | Creator & maintainer | **zcashsensei** |
-| GitHub | https://github.com/zcashsensei/blindkeep |
+| GitHub | https://github.com/zcashsensei/oblivio |
 | License | MIT — copyright retained by author; public may use and self-host freely |
 
 ---
@@ -153,7 +153,7 @@ from a well-tested single-user tool.
 
 | Document | Purpose |
 |----------|---------|
-| [Repository](https://github.com/zcashsensei/blindkeep) | Source, tests, issues |
+| [Repository](https://github.com/zcashsensei/oblivio) | Source, tests, issues |
 | [`WHITEPAPER.md`](WHITEPAPER.md) | Architecture and feasibility |
 | [`CRYPTO_FOUNDATIONS.md`](CRYPTO_FOUNDATIONS.md) | What is established vs tested |
 | [`SECURITY.md`](SECURITY.md) | Threat model and fixed issues |
@@ -164,7 +164,7 @@ from a well-tested single-user tool.
 
 ## 9. Closing (copy for application forms)
 
-> Blindkeep is MIT-licensed infrastructure for privacy-preserving AI memory. Clients encrypt; untrusted nodes store ciphertext in a Certificate Transparency–style append-only log; clients verify signatures and Merkle proofs before accepting data. The project ships a tested Python reference implementation (including multi-node quorum replication) and deliberately avoids claiming unshipped zero-knowledge or token systems. Grant support would fund production hardening, a free public capacity tier, and optional ZEC-settled paid overage so private local AI memory can scale as a public good aligned with Zcash privacy values.
+> Oblivio is MIT-licensed infrastructure for privacy-preserving AI memory. Clients encrypt; untrusted nodes store ciphertext in a Certificate Transparency–style append-only log; clients verify signatures and Merkle proofs before accepting data. The project ships a tested Python reference implementation (including multi-node quorum replication) and deliberately avoids claiming unshipped zero-knowledge or token systems. Grant support would fund production hardening, a free public capacity tier, and optional ZEC-settled paid overage so private local AI memory can scale as a public good aligned with Zcash privacy values.
 
 ---
 

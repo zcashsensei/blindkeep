@@ -19,7 +19,7 @@ from pathlib import Path
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from blindkeep.status import (
+from oblivio.status import (
     NOT_CLAIMED,
     capabilities,
     count_tests,
@@ -35,9 +35,9 @@ TMPDIRS = []
 
 def tmproot():
     """A skeleton repo with nothing in it, for the negative cases."""
-    d = Path(tempfile.mkdtemp(prefix="blindkeep-status-"))
+    d = Path(tempfile.mkdtemp(prefix="oblivio-status-"))
     TMPDIRS.append(d)
-    (d / "blindkeep").mkdir()
+    (d / "oblivio").mkdir()
     (d / "tests").mkdir()
     return d
 
@@ -79,7 +79,7 @@ def test_modules_cannot_be_a_subset():
     system than exists and nobody notices, because what is missing is invisible
     by definition.
     """
-    on_disk = {p.name for p in (ROOT / "blindkeep").glob("*.py")}
+    on_disk = {p.name for p in (ROOT / "oblivio").glob("*.py")}
     reported = {m["name"] for m in list_modules(ROOT)}
     missing = on_disk - reported
     assert not missing, f"modules omitted from the inventory: {sorted(missing)}"
@@ -88,7 +88,7 @@ def test_modules_cannot_be_a_subset():
 
 def test_a_new_module_appears_with_no_edit():
     d = tmproot()
-    (d / "blindkeep" / "brand_new_thing.py").write_text("x = 1", encoding="utf-8")
+    (d / "oblivio" / "brand_new_thing.py").write_text("x = 1", encoding="utf-8")
     assert "brand_new_thing.py" in {m["name"] for m in list_modules(d)}
 
 
@@ -98,7 +98,7 @@ def test_dashboard_uses_the_same_inventory():
     if not dash.is_file():
         return                      # gitignored local tool; absent in a clone
     src = dash.read_text(encoding="utf-8", errors="replace")
-    assert "from blindkeep.status import" in src, (
+    assert "from oblivio.status import" in src, (
         "dashboard.py built its own inventory again")
     for gone in ('"merkle.py", "crypto.py"', "def _count_tests("):
         assert gone not in src, f"dashboard.py still has its own {gone!r}"
@@ -116,7 +116,7 @@ def test_capabilities_are_detected_not_asserted():
 
 def test_capabilities_flip_on_what_is_present():
     d = tmproot()
-    (d / "blindkeep" / "merkle.py").write_text("", encoding="utf-8")
+    (d / "oblivio" / "merkle.py").write_text("", encoding="utf-8")
     (d / "tests" / "test_merkle.py").write_text("", encoding="utf-8")
     row = next(r for r in capabilities(d) if r["label"] == "Merkle + tests")
     assert row["ok"] is True
@@ -132,13 +132,13 @@ def test_sev_snp_enabled_is_read_from_the_live_registry():
     """Not a written value: it must flip by itself the day it is enabled."""
     row = next(r for r in capabilities(ROOT)
                if r["label"] == "SEV-SNP enabled by default")
-    from blindkeep.attest import default_registry
-    from blindkeep.sev_snp import SevSnpVerifier
+    from oblivio.attest import default_registry
+    from oblivio.sev_snp import SevSnpVerifier
     live = isinstance(default_registry().get("sev-snp"), SevSnpVerifier)
     assert row["ok"] is live
     assert row["ok"] is False, (
         "SEV-SNP is enabled by default but has not been validated against "
-        "real hardware — see blindkeep/sev_snp.py")
+        "real hardware — see oblivio/sev_snp.py")
 
 
 # --- honesty -----------------------------------------------------------------

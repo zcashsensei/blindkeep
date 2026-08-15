@@ -3,7 +3,7 @@
 Published test counts here have drifted five times. Every one of those drifts
 happened the same way: a number was typed into a document, more work shipped,
 and nobody went back. A number this module computes on every run cannot drift —
-so if a document and `blindkeep status` disagree, **the document is wrong.**
+so if a document and `oblivio status` disagree, **the document is wrong.**
 
 Two design rules, both learned from the failures they prevent:
 
@@ -25,7 +25,7 @@ import json
 from pathlib import Path
 from typing import Any, Optional
 
-PACKAGE = "blindkeep"
+PACKAGE = "oblivio"
 TESTS = "tests"
 
 

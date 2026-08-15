@@ -13,8 +13,8 @@ import time
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from blindkeep.crypto import NodeIdentity, signed_head_message
-from blindkeep.witness import (
+from oblivio.crypto import NodeIdentity, signed_head_message
+from oblivio.witness import (
     EquivocationError,
     EquivocationProof,
     HeadLog,

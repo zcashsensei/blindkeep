@@ -82,15 +82,15 @@ class FrontierGateway:
                 self.ohttp.config.serialize()).decode("ascii"),
             "api_base": self.api_base,
             "note": (
-                "Present a one-time Blindkeep-Token. Do not send a provider "
+                "Present a one-time Oblivio-Token. Do not send a provider "
                 "API key. Content should already be leak-gated on the client."
             ),
         }
 
     def redeem_header(self, header: str) -> None:
-        """Blindkeep-Token: <value_hex>.<signature_hex>"""
+        """Oblivio-Token: <value_hex>.<signature_hex>"""
         if not header or "." not in header:
-            raise GatewayError("missing or malformed Blindkeep-Token")
+            raise GatewayError("missing or malformed Oblivio-Token")
         value_hex, _, sig_hex = header.partition(".")
         tok = Token(value_hex=value_hex.strip(), signature_hex=sig_hex.strip())
         with self.lock:
@@ -230,7 +230,7 @@ def serve_gateway(gw: FrontierGateway, host: str = "127.0.0.1",
             try:
                 if path in ("/v1/complete", "/complete"):
                     body = self._read_json()
-                    tok = self.headers.get("Blindkeep-Token") or body.get("token") or ""
+                    tok = self.headers.get("Oblivio-Token") or body.get("token") or ""
                     return self._send(200, gw.handle_json(body, tok))
                 if path in ("/ohttp", "/v1/ohttp"):
                     n = int(self.headers.get("Content-Length") or 0)
@@ -274,7 +274,7 @@ def make_gateway_remote(
             data=body,
             headers={
                 "Content-Type": "application/json",
-                "Blindkeep-Token": token_hdr,
+                "Oblivio-Token": token_hdr,
                 "Accept": "application/json",
             },
             method="POST",
@@ -318,8 +318,8 @@ def make_gateway_remote(
     # The completer carries its own transport so a caller cannot describe the
     # request as something other than what it sent. A receipt that took the
     # caller's word for this reported an IP split across a direct socket.
-    complete_direct.blindkeep_transport = "direct"      # type: ignore[attr-defined]
-    complete_ohttp.blindkeep_transport = "ohttp"        # type: ignore[attr-defined]
+    complete_direct.oblivio_transport = "direct"      # type: ignore[attr-defined]
+    complete_ohttp.oblivio_transport = "ohttp"        # type: ignore[attr-defined]
     return complete_ohttp if use_ohttp else complete_direct
 
 
@@ -330,4 +330,4 @@ def transport_of(completer: Callable[..., Any]) -> str:
     completer, a test stub -- is untagged and reads as "direct", which is the
     answer that claims least.
     """
-    return getattr(completer, "blindkeep_transport", "direct")
+    return getattr(completer, "oblivio_transport", "direct")

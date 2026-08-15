@@ -12,7 +12,7 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from blindkeep.memory_gate import (
+from oblivio.memory_gate import (
     DEFAULT_POLICY,
     Grant,
     MemoryGate,
@@ -347,7 +347,7 @@ def test_the_gate_itself_reaches_no_provider():
     import ast
     root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     tree = ast.parse(
-        open(os.path.join(root, "blindkeep", "memory_gate.py"),
+        open(os.path.join(root, "oblivio", "memory_gate.py"),
              encoding="utf-8").read())
     for node in ast.walk(tree):
         names = []
@@ -367,7 +367,7 @@ def test_delegated_ranks_below_attested_and_above_pseudonymous():
 
 def test_sensitive_now_requires_delegation_not_mere_substitution():
     """Substitution ships what it failed to detect. For SENSITIVE that is not good enough."""
-    from blindkeep.memory_gate import DEFAULT_POLICY
+    from oblivio.memory_gate import DEFAULT_POLICY
     assert DEFAULT_POLICY[Sensitivity.SENSITIVE] is Tier.DELEGATED
 
     vault = FakeVault()
@@ -378,7 +378,7 @@ def test_sensitive_now_requires_delegation_not_mere_substitution():
 
 
 def test_a_delegated_backend_receives_sensitive_but_never_secret():
-    from blindkeep.memory_gate import delegation_prover
+    from oblivio.memory_gate import delegation_prover
 
     class Gate:
         def check(self, text):
@@ -392,7 +392,7 @@ def test_a_delegated_backend_receives_sensitive_but_never_secret():
 
 def test_delegation_without_a_leak_gate_is_demoted():
     """Claiming to abstract is not abstracting."""
-    from blindkeep.memory_gate import delegation_prover
+    from oblivio.memory_gate import delegation_prover
     rel = seeded_gate().release_for(
         backend(Tier.DELEGATED, delegation_prover(None)), n=10)
     assert rel.grant.granted is Tier.OPEN
@@ -409,14 +409,14 @@ class _Gate:
 
 def _sealed(attest_ok, has_gate):
     """A sealed prover whose attestation half is forced to pass or fail."""
-    from blindkeep.memory_gate import sealed_prover
+    from oblivio.memory_gate import sealed_prover
     url = "http://127.0.0.1:1/attest"          # always unreachable -> attestation fails
     prover = sealed_prover(url, None, _Gate() if has_gate else None)
     if not attest_ok:
         return prover
 
     def both():
-        from blindkeep.memory_gate import Grant
+        from oblivio.memory_gate import Grant
         g = prover()
         # substitute a passing attestation, leaving the gate logic untouched
         if has_gate:
@@ -517,7 +517,7 @@ def test_released_memories_are_abstracted_not_appended():
     gate.remember("the user lives at Ridgeway Cottage", Sensitivity.SENSITIVE)
     b = SimpleBackend(name="d", claimed_tier=Tier.DELEGATED,
                       completer=remote, prover=None, local=local, gate=_Gate())
-    from blindkeep.memory_gate import delegation_prover
+    from oblivio.memory_gate import delegation_prover
     b.prover = delegation_prover(_Gate())
     gate.chat(b, "what should I do?", recall=10, remember=False)
     assert "Ridgeway" not in sent["prompt"], "released memory was appended to the wire"
@@ -525,7 +525,7 @@ def test_released_memories_are_abstracted_not_appended():
 
 def test_a_delegating_tier_without_a_local_model_refuses():
     """Claiming to abstract with nothing to abstract WITH must not silently send the raw text."""
-    from blindkeep.memory_gate import delegation_prover
+    from oblivio.memory_gate import delegation_prover
     b = SimpleBackend(name="d", claimed_tier=Tier.DELEGATED,
                       completer=lambda p, s: "reply",
                       prover=delegation_prover(_Gate()), local=None, gate=_Gate())
@@ -542,7 +542,7 @@ def test_a_general_question_is_not_abstracted_on_the_delegated_tier():
     directly -- so every question paid the abstraction cost and no user could ever
     reach the fast path. Tested code that nothing calls is not a shipped feature.
     """
-    from blindkeep.memory_gate import delegation_prover
+    from oblivio.memory_gate import delegation_prover
 
     sent = {}
 

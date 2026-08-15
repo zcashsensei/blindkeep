@@ -83,7 +83,7 @@ def full_domain_hash(token: bytes, n: int) -> int:
     """
     size = (n.bit_length() + 7) // 8
     # One byte short of the modulus, so the result is always < n without needing rejection.
-    raw = _mgf1(b"blindkeep-anon-token-v1\0" + token, size - 1)
+    raw = _mgf1(b"oblivio-anon-token-v1\0" + token, size - 1)
     return int.from_bytes(raw, "big") % n
 
 
@@ -96,7 +96,7 @@ def key_id(n: int, e: int) -> str:
     """
     size = (n.bit_length() + 7) // 8
     return hashlib.sha256(
-        b"blindkeep-anon-token-key-v1\0" + e.to_bytes(8, "big") + n.to_bytes(size, "big")
+        b"oblivio-anon-token-key-v1\0" + e.to_bytes(8, "big") + n.to_bytes(size, "big")
     ).hexdigest()
 
 

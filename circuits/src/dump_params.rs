@@ -1,6 +1,6 @@
 //! Dump the exact Poseidon parameters and test vectors the circuits use.
 //!
-//! Blindkeep needs a Poseidon tree in Python whose hash matches this circuit's byte for byte —
+//! Oblivio needs a Poseidon tree in Python whose hash matches this circuit's byte for byte —
 //! a root computed with different constants produces a proof that never verifies, and the failure
 //! is silent until someone tries. So the constants are exported from the authoritative source
 //! rather than transcribed, and vectors are exported alongside them so the other implementation

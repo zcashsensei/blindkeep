@@ -16,7 +16,7 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from blindkeep.anon_token import (
+from oblivio.anon_token import (
     Client,
     Issuer,
     Token,

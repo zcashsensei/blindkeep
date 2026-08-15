@@ -211,7 +211,7 @@ def prefill_seconds(model: Model, context: int, tflops: float) -> float:
 def report_context_retrieval() -> None:
     print()
     print("=" * 78)
-    print("4. THE CASE THAT ACTUALLY FITS BLINDKEEP: RETRIEVING STORED CONTEXT")
+    print("4. THE CASE THAT ACTUALLY FITS OBLIVIO: RETRIEVING STORED CONTEXT")
     print("=" * 78)
     print("Weights that do not fit must stream every token, so 'load once' does")
     print("not apply to them. Where it does apply is a KV cache: a context you")
@@ -304,7 +304,7 @@ def report_verdict() -> None:
     print("       accelerator. That is a far easier commons to bootstrap.")
     print()
 
-    print("  4. For Blindkeep as it exists, none of this is the constraint.")
+    print("  4. For Oblivio as it exists, none of this is the constraint.")
     print("       A stored memory is kilobytes, not gigabytes:")
     for size, label in ((4 * 1024, "a note"), (256 * 1024, "a document"),
                         (10 * MB, "a large record")):

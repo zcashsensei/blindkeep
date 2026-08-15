@@ -15,16 +15,16 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from blindkeep.client import BlindkeepClient
-from blindkeep.crypto import generate_master_key
-from blindkeep.node import _Handler
-from blindkeep.ollama_mem import (
+from oblivio.client import OblivioClient
+from oblivio.crypto import generate_master_key
+from oblivio.node import _Handler
+from oblivio.ollama_mem import (
     NotLocalError,
     OllamaMemory,
     OllamaUnavailable,
     _assert_local,
 )
-from blindkeep.store import MemoryStore
+from oblivio.store import MemoryStore
 
 SERVERS = []
 TMPDIRS = []
@@ -32,19 +32,19 @@ SEEN_REQUESTS = []
 
 
 def tmpdir():
-    d = tempfile.mkdtemp(prefix="blindkeep-ollama-")
+    d = tempfile.mkdtemp(prefix="oblivio-ollama-")
     TMPDIRS.append(d)
     return d
 
 
-def blindkeep_node():
+def oblivio_node():
     d = tmpdir()
     store = MemoryStore(os.path.join(d, "node"))
     h = type("H", (_Handler,), {"store": store, "log_message": lambda *a, **k: None})
     httpd = ThreadingHTTPServer(("127.0.0.1", 0), h)
     threading.Thread(target=httpd.serve_forever, daemon=True).start()
     SERVERS.append(httpd)
-    client = BlindkeepClient(f"http://127.0.0.1:{httpd.server_address[1]}",
+    client = OblivioClient(f"http://127.0.0.1:{httpd.server_address[1]}",
                              generate_master_key(),
                              pin_path=os.path.join(d, "pin.json"))
     return client, store, d
@@ -79,7 +79,7 @@ def fake_ollama(reply="I remember."):
 
 
 def memory(reply="I remember."):
-    client, store, d = blindkeep_node()
+    client, store, d = oblivio_node()
     m = OllamaMemory(client, ollama_base=fake_ollama(reply),
                      index_path=os.path.join(d, "index.json"))
     return m, store, d
@@ -105,7 +105,7 @@ def test_loopback_endpoints_are_accepted():
 
 
 def test_remote_requires_explicit_opt_in():
-    client, _, d = blindkeep_node()
+    client, _, d = oblivio_node()
     try:
         OllamaMemory(client, ollama_base="http://10.0.0.5:11434",
                      index_path=os.path.join(d, "i.json"))
@@ -122,7 +122,7 @@ def test_remote_requires_explicit_opt_in():
 def test_no_third_party_endpoints_in_the_module():
     """No code path here can reach a hosted provider."""
     root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    src = open(os.path.join(root, "blindkeep", "ollama_mem.py"),
+    src = open(os.path.join(root, "oblivio", "ollama_mem.py"),
                encoding="utf-8").read().lower()
     for host in ("api." + "openai.com", "api." + "anthropic.com",
                  "generativelanguage", "api.cohere"):
@@ -150,7 +150,7 @@ def test_memories_are_encrypted_on_the_node():
 
 
 def test_index_persists_across_instances():
-    client, _, d = blindkeep_node()
+    client, _, d = oblivio_node()
     path = os.path.join(d, "index.json")
     base = fake_ollama()
     m1 = OllamaMemory(client, ollama_base=base, index_path=path)
@@ -197,7 +197,7 @@ def test_chat_can_skip_storing():
 
 
 def test_missing_model_server_gives_an_actionable_error():
-    client, _, d = blindkeep_node()
+    client, _, d = oblivio_node()
     m = OllamaMemory(client, ollama_base="http://127.0.0.1:9",
                      index_path=os.path.join(d, "i.json"), timeout=2)
     assert not m.available()

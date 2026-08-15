@@ -1,6 +1,6 @@
 """Maximum-effort privacy path from this machine to a frontier model.
 
-This is the closest Blindkeep gets to "private frontier chat for everyone"
+This is the closest Oblivio gets to "private frontier chat for everyone"
 **without lying**.
 
 What this path CAN do for a normal person today
@@ -479,7 +479,7 @@ def make_cloud_remote(*,
 
 
 def default_api_key() -> str:
-    return (os.environ.get("BLINDKEEP_CLOUD_KEY")
+    return (os.environ.get("OBLIVIO_CLOUD_KEY")
             or os.environ.get("OPENAI_API_KEY")
             or os.environ.get("ANTHROPIC_API_KEY")
             or os.environ.get("XAI_API_KEY")

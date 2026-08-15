@@ -154,10 +154,10 @@ def cloud_complete(prompt: str, *,
     pad_report: Optional[dict] = None
     if pad_to_buckets:
         from .dp import pad_to_bucket
-        frame = len("X-Blindkeep-Pad: \r\n")
+        frame = len("X-Oblivio-Pad: \r\n")
         pad, pad_report = pad_to_bucket(len(body) + frame, pad_to_buckets)
         if pad_report.get("bucketed"):
-            hdrs["X-Blindkeep-Pad"] = "x" * pad
+            hdrs["X-Oblivio-Pad"] = "x" * pad
 
     req = urllib.request.Request(
         spoken.url(api_base),

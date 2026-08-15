@@ -26,9 +26,9 @@ import time
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-from blindkeep import attest, status                              # noqa: E402
-from blindkeep._console import use_utf8_stdout                     # noqa: E402
-from blindkeep.sev_snp import parse_report, registry_with_sev_snp  # noqa: E402
+from oblivio import attest, status                              # noqa: E402
+from oblivio._console import use_utf8_stdout                     # noqa: E402
+from oblivio.sev_snp import parse_report, registry_with_sev_snp  # noqa: E402
 
 # This file prints U+26A0 and an em dash. A Windows console defaults to cp1252
 # and raises UnicodeEncodeError on both, which crashed the suite before any

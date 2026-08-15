@@ -16,7 +16,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from blindkeep.attest import (
+from oblivio.attest import (
     Attestation,
     AttestationError,
     Ed25519Verifier,
@@ -30,7 +30,7 @@ from blindkeep.attest import (
     new_nonce,
     verify_attestation,
 )
-from blindkeep.crypto import NodeIdentity
+from oblivio.crypto import NodeIdentity
 
 SERVERS = []
 GOOD_MEASUREMENT = "a" * 64
@@ -375,7 +375,7 @@ def test_http_error_is_an_error_not_a_pass():
 
 def test_attested_complete_cannot_be_called_without_a_verified_result():
     """The ordering is enforced by the signature, not by the caller's memory."""
-    from blindkeep.attest import attested_complete
+    from oblivio.attest import attested_complete
     for fake in (True, "verified", None, {"checks": 5}):
         expect_refusal(
             lambda f=fake: attested_complete(
@@ -385,7 +385,7 @@ def test_attested_complete_cannot_be_called_without_a_verified_result():
 
 
 def test_attested_complete_accepts_a_real_result():
-    from blindkeep.attest import attested_complete
+    from oblivio.attest import attested_complete
     ident = NodeIdentity.generate()
     url = enclave_server(ident)
     res = attest_host(url, policy=policy_for(ident))

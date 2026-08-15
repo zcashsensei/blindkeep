@@ -16,15 +16,15 @@ from http.server import ThreadingHTTPServer
 ROOT = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, ROOT)
 
-from blindkeep._console import use_utf8_stdout
-from blindkeep.client import SecurityError, BlindkeepClient
-from blindkeep.node import _Handler
-from blindkeep.store import MemoryStore
+from oblivio._console import use_utf8_stdout
+from oblivio.client import SecurityError, OblivioClient
+from oblivio.node import _Handler
+from oblivio.store import MemoryStore
 
 
 def main() -> int:
     use_utf8_stdout()
-    td = tempfile.mkdtemp(prefix="blindkeep-demo-")
+    td = tempfile.mkdtemp(prefix="oblivio-demo-")
     node_dir = os.path.join(td, "node")
     client_dir = os.path.join(td, "client")
     os.makedirs(client_dir)
@@ -41,15 +41,15 @@ def main() -> int:
 
     key_path = os.path.join(client_dir, "master.key")
     pin_path = os.path.join(client_dir, "pin.json")
-    key = BlindkeepClient.create_keys(key_path)
-    client = BlindkeepClient(
+    key = OblivioClient.create_keys(key_path)
+    client = OblivioClient(
         url, key, pin_path=pin_path,
         expected_pubkey_hex=store.identity.public_hex(),
     )
 
     memories = [
         ("prefs", "User prefers concise answers and risk-aware trading notes."),
-        ("session", "Last session: reviewed Blindkeep memory layer, merkle proofs green."),
+        ("session", "Last session: reviewed Oblivio memory layer, merkle proofs green."),
         ("todo", "Next: peer discovery and free community capacity pool."),
     ]
 
@@ -67,7 +67,7 @@ def main() -> int:
         assert ok
 
     # pin advanced; second client with pin should accept append-only growth
-    client2 = BlindkeepClient(
+    client2 = OblivioClient(
         url, key, pin_path=pin_path,
         expected_pubkey_hex=store.identity.public_hex(),
     )
@@ -75,7 +75,7 @@ def main() -> int:
     print(f"\nappend after pin reload: index={r['index']} (consistency enforced)")
 
     # negative: wrong master key cannot read
-    bad = BlindkeepClient(url, BlindkeepClient.create_keys(os.path.join(client_dir, "other.key")))
+    bad = OblivioClient(url, OblivioClient.create_keys(os.path.join(client_dir, "other.key")))
     try:
         bad.get(0, label="prefs")
         print("FAIL: wrong key should not decrypt")

@@ -40,7 +40,7 @@ time it skipped, that nothing was queued.
 **Two adversaries, two different results.** Saying "private" without naming who is watching is how
 this kind of module ends up lying:
 
-    network observer (ISP, wire)   learns: a Blindkeep node exists, and its constant rate.
+    network observer (ISP, wire)   learns: a Oblivio node exists, and its constant rate.
                                    Nothing about when you worked, or how much.
     the provider itself            learns: an account asked N generic questions per hour, forever.
                                    Which of them were real, and when you were at your desk, are
@@ -151,7 +151,7 @@ def padding_headers(payload_len: int) -> dict[str, str]:
     """
     target = bucket_for(payload_len)
     fill = target - payload_len
-    return {"X-Blindkeep-Pad": "A" * fill} if fill else {}
+    return {"X-Oblivio-Pad": "A" * fill} if fill else {}
 
 
 def _ngrams(text: str, n: int = NGRAM) -> set[tuple[str, ...]]:

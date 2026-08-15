@@ -17,10 +17,10 @@ from http.server import ThreadingHTTPServer
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from blindkeep.client import SecurityError, BlindkeepClient
-from blindkeep.crypto import NodeIdentity, generate_master_key
-from blindkeep.node import _Handler
-from blindkeep.store import MemoryStore
+from oblivio.client import SecurityError, OblivioClient
+from oblivio.crypto import NodeIdentity, generate_master_key
+from oblivio.node import _Handler
+from oblivio.store import MemoryStore
 
 SERVERS = []
 TMPDIRS = []
@@ -39,7 +39,7 @@ def start(store, handler_cls=_Handler):
 
 
 def tmpdir():
-    d = tempfile.mkdtemp(prefix="blindkeep-test-")
+    d = tempfile.mkdtemp(prefix="oblivio-test-")
     TMPDIRS.append(d)
     return d
 
@@ -50,7 +50,7 @@ def fresh(nrecords=0, identity=None, texts=None):
     store = MemoryStore(os.path.join(d, "node"), identity=identity)
     url = start(store)
     key = generate_master_key()
-    client = BlindkeepClient(url, key, pin_path=os.path.join(d, "pin.json"))
+    client = OblivioClient(url, key, pin_path=os.path.join(d, "pin.json"))
     texts = texts or [b"memory-%d" % i for i in range(nrecords)]
     for t in texts:
         client.put(t)
@@ -120,21 +120,21 @@ def test_history_rewrite_detected():
     url_a = start(store_a)
     key = generate_master_key()
     pin = os.path.join(d, "pin.json")
-    client = BlindkeepClient(url_a, key, pin_path=pin)
+    client = OblivioClient(url_a, key, pin_path=pin)
     client.put(b"record-one")
     client.put(b"record-two")
     client.head()  # pin at size 2
 
     # Same node identity, different history, LONGER log.
     store_b = MemoryStore(os.path.join(d, "b"), identity=ident)
-    rid, ct = __import__("blindkeep.store", fromlist=["x"]).client_encrypt(key, b"REWRITTEN")
+    rid, ct = __import__("oblivio.store", fromlist=["x"]).client_encrypt(key, b"REWRITTEN")
     store_b.put_ciphertext(rid, ct)
     for extra in (b"record-two", b"record-three"):
-        r, c = __import__("blindkeep.store", fromlist=["x"]).client_encrypt(key, extra)
+        r, c = __import__("oblivio.store", fromlist=["x"]).client_encrypt(key, extra)
         store_b.put_ciphertext(r, c)
     url_b = start(store_b)
 
-    evil = BlindkeepClient(url_b, key, pin_path=pin)
+    evil = OblivioClient(url_b, key, pin_path=pin)
     try:
         evil.head()
     except SecurityError:
@@ -154,7 +154,7 @@ def test_equal_size_fork_detected():
     key = generate_master_key()
     pin = os.path.join(d, "pin.json")
 
-    from blindkeep.store import client_encrypt
+    from oblivio.store import client_encrypt
     store_a = MemoryStore(os.path.join(d, "a"), identity=ident)
     store_b = MemoryStore(os.path.join(d, "b"), identity=ident)
     for store, second in ((store_a, b"branch-A"), (store_b, b"branch-B")):
@@ -162,10 +162,10 @@ def test_equal_size_fork_detected():
             rid, ct = client_encrypt(key, text)
             store.put_ciphertext(rid, ct)
 
-    client = BlindkeepClient(start(store_a), key, pin_path=pin)
+    client = OblivioClient(start(store_a), key, pin_path=pin)
     client.head()  # pin: size 2, root of branch A
 
-    forked = BlindkeepClient(start(store_b), key, pin_path=pin)
+    forked = OblivioClient(start(store_b), key, pin_path=pin)
     try:
         forked.head()  # size 2, DIFFERENT root
     except SecurityError:
@@ -187,11 +187,11 @@ def test_index_substitution_detected():
     d = tmpdir()
     store = MemoryStore(os.path.join(d, "node"))
     key = generate_master_key()
-    honest = BlindkeepClient(start(store), key, pin_path=os.path.join(d, "p1.json"))
+    honest = OblivioClient(start(store), key, pin_path=os.path.join(d, "p1.json"))
     honest.put(b"record-ZERO")
     honest.put(b"record-ONE")
 
-    client = BlindkeepClient(start(store, Substituting), key,
+    client = OblivioClient(start(store, Substituting), key,
                             pin_path=os.path.join(d, "p2.json"))
     try:
         got = client.get(0)
@@ -215,11 +215,11 @@ def test_record_id_substitution_detected():
     d = tmpdir()
     store = MemoryStore(os.path.join(d, "node"))
     key = generate_master_key()
-    honest = BlindkeepClient(start(store), key, pin_path=os.path.join(d, "p1.json"))
+    honest = OblivioClient(start(store), key, pin_path=os.path.join(d, "p1.json"))
     first = honest.put(b"record-ZERO")
     honest.put(b"record-ONE")
 
-    client = BlindkeepClient(start(store, Substituting), key,
+    client = OblivioClient(start(store, Substituting), key,
                             pin_path=os.path.join(d, "p2.json"))
     try:
         got = client.get_by_id(first["record_id"])

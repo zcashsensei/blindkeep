@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 420 96" width="420" height="96"
-     role="img" aria-label="Blindkeep">
-  <title>Blindkeep</title>
+     role="img" aria-label="Oblivio">
+  <title>Oblivio</title>
   <!-- The wordmark is live <text> on a system stack, NOT outlined paths. That is fine
        for web and README use, where the stack resolves to something sane everywhere,
        and it keeps the file editable. It is NOT fine for print, embroidery, or handing

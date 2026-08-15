@@ -16,8 +16,8 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from blindkeep.hpke import generate_keypair
-from blindkeep.oblivious import (
+from oblivio.hpke import generate_keypair
+from oblivio.oblivious import (
     Client,
     Gateway,
     KeyConfig,

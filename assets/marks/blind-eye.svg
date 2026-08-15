@@ -1,7 +1,7 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96" width="96" height="96"
      role="img" aria-label="Blind Eye">
   <title>Blind Eye</title>
-  <!-- Blindkeep mark, claim: cannot-read. Cut-outs use the panel colour rather than a
+  <!-- Oblivio mark, claim: cannot-read. Cut-outs use the panel colour rather than a
        true knockout; on a light ground, convert them to fill-rule="evenodd". -->
   <path d="M9 48 C25 26 71 26 87 48 C71 70 25 70 9 48 Z"
                   fill="none" stroke="#F4B728" stroke-width="4"/>

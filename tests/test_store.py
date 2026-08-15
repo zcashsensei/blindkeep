@@ -6,9 +6,9 @@ import tempfile
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from blindkeep import merkle
-from blindkeep.crypto import NodeIdentity, generate_master_key, signed_head_message
-from blindkeep.store import MemoryStore, client_decrypt, client_encrypt
+from oblivio import merkle
+from oblivio.crypto import NodeIdentity, generate_master_key, signed_head_message
+from oblivio.store import MemoryStore, client_decrypt, client_encrypt
 
 
 def test_roundtrip_encrypt():

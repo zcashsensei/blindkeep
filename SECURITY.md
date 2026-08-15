@@ -1,10 +1,10 @@
 # Security
 
-**Version 0.6 · 2026-08-13 · applies to Blindkeep v0 alpha**
+**Version 0.6 · 2026-08-13 · applies to Oblivio v0 alpha**
 
 ## Threat model
 
-A Blindkeep storage node is **untrusted for both confidentiality and integrity**.
+A Oblivio storage node is **untrusted for both confidentiality and integrity**.
 It is assumed to be capable of reading everything it stores, altering it,
 withholding it, lying about it, and colluding with other nodes.
 
@@ -287,7 +287,7 @@ side. Five checks, any failure raises, and there is no return value meaning
 The check worth naming is **binding to our nonce**. A report can be genuine,
 correctly signed by real hardware, unexpired, and still describe a different
 machine than the one about to see the data. `report_data` must contain
-`sha256("blindkeep-attest-v1\0" || nonce)` for a nonce this client generated in
+`sha256("oblivio-attest-v1\0" || nonce)` for a nonce this client generated in
 the same call — `attest_host` creates it internally so a caller cannot verify
 against a nonce an attacker supplied. Redirects from an attestation endpoint are
 refused for the reason the storage client refuses them: a host being asked to

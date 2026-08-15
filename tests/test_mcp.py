@@ -1,6 +1,6 @@
 """The MCP bridge: what an MCP host is told, and what it is never told.
 
-The server under test is the real thing — `py -3 -m blindkeep mcp` as a
+The server under test is the real thing — `py -3 -m oblivio mcp` as a
 subprocess, spoken to over its actual stdin/stdout — because the protocol
 layer IS the surface a host touches, and a suite that imports the functions
 would pass while the stream framing, the UTF-8 guard, or the argv wiring was
@@ -57,7 +57,7 @@ class FakeApp(BaseHTTPRequestHandler):
         self.wfile.write(body)
 
     def _authed(self) -> bool:
-        return self.headers.get("X-Blindkeep-Token") == FAKE_TOKEN
+        return self.headers.get("X-Oblivio-Token") == FAKE_TOKEN
 
     def do_GET(self):
         if not self._authed():
@@ -111,16 +111,16 @@ class FakeApp(BaseHTTPRequestHandler):
 
 
 class McpProc:
-    """One `blindkeep mcp` subprocess with a line-timeout reader."""
+    """One `oblivio mcp` subprocess with a line-timeout reader."""
 
     def __init__(self, url: str, token):
         env = dict(os.environ)
-        env["BLINDKEEP_APP_URL"] = url
-        env.pop("BLINDKEEP_AGENT_TOKEN", None)
+        env["OBLIVIO_APP_URL"] = url
+        env.pop("OBLIVIO_AGENT_TOKEN", None)
         if token is not None:
-            env["BLINDKEEP_AGENT_TOKEN"] = token
+            env["OBLIVIO_AGENT_TOKEN"] = token
         self.proc = subprocess.Popen(
-            [sys.executable, "-m", "blindkeep", "mcp"],
+            [sys.executable, "-m", "oblivio", "mcp"],
             cwd=ROOT, env=env, text=True, encoding="utf-8",
             stdin=subprocess.PIPE, stdout=subprocess.PIPE,
             stderr=subprocess.DEVNULL,
@@ -210,7 +210,7 @@ def test_initialize_negotiates_and_instructs():
         "clientInfo": {"name": "test", "version": "0"}})
     res = reply["result"]
     assert res["protocolVersion"] == "2025-06-18"
-    assert res["serverInfo"]["name"] == "blindkeep"
+    assert res["serverInfo"]["name"] == "oblivio"
     assert "tools" in res["capabilities"]
     # The two facts a model must hold from message one: classes gate
     # release, and a refusal is the user's decision.
@@ -371,7 +371,7 @@ def test_no_token_is_the_users_decision_spelled_out():
         res = NO_TOKEN.call(tool, {"text": "x", "index": 0})
         assert res.get("isError"), tool
         text = res["content"][0]["text"]
-        assert "BLINDKEEP_AGENT_TOKEN" in text, tool
+        assert "OBLIVIO_AGENT_TOKEN" in text, tool
         assert "Agent access" in text, tool
 
 
@@ -386,7 +386,7 @@ def test_stale_token_says_how_to_refresh():
     res = BAD_TOKEN.call("list_memories")
     assert res.get("isError")
     text = res["content"][0]["text"]
-    assert "BLINDKEEP_AGENT_TOKEN" in text
+    assert "OBLIVIO_AGENT_TOKEN" in text
     assert "switched off" in text or "restarted" in text
 
 

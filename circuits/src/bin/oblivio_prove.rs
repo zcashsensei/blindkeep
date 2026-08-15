@@ -1,13 +1,13 @@
-//! blindkeep-prove — turn a Blindkeep witness into a SNARK proof, and check one.
+//! oblivio-prove — turn a Oblivio witness into a SNARK proof, and check one.
 //!
-//! The memory layer can already export everything a proof needs (`blindkeep zk-witness`). Until
+//! The memory layer can already export everything a proof needs (`oblivio zk-witness`). Until
 //! now, using it meant a Rust toolchain and a `cargo test` invocation, which is a fine story for
 //! a developer and no story at all for anyone else. This is the missing step: one binary, two
 //! subcommands, no toolchain on the far side.
 //!
 //! ```text
-//!     blindkeep-prove prove  --witness w.json --out proof.json
-//!     blindkeep-prove verify --proof proof.json
+//!     oblivio-prove prove  --witness w.json --out proof.json
+//!     oblivio-prove verify --proof proof.json
 //! ```
 //!
 //! **The proof bundle is self-contained on purpose.** A verifier needs the circuit's shape to
@@ -17,7 +17,7 @@
 //!
 //! **What it does NOT do:** check the anchor against a live node. The proof establishes that a
 //! leaf sits under the stated root; whether that root belongs to a keep you trust is a question
-//! about the signed head, and answering it needs the node. `blindkeep verify-in-keep` does that
+//! about the signed head, and answering it needs the node. `oblivio verify-in-keep` does that
 //! side. Both halves are required and neither is sufficient, which is why this prints the anchor
 //! rather than quietly implying it checked it.
 
@@ -30,7 +30,7 @@ use halo2_proofs::poly::commitment::Params;
 use halo2_proofs::transcript::{Blake2bRead, Blake2bWrite, Challenge255};
 use pasta_curves::{EqAffine, Fp};
 use rand_core::OsRng;
-use blindkeep_circuits::merkle::{MerkleCircuit, Step};
+use oblivio_circuits::merkle::{MerkleCircuit, Step};
 
 /// Circuit size. Poseidon over a depth-20 path fits comfortably; larger keeps need a larger k,
 /// and the failure is loud (`NotEnoughRowsAvailable`) rather than silent.
@@ -167,17 +167,17 @@ fn cmd_verify(proof_path: &str) -> Result<(), String> {
         println!("    tree size   {}", a.get("tree_size")
             .map(|v| v.to_string()).unwrap_or_else(|| "(absent)".into()));
         println!("  NOT checked here. Confirm it against a node with:");
-        println!("    blindkeep verify-in-keep --proof <membership bundle>");
+        println!("    oblivio verify-in-keep --proof <membership bundle>");
     }
     Ok(())
 }
 
 fn usage() -> &'static str {
-    "blindkeep-prove — SNARK proofs over a Blindkeep keep\n\n\
+    "oblivio-prove — SNARK proofs over a Oblivio keep\n\n\
      USAGE:\n  \
-       blindkeep-prove prove  --witness <w.json> [--out <proof.json>]\n  \
-       blindkeep-prove verify --proof <proof.json>\n\n\
-     Produce a witness with:  blindkeep zk-witness --index N --out w.json"
+       oblivio-prove prove  --witness <w.json> [--out <proof.json>]\n  \
+       oblivio-prove verify --proof <proof.json>\n\n\
+     Produce a witness with:  oblivio zk-witness --index N --out w.json"
 }
 
 fn main() -> ExitCode {

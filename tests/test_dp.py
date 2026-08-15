@@ -14,8 +14,8 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from blindkeep.delegate import LeakError
-from blindkeep.dp import (
+from oblivio.delegate import LeakError
+from oblivio.dp import (
     DEFAULT_BUCKETS,
     BudgetError,
     PrivacyLedger,
@@ -24,7 +24,7 @@ from blindkeep.dp import (
     pad_to_bucket,
     select_abstraction,
 )
-from blindkeep.frontier_private import FrontierPrivateError, frontier_chat
+from oblivio.frontier_private import FrontierPrivateError, frontier_chat
 
 PRIVATE = ("Sarah Whitfield, my landlord in Truro who breeds Basenjis, "
            "owes me £4,000 — what should I do?")

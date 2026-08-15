@@ -1,4 +1,4 @@
-# Blindkeep — Architecture and Feasibility
+# Oblivio — Architecture and Feasibility
 
 **Version 0.9 · 2026-08-13 · zcashsensei**
 
@@ -35,14 +35,14 @@ source and enforced at push time (`tools/check_counts.py`).*
 
 ## Abstract
 
-Blindkeep is a zero-knowledge memory layer for AI. A storage operator cannot
+Oblivio is a zero-knowledge memory layer for AI. A storage operator cannot
 read what it holds and cannot silently alter it: clients encrypt records
 locally, and nodes hold only ciphertext committed to an append-only Merkle log
 with signed heads, verified by the client rather than trusted from the operator.
 
 The second half is what makes it a proving system rather than encrypted storage.
 A signed log constrains the *node*; it gives the *holder* nothing to say, since
-naming a record is the only way to reference it. Blindkeep therefore also proves
+naming a record is the only way to reference it. Oblivio therefore also proves
 statements **about** records without identifying them — membership in a keep,
 and range, equality and opening over committed values — with every proof bound
 to a signed tree head so it transfers to no other keep or state.
@@ -68,7 +68,7 @@ The gap is a memory layer that is simultaneously:
 - **verifiable** — the operator cannot alter, reorder or drop it undetected
 
 Existing decentralized storage solves durability. Encryption solves privacy.
-Transparency logs solve verifiability. Blindkeep's contribution is combining
+Transparency logs solve verifiability. Oblivio's contribution is combining
 them into a memory API with a client that trusts no single operator, and being
 honest about the boundary of what that achieves.
 
@@ -248,7 +248,7 @@ The verification layer does not become the bottleneck at any realistic scale.
 
 Implemented, running, and covered by tests in this repository. **610 tests
 across 37 suites**, plus an end-to-end demonstration. Every number in this
-section is computed from source by `blindkeep status` and enforced against this
+section is computed from source by `oblivio status` and enforced against this
 document by `tools/check_counts.py`; none of them is typed by hand.
 
 | Component | Status | Evidence |
@@ -318,11 +318,11 @@ to name one item that is neither.
 
 ### 5.1 Multi-node replication — **implemented**
 
-`ReplicatedClient` (`blindkeep/replica.py`) writes byte-identical ciphertext to
+`ReplicatedClient` (`oblivio/replica.py`) writes byte-identical ciphertext to
 N nodes and returns a value only when a quorum **independently verifies** and
 **agrees**. Covered by 12 tests (offline, tampered, and dishonest nodes).
 
-Peer lists come from `blindkeep/discover.py`, from a file or a bootstrap
+Peer lists come from `oblivio/discover.py`, from a file or a bootstrap
 endpoint. A bootstrap is treated as hostile input: URLs are validated before
 contact, cloud metadata addresses are refused, redirects are not followed, and a
 bootstrap cannot displace a locally pinned public key. The list supplies
@@ -339,7 +339,7 @@ technique; not yet in this repository.
 
 These are two different claims and the distinction is easy to blur.
 
-**Implemented.** `blindkeep/audit.py` challenges a node on a random sample of
+**Implemented.** `oblivio/audit.py` challenges a node on a random sample of
 records and runs full client verification on each answer. Integrity proofs
 establish that what a node returns is genuine; they say nothing about whether it
 returns anything at all. The audit separates three outcomes a plain uptime check
@@ -373,13 +373,13 @@ shards is demonstrated by Petals, which performs distributed inference of large
 models over ordinary internet connections. Integrity of a shard needs only a
 content hash; no proof system is required.
 
-The honest caveat: it works and it is slower than local inference. Blindkeep
+The honest caveat: it works and it is slower than local inference. Oblivio
 would add an incentive and privacy layer, not the sharding technique itself.
 
 ### 5.4 Private queries (PIR) — **achievable, expensive**
 
 Hiding *which* record a client reads is the one privacy gap that cryptography
-can close but Blindkeep's current design does not. Single-server private
+can close but Oblivio's current design does not. Single-server private
 information retrieval fundamentally requires the server to touch the entire
 database per query, or to perform substantial preprocessing. Modern schemes make
 this practical for modest databases. It is real, it is costly, and it should be
@@ -471,7 +471,7 @@ current format constrains a future proof system.
 
 ## 6. Prior art
 
-Blindkeep is a combination of established components, and claiming otherwise
+Oblivio is a combination of established components, and claiming otherwise
 would invite justified criticism:
 
 | Component | Prior art |

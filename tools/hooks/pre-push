@@ -1,5 +1,5 @@
 #!/bin/sh
-# Blindkeep pre-push hook.
+# Oblivio pre-push hook.
 #
 # Five times, a commit shipped a test suite and left the counts in the documents
 # behind it. The counts are computable, so this refuses the push instead.

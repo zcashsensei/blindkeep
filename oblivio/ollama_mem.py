@@ -26,7 +26,7 @@ from dataclasses import dataclass
 from typing import Any, Optional
 from urllib.parse import urlparse
 
-from .client import BlindkeepClient
+from .client import OblivioClient
 
 DEFAULT_BASE = "http://127.0.0.1:11434"
 DEFAULT_MODEL = "llama3.2"
@@ -68,10 +68,10 @@ class Turn:
 
 
 class OllamaMemory:
-    """A local chat loop whose history is stored through Blindkeep."""
+    """A local chat loop whose history is stored through Oblivio."""
 
     def __init__(self,
-                 client: BlindkeepClient,
+                 client: OblivioClient,
                  ollama_base: str = DEFAULT_BASE,
                  model: str = DEFAULT_MODEL,
                  index_path: Optional[str] = None,

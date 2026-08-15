@@ -19,17 +19,17 @@ from http.server import ThreadingHTTPServer
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from blindkeep.client import BlindkeepClient
-from blindkeep.crypto import generate_master_key
-from blindkeep.node import _Handler
-from blindkeep.private_read import (
+from oblivio.client import OblivioClient
+from oblivio.crypto import generate_master_key
+from oblivio.node import _Handler
+from oblivio.private_read import (
     RetrievalError,
     pad_writes,
     read_private,
     read_private_by_label,
     visibility,
 )
-from blindkeep.store import MemoryStore
+from oblivio.store import MemoryStore
 
 SERVERS = []
 TMPDIRS = []
@@ -54,14 +54,14 @@ def keep(n=5, tag="a", label="note"):
     # ciphertext under a new master key, so the second pytest session failed
     # with InvalidTag and inflated tree sizes (the __main__ runner cleaned up;
     # pytest did not).
-    d = tempfile.mkdtemp(prefix=f"blindkeep-pir-{tag}-")
+    d = tempfile.mkdtemp(prefix=f"oblivio-pir-{tag}-")
     TMPDIRS.append(d)
     store = MemoryStore(os.path.join(d, "node"))
     handler = type("B", (_Handler,), {"store": store, "log_message": lambda *a, **k: None})
     httpd = ThreadingHTTPServer(("127.0.0.1", 0), handler)
     threading.Thread(target=httpd.serve_forever, daemon=True).start()
     SERVERS.append(httpd)
-    c = BlindkeepClient(f"http://127.0.0.1:{httpd.server_address[1]}", generate_master_key(),
+    c = OblivioClient(f"http://127.0.0.1:{httpd.server_address[1]}", generate_master_key(),
                         pin_path=os.path.join(d, "pin.json"))
     for i in range(n):
         c.put(f"record {tag}{i}".encode(), label=label)

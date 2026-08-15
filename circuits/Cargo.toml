@@ -1,10 +1,10 @@
 [package]
-name = "blindkeep-circuits"
+name = "oblivio-circuits"
 version = "0.1.0"
 edition = "2021"
-description = "Zero-knowledge circuits for the Blindkeep keep: prove you hold a record without revealing which"
+description = "Zero-knowledge circuits for the Oblivio keep: prove you hold a record without revealing which"
 license = "MIT"
-repository = "https://github.com/zcashsensei/blindkeep"
+repository = "https://github.com/zcashsensei/oblivio"
 
 # Halo 2 — Zcash's own proving system. Chosen for two properties, not fashion:
 #   · NO TRUSTED SETUP — a project whose whole argument is "verify, don't trust" cannot rest on a
@@ -15,9 +15,9 @@ halo2_proofs  = "0.3.5"
 halo2_gadgets = "0.5"   # Poseidon. 0.3.x is YANKED: the ecc::chip::mul soundness bug.
 pasta_curves  = "0.5"   # Pallas/Vesta — the amicable cycle that makes recursion possible
 ff            = "0.13"
-serde_json    = "1"     # the prover binary reads a witness the Blindkeep CLI wrote
+serde_json    = "1"     # the prover binary reads a witness the Oblivio CLI wrote
 rand_core     = "0.6"   # OsRng for proof generation
 
 [[bin]]
-name = "blindkeep-prove"
-path = "src/bin/blindkeep_prove.rs"
+name = "oblivio-prove"
+path = "src/bin/oblivio_prove.rs"

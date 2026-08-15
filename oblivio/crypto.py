@@ -76,7 +76,7 @@ class NodeIdentity:
 
 def signed_head_message(tree_size: int, root: bytes) -> bytes:
     """Canonical bytes a node signs for a published tree head."""
-    return b"blindkeep-head-v1\0" + struct.pack(">Q", tree_size) + root
+    return b"oblivio-head-v1\0" + struct.pack(">Q", tree_size) + root
 
 
 # ---- Client envelope encryption ----------------------------------------------
@@ -93,7 +93,7 @@ def _record_key(master_key: bytes, record_id: bytes) -> bytes:
         algorithm=hashes.SHA256(),
         length=32,
         salt=None,
-        info=b"blindkeep-record-v1" + record_id,
+        info=b"oblivio-record-v1" + record_id,
     ).derive(master_key)
 
 

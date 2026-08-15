@@ -16,7 +16,7 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from blindkeep.zk import (
+from oblivio.zk import (
     G,
     H,
     P,
@@ -56,7 +56,7 @@ def test_generators_are_in_the_prime_order_subgroup():
 
 def test_h_is_derived_not_chosen():
     """If anyone knew log_G(H), commitments would not be binding."""
-    from blindkeep.zk import _derive_h
+    from oblivio.zk import _derive_h
     assert _derive_h() == H, "H is not reproducible from its seed"
     assert H != G
 

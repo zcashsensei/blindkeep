@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/blindkeep-lockup.svg" alt="Blindkeep" width="330">
+  <img src="assets/oblivio-lockup.svg" alt="Oblivio" width="330">
 </p>
 
 <p align="center">
@@ -25,7 +25,7 @@
   encrypted keep · ZK membership · frontier stack ·
   <b>Heartwood</b> throttle audit (in-app install) ·
   <a href="STACK.md">STACK.md</a> · <a href="SECURITY.md">SECURITY.md</a> ·
-  run <code>blindkeep status</code> ·
+  run <code>oblivio status</code> ·
   <code>python tools/demo_historic_stack.py</code></sub>
 </p>
 
@@ -34,8 +34,8 @@
 ## Try it in one command
 
 ```bash
-git clone https://github.com/zcashsensei/blindkeep
-cd blindkeep
+git clone https://github.com/zcashsensei/oblivio
+cd oblivio
 python app.py
 ```
 
@@ -50,7 +50,7 @@ for everyone) · **Heartwood** (is your AI throttling you?) · **Proof** ·
 
 A privacy strip on every page shows the posture at a glance. The first time you
 save a memory you set a **passphrase** that (1) seals the key **at rest** as
-`data/master.key.sealed` and (2) downloads `blindkeep-master-key.zip`. The raw
+`data/master.key.sealed` and (2) downloads `oblivio-master-key.zip`. The raw
 key lives in process memory only while unlocked — never as hex in the page, never
 as a plaintext download. Agents that open the project folder or Downloads still
 need your passphrase.
@@ -75,15 +75,15 @@ against: [`docs/ENDPOINT_PRIVACY_RESEARCH.md`](docs/ENDPOINT_PRIVACY_RESEARCH.md
 
 ```bash
 # 1) Gateway (holds the API key; issues are separate)
-python -m blindkeep frontier-gateway \
-  --api-base https://api.x.ai --api-key "$BLINDKEEP_CLOUD_KEY" \
+python -m oblivio frontier-gateway \
+  --api-base https://api.x.ai --api-key "$OBLIVIO_CLOUD_KEY" \
   --issuer-key data/gateway_issuer.pem --port 8751
 
 # 2) Issue a one-time unlinkable token (same issuer key)
-python -m blindkeep token issue --issuer-key data/gateway_issuer.pem --out token.json
+python -m oblivio token issue --issuer-key data/gateway_issuer.pem --out token.json
 
 # 3) Client: Ollama abstracts + gates; gateway redeems token; no client API key
-python -m blindkeep frontier-chat \
+python -m oblivio frontier-chat \
   --enable-frontier --accept-residual-risks \
   --gateway-url http://127.0.0.1:8751 --token token.json --model <model> \
   --text "Sarah in Truro owes me £4000 — what can I do?"
@@ -95,7 +95,7 @@ OHTTP + a gateway that holds the provider credential so the client is not a
 named API customer. Offline proof: `python tools/demo_historic_stack.py`.
 
 The abstracted path additionally ships **calibrated randomness with honest
-accounting** (`blindkeep/dp.py`, [`docs/ENDPOINT_MATH.md`](docs/ENDPOINT_MATH.md)):
+accounting** (`oblivio/dp.py`, [`docs/ENDPOINT_MATH.md`](docs/ENDPOINT_MATH.md)):
 the transmitted abstraction is chosen from the gate-cleared candidates by the
 **exponential mechanism** (`--dp-epsilon`, scoped claim in the receipt — it
 randomises the *choice*, it is not end-to-end DP of the text), every send is
@@ -116,7 +116,7 @@ relay and gateway; a public multi-operator network. Receipts list residual risks
 > operator who could recover your data could also read it.
 
 The local app binds to loopback only, never phones home, and never ships the
-raw master key in page state. Prefer a terminal? The `blindkeep` CLI covers the
+raw master key in page state. Prefer a terminal? The `oblivio` CLI covers the
 same surfaces and the full frontier stack — see [Install](#install).
 
 **Docs for reviewers:** [STACK.md](STACK.md) · [SECURITY.md](SECURITY.md) ·
@@ -127,7 +127,7 @@ same surfaces and the full frontier stack — see [Install](#install).
 
 ## What it is
 
-Blindkeep is a zero-knowledge memory layer for AI. It does two things, and the
+Oblivio is a zero-knowledge memory layer for AI. It does two things, and the
 second is the one that makes it more than encrypted storage:
 
 **1. The operator is blind.** Clients encrypt locally; storage nodes hold
@@ -136,12 +136,12 @@ they cannot alter undetected. Not a policy — a cipher and a transparency log.
 
 **2. The holder can speak without disclosing.** A signed log proves the *node*
 honest, but says nothing for *you* — `get(index)` names the index, and an
-inclusion proof reveals the leaf and its whole sibling path. So Blindkeep also
+inclusion proof reveals the leaf and its whole sibling path. So Oblivio also
 proves statements **about** records without identifying them:
 
 ```bash
-blindkeep prove-in-keep --index 1 --out p.json      # index is not in the proof
-blindkeep verify-in-keep --proof p.json
+oblivio prove-in-keep --index 1 --out p.json      # index is not in the proof
+oblivio verify-in-keep --proof p.json
 # VERIFIED: the prover holds one of the 4 records in this keep.
 #           Which one is not revealed.
 ```
@@ -192,8 +192,8 @@ inclusion proof reveals the leaf and its whole sibling path. So:
 
 ```bash
 # prove you hold a record in this keep, without revealing which
-blindkeep prove-in-keep --index 1 --out p.json
-blindkeep verify-in-keep --proof p.json
+oblivio prove-in-keep --index 1 --out p.json
+oblivio verify-in-keep --proof p.json
 # VERIFIED: the prover holds one of the 4 records in this keep.
 #           Which one is not revealed.
 ```
@@ -244,7 +244,7 @@ intended.
   asserts the client refuses them
 - **prove you hold a record without revealing which one**, bound to the signed
   head so the proof transfers to no other keep
-- `blindkeep status` — every capability detected from source, including what is
+- `oblivio status` — every capability detected from source, including what is
   *not* done
 
 **Needs one more thing:**
@@ -258,19 +258,19 @@ intended.
 
 **Expect these limits, stated plainly.** There is no public node network, so
 `peers` finds nothing and you are storing on hardware you own. That makes the
-honest description of Blindkeep today *encrypted, tamper-evident memory on your
+honest description of Oblivio today *encrypted, tamper-evident memory on your
 own machine* — a real thing, and a smaller one than "distributed network".
 
 And the headline property deserves the same honesty: the design treats a node as
 hostile, the cryptography is standard, and the adversarial tests are real — but
-**every node that has ever run Blindkeep was operated by its author.** That the
+**every node that has ever run Oblivio was operated by its author.** That the
 guarantee holds against a stranger's node is argued, not yet observed. Changing
 that is the next milestone, and it cannot be done alone.
 
 ## The storage guarantee
 
 The proofs above are what *you* can assert. This is the half the *node* is held
-to, and it needs no zero-knowledge at all: a Blindkeep node is untrusted for both
+to, and it needs no zero-knowledge at all: a Oblivio node is untrusted for both
 confidentiality and integrity, and every value the client returns has passed five
 independent checks:
 
@@ -293,10 +293,10 @@ one is built, and the whole chain has been run:
 
 ```
   a record in the keep
-    → Poseidon tree over the same committed leaves   blindkeep/zk_tree.py
-    → witness (leaf + path private, root public)     blindkeep zk-witness
+    → Poseidon tree over the same committed leaves   oblivio/zk_tree.py
+    → witness (leaf + path private, root public)     oblivio zk-witness
     → halo2 circuit                                  circuits/src/merkle.rs
-    → 3,040-byte SNARK proof, verified               blindkeep-prove
+    → 3,040-byte SNARK proof, verified               oblivio-prove
 ```
 
 | Records | Sigma OR-proof | halo2 Merkle proof |
@@ -334,12 +334,12 @@ witness produced by the CLI above and proves it for real.
 One step, and the private half never touches disk:
 
 ```bash
-blindkeep zk-prove --index 5 --out proof.json
+oblivio zk-prove --index 5 --out proof.json
 # [proving membership · depth 3 · root 1d5e3e4a5fb29328…]
 # [proof written to proof.json (3040 bytes of proof)]
 # [witness discarded — the proof reveals neither the record nor its position]
 
-blindkeep-prove verify --proof proof.json
+oblivio-prove verify --proof proof.json
 # VERIFIED: the prover holds a record under root 1d5e3e4a5fb29328…
 #           depth 3 — which record is not revealed.
 ```
@@ -347,11 +347,11 @@ blindkeep-prove verify --proof proof.json
 The prover is one binary, built from `circuits/` in this repository:
 
 ```bash
-cd circuits && cargo build --release --bin blindkeep-prove
+cd circuits && cargo build --release --bin oblivio-prove
 ```
 
-`zk-prove` finds it on `PATH`, via `BLINDKEEP_PROVER`, or with `--prover`. Without
-it you still get `blindkeep zk-witness`, which exports the witness for proving
+`zk-prove` finds it on `PATH`, via `OBLIVIO_PROVER`, or with `--prover`. Without
+it you still get `oblivio zk-witness`, which exports the witness for proving
 elsewhere — and the refusal says exactly that rather than failing obscurely.
 
 ## Making the proofs succinct: the hash is the decision
@@ -362,7 +362,7 @@ it proves and verifies.** `circuits/` is a halo2 crate holding a Poseidon Merkle
 membership circuit — a holder proves a leaf sits under a published root without
 revealing the leaf or the path.
 
-Measured, not asserted (`cargo test --release -p blindkeep-circuits`, 14 tests):
+Measured, not asserted (`cargo test --release -p oblivio-circuits`, 14 tests):
 
 | | |
 |---|---|
@@ -427,53 +427,53 @@ conflating them is how ZK projects promise throughput they cannot reach.
 Requires **Python 3.10+** and one dependency (`cryptography`).
 
 ```bash
-pip install git+https://github.com/zcashsensei/blindkeep.git
+pip install git+https://github.com/zcashsensei/oblivio.git
 ```
 
 Or from a clone — the option you want if you intend to run the tests:
 
 ```bash
-git clone https://github.com/zcashsensei/blindkeep.git
-cd blindkeep
+git clone https://github.com/zcashsensei/oblivio.git
+cd oblivio
 pip install -e .
 ```
 
-Either one installs a `blindkeep` command. From a clone you can equally skip
-installing and use `python -m blindkeep ...` with `pip install -r
+Either one installs a `oblivio` command. From a clone you can equally skip
+installing and use `python -m oblivio ...` with `pip install -r
 requirements.txt`; the two forms are interchangeable everywhere below.
 
 <sub>Not on PyPI yet, which is why the install line points at the repository.
-`pip install blindkeep` does not work.</sub>
+`pip install oblivio` does not work.</sub>
 
 ## Quick start
 
 ```bash
 # terminal A — run a node
-blindkeep node --data-dir data/node --port 8741
+oblivio node --data-dir data/node --port 8741
 
 # terminal B — store and retrieve a memory
-blindkeep keygen --key data/client/master.key
-blindkeep put --text "prefers concise answers" --label prefs
-blindkeep list
-blindkeep get --index 0
-blindkeep head
+oblivio keygen --key data/client/master.key
+oblivio put --text "prefers concise answers" --label prefs
+oblivio list
+oblivio get --index 0
+oblivio head
 ```
 
 To see what the repository actually contains — counted from the source on every
 run, including what is **not** done:
 
 ```bash
-blindkeep status
+oblivio status
 ```
 
 Every number it prints is computed, and every capability is detected rather than
 asserted: whether the SEV-SNP verifier is enabled, for instance, is read from
 the live registry, so it flips on its own the day someone validates it. **If a
-document in this repo disagrees with `blindkeep status`, the document is
+document in this repo disagrees with `oblivio status`, the document is
 wrong.**
 
-<sub>On Windows, `python -m blindkeep` becomes `py -3 -m blindkeep`; the
-`blindkeep` command itself works unchanged.</sub>
+<sub>On Windows, `python -m oblivio` becomes `py -3 -m oblivio`; the
+`oblivio` command itself works unchanged.</sub>
 
 **Keep `master.key` secret, and set up recovery before you store anything you
 care about.** The key is the only thing that can decrypt your records — no node
@@ -481,7 +481,7 @@ can help, by design.
 
 ## Use it as Claude's memory (MCP)
 
-Blindkeep speaks the Model Context Protocol, so Claude Desktop, Claude Code, or
+Oblivio speaks the Model Context Protocol, so Claude Desktop, Claude Code, or
 any MCP host can use your keep as persistent memory — with every read and write
 passing through the app's release gate, never around it.
 
@@ -495,7 +495,7 @@ py -3 app.py            # then open http://127.0.0.1:8743
 # 2) in the app: switch on Agent access, copy the token it mints
 
 # 3) hand the server to Claude Code:
-claude mcp add blindkeep --env BLINDKEEP_AGENT_TOKEN=<token> -- blindkeep mcp
+claude mcp add oblivio --env OBLIVIO_AGENT_TOKEN=<token> -- oblivio mcp
 ```
 
 Claude Desktop takes the same server in its MCP settings:
@@ -503,18 +503,18 @@ Claude Desktop takes the same server in its MCP settings:
 ```json
 {
   "mcpServers": {
-    "blindkeep": {
-      "command": "blindkeep",
+    "oblivio": {
+      "command": "oblivio",
       "args": ["mcp"],
-      "env": { "BLINDKEEP_AGENT_TOKEN": "<token>" }
+      "env": { "OBLIVIO_AGENT_TOKEN": "<token>" }
     }
   }
 }
 ```
 
-<sub>If `blindkeep` is not on the PATH the host launches from, use
-`"command": "py", "args": ["-3", "-m", "blindkeep", "mcp"]` (Windows) or
-`"command": "python", "args": ["-m", "blindkeep", "mcp"]` — same server.</sub>
+<sub>If `oblivio` is not on the PATH the host launches from, use
+`"command": "py", "args": ["-3", "-m", "oblivio", "mcp"]` (Windows) or
+`"command": "python", "args": ["-m", "oblivio", "mcp"]` — same server.</sub>
 
 The model gets four tools — `save_memory`, `list_memories`, `read_memory`,
 `keep_status` — and no more authority than the app's agent routes grant. What
@@ -545,16 +545,16 @@ attacker.
 
 ```bash
 # a written code — guards against disk failure
-python -m blindkeep recover export
-python -m blindkeep recover restore --code "LXDD-662S-..."
+python -m oblivio recover export
+python -m oblivio recover restore --code "LXDD-662S-..."
 
 # a passphrase-protected file — safe to keep in cloud storage or email
-python -m blindkeep recover backup --out master.key.backup
-python -m blindkeep recover unbackup --file master.key.backup
+python -m oblivio recover backup --out master.key.backup
+python -m oblivio recover unbackup --file master.key.backup
 
 # k-of-n shares — guards against losing any single thing
-python -m blindkeep recover split --threshold 3 --shares 5
-python -m blindkeep recover combine --share "1-..." --share "3-..." --share "5-..."
+python -m oblivio recover split --threshold 3 --shares 5
+python -m oblivio recover combine --share "1-..." --share "3-..." --share "5-..."
 ```
 
 | Mechanism | Protects against | Cost of the weakest link |
@@ -617,7 +617,7 @@ python demo.py                     # end-to-end walkthrough
 ## Project layout
 
 ```
-blindkeep/
+oblivio/
   merkle.py     RFC 6962 inclusion + consistency proofs
   crypto.py     Ed25519 node identity, AES-GCM envelopes, HKDF per-record keys
   store.py      append-only encrypted store + signed tree heads
@@ -634,7 +634,7 @@ blindkeep/
   zk_keep.py    prove you hold a record here, without saying which
   poseidon.py   Poseidon over Pallas — the hash a circuit can afford
   zk_tree.py    the circuit-compatible tree, and witness export
-circuits/       halo2 membership circuit + the blindkeep-prove binary (Rust)
+circuits/       halo2 membership circuit + the oblivio-prove binary (Rust)
   sev_snp.py    AMD SEV-SNP report verification — OFF by default, unvalidated
   status.py     what the repo contains, counted not claimed
   cloud_gate.py  opt-in hosted-model path — NOT PRIVATE
@@ -660,7 +660,7 @@ nodes and returns a value only when enough of them **independently verify** and
 **agree**.
 
 ```python
-from blindkeep.replica import ReplicatedClient
+from oblivio.replica import ReplicatedClient
 
 client = ReplicatedClient(
     ["http://node-a:8741", "http://node-b:8741", "http://node-c:8741"],
@@ -681,7 +681,7 @@ resolve silently.
 
 ```bash
 cp data/peers.example.json data/peers.json     # then edit
-python -m blindkeep peers                      # probe and list live nodes
+python -m oblivio peers                      # probe and list live nodes
 ```
 
 A peer list supplies candidate addresses only. Every node is still verified
@@ -702,7 +702,7 @@ Integrity proofs show that what a node returns is genuine. They say nothing
 about whether it returns anything at all.
 
 ```bash
-python -m blindkeep audit --sample 10
+python -m oblivio audit --sample 10
 ```
 
 An audit fetches a random sample of records and fully verifies each, then
@@ -720,8 +720,8 @@ The loop the project exists for: an assistant that remembers you, where memory
 lives encrypted on storage you need not trust and the model runs on your machine.
 
 ```bash
-python -m blindkeep chat --text "remember I prefer short answers"
-python -m blindkeep chat --text "how do I like my answers?"
+python -m oblivio chat --text "remember I prefer short answers"
+python -m oblivio chat --text "how do I like my answers?"
 ```
 
 Prior memories are recalled and placed in the model's context automatically. The
@@ -735,11 +735,11 @@ A gated path exists for when a frontier model is genuinely wanted. It requires
 two separate acknowledgements and cannot be entered by accident:
 
 ```bash
-python -m blindkeep cloud-chat --enable-cloud --i-accept-not-private \
+python -m oblivio cloud-chat --enable-cloud --i-accept-not-private \
   --api-base https://api.x.ai --model grok-4.3 --text "..." --redact
 ```
 
-`--api-base` and `--model` are **required, with no default**, because Blindkeep
+`--api-base` and `--model` are **required, with no default**, because Oblivio
 does not choose a provider for you, and on a path that discloses, that is the one
 choice you should make consciously.
 
@@ -775,14 +775,14 @@ and restored in the reply, so the provider sees the shape of the question
 without the identities in it:
 
 ```bash
-python -m blindkeep private-chat --enable-cloud --i-accept-not-private \
+python -m oblivio private-chat --enable-cloud --i-accept-not-private \
   --api-base https://api.x.ai --model grok-4.3 \
   --declare "Sarah Whitfield" --declare-as "ORG:Acme Holdings" \
   --text "Sarah Whitfield at Acme Holdings owes 4000"
 # on the wire: <PERSON_0_b75298> at <ORG_0_b75298> owes 4000
 ```
 
-The mapping is stored as a Blindkeep record, so the table that re-identifies
+The mapping is stored as a Oblivio record, so the table that re-identifies
 everything inherits encryption, a Merkle commitment and key recovery rather than
 living in a session cache. Pass `--vault-record` to reuse it and keep
 placeholders stable across sessions.
@@ -869,7 +869,7 @@ is a real answer.
 subscriber still says *this person asked about debt recovery at 14:20*. Zcash
 solved the equivalent problem for payments by preserving **unlinkability of
 authorisation**, and [RFC 9578](https://datatracker.ietf.org/doc/rfc9578/)
-standardises the web-shaped version. Blindkeep uses the construction underneath
+standardises the web-shaped version. Oblivio uses the construction underneath
 it — Chaum blind signatures:
 
 ```
@@ -908,18 +908,18 @@ decides which memories may cross to which tier.
 
 ```bash
 # strongest tier that still uses somebody else's compute
-blindkeep token issue --out token.json
-blindkeep gate-chat --tier sealed --text "what do you know about me?" \
+oblivio token issue --out token.json
+oblivio gate-chat --tier sealed --text "what do you know about me?" \
   --local-model llama3.2 --anon-token token.json \
   --attest-url https://host.example/attest \
   --api-base https://host.example --model <model> \
   --measurement <approved-code-hash> --root <vendor-key>
 
 # no special hardware needed — abstraction only, any provider
-blindkeep gate-chat --tier delegated --text "..." --local-model llama3.2 \
+oblivio gate-chat --tier delegated --text "..." --local-model llama3.2 \
   --api-base https://api.x.ai --model grok-4.3 --anon-token token.json
 
-blindkeep gate-chat --tier attested --text "what do you know about me?" \
+oblivio gate-chat --tier attested --text "what do you know about me?" \
   --attest-url https://host.example/attest \
   --api-base https://host.example --model <model> \
   --measurement <approved-code-hash> --root <vendor-key>
@@ -955,7 +955,7 @@ authority, and a test asserts a forged index cannot promote a record.
 
 ### Attestation
 
-`blindkeep attest` challenges a host to prove it cannot read what it computes.
+`oblivio attest` challenges a host to prove it cannot read what it computes.
 Five checks, mirroring the five the storage client already runs, in the
 published SEV-SNP verification order:
 
@@ -988,8 +988,8 @@ registry and `sev-snp` still refuses on the default path.** Enabling it is a
 deliberate act:
 
 ```python
-from blindkeep.attest import default_registry          # sev-snp REFUSES
-from blindkeep.sev_snp import registry_with_sev_snp    # deliberate opt-in
+from oblivio.attest import default_registry          # sev-snp REFUSES
+from oblivio.sev_snp import registry_with_sev_snp    # deliberate opt-in
 
 registry = registry_with_sev_snp(ark_pem, ask_pem, vcek_pem)
 ```
@@ -1014,7 +1014,7 @@ about an hour, and a few dollars of VM time:
 ```bash
 py -3 tools/sev_snp_ingest.py --nonce          # before you rent anything
 ./tools/sev_snp_capture.sh <report_data_hex>   # on the guest, then destroy it
-py -3 tools/sev_snp_ingest.py --capture ./blindkeep-snp-capture
+py -3 tools/sev_snp_ingest.py --capture ./oblivio-snp-capture
 ```
 
 See [`docs/SEV_SNP_VALIDATION.md`](docs/SEV_SNP_VALIDATION.md). The ingest step
@@ -1035,7 +1035,7 @@ the claim and the evidence cannot drift apart in either direction.
    different clients is not yet detectable
 2. Proof of *storage* rather than retrieval, so a node must hold data rather
    than merely obtain it
-3. Prebuilt `blindkeep-prove` binaries per platform, so proving needs no Rust
+3. Prebuilt `oblivio-prove` binaries per platform, so proving needs no Rust
    toolchain at all — the source builds today, the release artefacts do not exist
 4. Validate the SEV-SNP verifier against real hardware and enable it
 5. Sharded model-weight distribution (hash-addressed)
@@ -1047,7 +1047,7 @@ the claim and the evidence cannot drift apart in either direction.
 **MIT** — see [`LICENSE`](LICENSE). Copyright © 2026 zcashsensei.
 
 Anyone may use, modify and **self-host free of charge, permanently**. The
-**Blindkeep** name is the author's, as would be any public network operated
+**Oblivio** name is the author's, as would be any public network operated
 under it; optional paid capacity may apply above free quotas. No such network
 runs today.
 

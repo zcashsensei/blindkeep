@@ -1,6 +1,6 @@
 # Cryptographic foundations
 
-**Version 0.1 · 2026-08-05 · applies to Blindkeep v0 alpha**
+**Version 0.1 · 2026-08-05 · applies to Oblivio v0 alpha**
 
 **Audience:** grant reviewers, security readers, maintainers.  
 **Purpose:** state precisely what is *mathematically established*, what is *implemented and tested*, and what is *not* claimed.  
@@ -12,7 +12,7 @@
 
 | Question | Answer |
 |----------|--------|
-| Is Blindkeep a new, peer-reviewed cryptographic invention? | **No.** It composes **standard** primitives. |
+| Is Oblivio a new, peer-reviewed cryptographic invention? | **No.** It composes **standard** primitives. |
 | Are those primitives mathematically / cryptographically established? | **Yes** — under standard assumptions (below). |
 | Is the *composition* “proven in a theorem prover”? | **No** (not Coq/Lean formal verification today). |
 | Is the *composition* sound if primitives are used correctly? | **Yes** — integrity and confidentiality reduce to known properties. |
@@ -21,7 +21,7 @@
 
 **Grant-safe claim:**
 
-> Blindkeep’s security rests on well-studied primitives (AES-GCM, HKDF, Ed25519, RFC 6962 Merkle trees as used in Certificate Transparency), not on novel zero-knowledge constructions. Confidentiality is encryption; integrity is transparency-log style proofs. The implementation is tested for correct proof verification and adversarial client behavior; it is not a formal machine-checked proof of the entire system.
+> Oblivio’s security rests on well-studied primitives (AES-GCM, HKDF, Ed25519, RFC 6962 Merkle trees as used in Certificate Transparency), not on novel zero-knowledge constructions. Confidentiality is encryption; integrity is transparency-log style proofs. The implementation is tested for correct proof verification and adversarial client behavior; it is not a formal machine-checked proof of the entire system.
 
 **Unsafe claim (do not use):**
 
@@ -33,7 +33,7 @@ That is false for this codebase and would damage a ZCG/ZF application.
 
 ## 2. What is mathematically / cryptographically established
 
-These are **not** Blindkeep’s inventions. Their security arguments live in the public literature and standards.
+These are **not** Oblivio’s inventions. Their security arguments live in the public literature and standards.
 
 ### 2.1 Confidentiality — AES-256-GCM + HKDF
 
@@ -42,14 +42,14 @@ These are **not** Blindkeep’s inventions. Their security arguments live in the
 | Primitive | AES-GCM (AEAD); keys via HKDF-SHA256 |
 | Standard | NIST SP 800-38D (GCM); HKDF RFC 5869 |
 | Property | Confidentiality + integrity of the *ciphertext blob* under standard AEAD assumptions, if nonces are unique and keys are secret |
-| Blindkeep use | Client-only master key; per-record key via HKDF; node never sees key material |
+| Oblivio use | Client-only master key; per-record key via HKDF; node never sees key material |
 
 **What this proves (informally):** an adversary without the client key cannot recover plaintext from stored blobs (computational security of AES-GCM).
 
 **What it does not prove:** metadata privacy — access pattern, record count and
 timing. Labels are no longer among these: they are encrypted with the record and
 bound as AAD, so the node receives an empty label field
-(`blindkeep/client.py`). Sizes are padded to fixed buckets, which reveals a
+(`oblivio/client.py`). Sizes are padded to fixed buckets, which reveals a
 bucket rather than an exact length.
 
 ### 2.2 Authenticity of tree heads — Ed25519
@@ -59,7 +59,7 @@ bucket rather than an exact length.
 | Primitive | Ed25519 signatures |
 | Standard | RFC 8032 |
 | Property | Existential unforgeability under chosen-message attack (EUF-CMA) in the standard model for EdDSA (widely accepted) |
-| Blindkeep use | Node signs canonical `blindkeep-head-v1 ‖ tree_size ‖ root` |
+| Oblivio use | Node signs canonical `oblivio-head-v1 ‖ tree_size ‖ root` |
 
 **What this proves (informally):** without the node’s private key, an adversary cannot forge a signed head for a chosen root.
 
@@ -77,7 +77,7 @@ bucket rather than an exact length.
 
 **What it does not prove:** availability (node can withhold data); privacy of which leaf was queried; that two clients saw the same head without gossip/witnesses (equivocation).
 
-### 2.4 Composition (Blindkeep’s design theorem — informal)
+### 2.4 Composition (Oblivio’s design theorem — informal)
 
 **Assumptions.**
 
@@ -128,13 +128,13 @@ Current Merkle `root()` over a full leaf list is a recursive recompute — fine 
 
 ## 4. “Millions of proofs” — language choice
 
-### 4.1 What “proof” means in Blindkeep v0
+### 4.1 What “proof” means in Oblivio v0
 
 Each **read** produces a **Merkle inclusion proof** (sibling hashes).  
 Each **log growth** can produce a **consistency proof**.  
 These are **hash computations**, not ZK proving systems — a statement about
 inclusion and consistency proofs specifically, not about the repository. The
-zero-knowledge work is separate: sigma protocols in `blindkeep/zk.py`, and a
+zero-knowledge work is separate: sigma protocols in `oblivio/zk.py`, and a
 halo2 membership circuit in `circuits/` (§3.2).
 
 | Scale | Work per proof | Language recommendation |
@@ -178,7 +178,7 @@ halo2 membership circuit in `circuits/` (§3.2).
 
 **Security basis**
 
-> Blindkeep implements a Certificate Transparency–style append-only log (RFC 6962 hashing) over client-encrypted records (AES-256-GCM). Clients verify Ed25519-signed tree heads and Merkle inclusion/consistency proofs before accepting data. Confidentiality does not rely on zero-knowledge proofs; integrity does not require SNARKs. Security therefore reduces to standard assumptions on AES-GCM, HKDF, Ed25519, and SHA-256 collision resistance, plus correct client verification (enforced by automated adversarial tests).
+> Oblivio implements a Certificate Transparency–style append-only log (RFC 6962 hashing) over client-encrypted records (AES-256-GCM). Clients verify Ed25519-signed tree heads and Merkle inclusion/consistency proofs before accepting data. Confidentiality does not rely on zero-knowledge proofs; integrity does not require SNARKs. Security therefore reduces to standard assumptions on AES-GCM, HKDF, Ed25519, and SHA-256 collision resistance, plus correct client verification (enforced by automated adversarial tests).
 
 **Implementation language**
 
@@ -210,4 +210,4 @@ halo2 membership circuit in `circuits/` (§3.2).
 
 ---
 
-*This file is the authoritative statement of cryptographic claims for Blindkeep. If marketing copy conflicts with it, this file wins.*
+*This file is the authoritative statement of cryptographic claims for Oblivio. If marketing copy conflicts with it, this file wins.*

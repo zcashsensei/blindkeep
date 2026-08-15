@@ -245,7 +245,7 @@ def new_record_id() -> str:
 # retrieval and remains an open limitation. It does close the two metadata
 # leaks that need no new cryptography.
 
-AAD_V1 = b"blindkeep-record-v1"
+AAD_V1 = b"oblivio-record-v1"
 PAD_BLOCK = 256          # bounded overhead: at most 255 bytes per record
 _HEADER = 6              # 2 bytes label length + 4 bytes payload length
 

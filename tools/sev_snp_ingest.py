@@ -6,7 +6,7 @@ Two modes, matching docs/SEV_SNP_VALIDATION.md:
         Before you rent anything. Generates a nonce, prints the report_data hex to carry
         to the guest, and saves both so a closed terminal does not cost you the trip.
 
-    py -3 tools/sev_snp_ingest.py --capture blindkeep-snp-capture --nonce <hex>
+    py -3 tools/sev_snp_ingest.py --capture oblivio-snp-capture --nonce <hex>
         After you come home. Runs the three assumption checks, then the full five-check
         pipeline, then writes tests/vectors/ so the parser can never silently regress.
 
@@ -28,8 +28,8 @@ HERE = pathlib.Path(__file__).resolve().parent
 ROOT = HERE.parent
 sys.path.insert(0, str(ROOT))
 
-from blindkeep import attest                                  # noqa: E402
-from blindkeep.sev_snp import parse_report, registry_with_sev_snp  # noqa: E402
+from oblivio import attest                                  # noqa: E402
+from oblivio.sev_snp import parse_report, registry_with_sev_snp  # noqa: E402
 
 VECTORS = ROOT / "tests" / "vectors"
 NONCE_STASH = ROOT / "data" / "sev_snp_nonce.json"
@@ -124,7 +124,7 @@ def cmd_ingest(cap: pathlib.Path, nonce_hex: str) -> int:
 
     if failures:
         print(f"\n❌ {len(failures)} check(s) failed — NO VECTOR WRITTEN.")
-        print("   The parser is wrong; the fix belongs in blindkeep/sev_snp.py.")
+        print("   The parser is wrong; the fix belongs in oblivio/sev_snp.py.")
         print("   Do NOT edit the expectation to match the parser.")
         return 1
 

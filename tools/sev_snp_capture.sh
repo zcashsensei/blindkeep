@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
-# Capture one SEV-SNP attestation report bound to a Blindkeep nonce.
+# Capture one SEV-SNP attestation report bound to a Oblivio nonce.
 #
 # Runs ON THE GUEST (a rented SEV-SNP confidential VM). Everything it needs is the
 # 32-byte report_data hex printed by tools/sev_snp_ingest.py --nonce on your own machine.
 #
 #   ./sev_snp_capture.sh <report_data_hex>
 #
-# Produces ./blindkeep-snp-capture/ containing report.bin, ark.pem, ask.pem, vcek.pem
+# Produces ./oblivio-snp-capture/ containing report.bin, ark.pem, ask.pem, vcek.pem
 # and capture.json. Bring that whole folder home and run:
 #
 #   py -3 tools/sev_snp_ingest.py --capture <folder> --nonce <nonce_hex>
@@ -16,7 +16,7 @@
 set -euo pipefail
 
 RD_HEX="${1:-}"
-OUT="./blindkeep-snp-capture"
+OUT="./oblivio-snp-capture"
 
 die() { echo "FAIL: $*" >&2; exit 1; }
 

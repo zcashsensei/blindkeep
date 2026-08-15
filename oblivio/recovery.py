@@ -45,7 +45,7 @@ _GROUP = 4                       # characters per group in a printed code
 _SCRYPT_N = 2 ** 17
 _SCRYPT_R = 8
 _SCRYPT_P = 1
-_BACKUP_MAGIC = b"BLINDKEEP-BACKUP-v1"
+_BACKUP_MAGIC = b"OBLIVIO-BACKUP-v1"
 
 
 class RecoveryError(Exception):
@@ -57,7 +57,7 @@ class RecoveryError(Exception):
 # --------------------------------------------------------------------------- #
 
 def _checksum(key: bytes) -> bytes:
-    return hashlib.sha256(b"blindkeep-recovery-v1" + key).digest()[:_CHECKSUM_LEN]
+    return hashlib.sha256(b"oblivio-recovery-v1" + key).digest()[:_CHECKSUM_LEN]
 
 
 def to_recovery_code(key: bytes) -> str:
@@ -130,7 +130,7 @@ def wrap_key(key: bytes, passphrase: str) -> bytes:
 def unwrap_key(blob: bytes, passphrase: str) -> bytes:
     """Recover a key from a passphrase-wrapped backup."""
     if not blob.startswith(_BACKUP_MAGIC):
-        raise RecoveryError("not a Blindkeep backup file")
+        raise RecoveryError("not a Oblivio backup file")
     body = blob[len(_BACKUP_MAGIC):]
     if len(body) < 16 + 12 + 16:
         raise RecoveryError("backup file is truncated")
@@ -229,7 +229,7 @@ class Share:
 
 
 def _checksum_share(body: bytes) -> bytes:
-    return hashlib.sha256(b"blindkeep-share-v1" + body).digest()[:_CHECKSUM_LEN]
+    return hashlib.sha256(b"oblivio-share-v1" + body).digest()[:_CHECKSUM_LEN]
 
 
 def split_key(key: bytes, threshold: int, shares: int) -> list[Share]:

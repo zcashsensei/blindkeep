@@ -39,10 +39,10 @@ from http.server import ThreadingHTTPServer
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 
-from blindkeep import frontier_private
-from blindkeep.anon_token import issue
-from blindkeep.frontier_gateway import FrontierGateway, serve_gateway
-from blindkeep.frontier_relay import serve_relay
+from oblivio import frontier_private
+from oblivio.anon_token import issue
+from oblivio.frontier_gateway import FrontierGateway, serve_gateway
+from oblivio.frontier_relay import serve_relay
 
 APP_PORT = 8803
 GW_PORT = 8804
@@ -62,7 +62,7 @@ HITS = {"ohttp": 0, "json": 0}
 
 def _boot():
     global app, gw, OHTTP_CONFIG
-    tmp = pathlib.Path(tempfile.mkdtemp(prefix="blindkeep-frontier-"))
+    tmp = pathlib.Path(tempfile.mkdtemp(prefix="oblivio-frontier-"))
     TMPDIRS.append(str(tmp))
 
     # --- gateway: holds the "provider credential", never calls a real one ---
@@ -142,7 +142,7 @@ def chat(**overrides):
     data = json.dumps(body).encode()
     r = urllib.request.Request(f"http://127.0.0.1:{APP_PORT}/api/frontier-chat",
                                data=data, method="POST")
-    r.add_header("X-Blindkeep-Token", app.TOKEN)
+    r.add_header("X-Oblivio-Token", app.TOKEN)
     r.add_header("Host", "127.0.0.1")
     r.add_header("Content-Type", "application/json")
     try:

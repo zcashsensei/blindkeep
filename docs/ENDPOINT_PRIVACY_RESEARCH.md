@@ -1,4 +1,4 @@
-# Endpoint privacy: what the field knows, and where Blindkeep stands
+# Endpoint privacy: what the field knows, and where Oblivio stands
 
 **Compiled 2026-08-13.** A survey of the published work on private endpoints to
 frontier models, and an honest placement of this project inside it.
@@ -31,7 +31,7 @@ This is solved, published, and shipped.
   [2](https://image-ppubs.uspto.gov/dirsearch-public/print/downloadPdf/8281149))
   — the primitive is decades old, from Chaum.
 
-**Blindkeep's `anon_token.py` is a reimplementation of a solved problem.** It is
+**Oblivio's `anon_token.py` is a reimplementation of a solved problem.** It is
 correct and it is ours, but it is not new. Claiming novelty here is the fastest
 way to lose a referee.
 
@@ -63,7 +63,7 @@ Ahead of us, at scale.
   [open alternative](https://www.edgeless.systems/blog/apple-private-cloud-compute-core-concepts-and-an-open-alternative))
 - **[Narrowing the Gap between TEE Threat Models and Deployment](https://arxiv.org/pdf/2506.14964)**
 
-Blindkeep's `sev_snp.py` has never seen real hardware. Against PCC's two
+Oblivio's `sev_snp.py` has never seen real hardware. Against PCC's two
 independent roots of trust and public transparency log, our attested tier is a
 design, not a capability. Say so.
 
@@ -159,7 +159,7 @@ explicit PII. Our `max_specificity` gestures at this without measuring it.
 Stated so a referee cannot knock it down:
 
 > Every anonymising LLM proxy in section 1 hides **who** is asking and forwards
-> the prompt **verbatim**. Blindkeep abstracts the question locally first and
+> the prompt **verbatim**. Oblivio abstracts the question locally first and
 > mechanically refuses to transmit when identifying terms survive, so the proxy
 > operator — not only the provider — is denied the private facts. The trusted
 > party is strictly smaller. It is MIT and self-hostable, so every role can be

@@ -1,6 +1,6 @@
 # Validating the SEV-SNP verifier against real hardware
 
-`blindkeep/sev_snp.py` parses AMD SEV-SNP attestation reports, verifies ECDSA P-384 against a
+`oblivio/sev_snp.py` parses AMD SEV-SNP attestation reports, verifies ECDSA P-384 against a
 VCEK, and walks the ARK → ASK → VCEK chain. **It has never seen a report from real hardware**, so
 it is deliberately excluded from `attest.default_registry()` and `sev-snp` refuses on the default
 path.
@@ -60,14 +60,14 @@ that looks like a report and is not.
 
 ## Step 3 — capture a report bound to a nonce we choose
 
-The 64-byte `REPORT_DATA` field is caller-supplied. Blindkeep fills it with
-`sha256("blindkeep-attest-v1\0" || nonce)`, so generate the nonce with Blindkeep and carry the
+The 64-byte `REPORT_DATA` field is caller-supplied. Oblivio fills it with
+`sha256("oblivio-attest-v1\0" || nonce)`, so generate the nonce with Oblivio and carry the
 expected value with you — this is the check that makes the report *about our request*.
 
 ```bash
 # on your own machine
 python - <<'PY'
-from blindkeep.attest import new_nonce, expected_report_data
+from oblivio.attest import new_nonce, expected_report_data
 n = new_nonce()
 print("nonce        :", n.hex())
 print("report_data  :", expected_report_data(n))
@@ -93,8 +93,8 @@ a bug to work around.
 
 ```bash
 python - <<'PY'
-from blindkeep.attest import Attestation, Policy, verify_attestation
-from blindkeep.sev_snp import parse_report, registry_with_sev_snp
+from oblivio.attest import Attestation, Policy, verify_attestation
+from oblivio.sev_snp import parse_report, registry_with_sev_snp
 import base64, pathlib
 
 raw = pathlib.Path("report.bin").read_bytes()
@@ -123,8 +123,8 @@ test to match the parser.
 
 ```bash
 python - <<'PY'
-from blindkeep.attest import Attestation, Policy, verify_attestation
-from blindkeep.sev_snp import parse_report, registry_with_sev_snp
+from oblivio.attest import Attestation, Policy, verify_attestation
+from oblivio.sev_snp import parse_report, registry_with_sev_snp
 import base64, pathlib
 
 raw   = pathlib.Path("report.bin").read_bytes()
@@ -176,9 +176,9 @@ Only after step 6 passes:
 1. Move `SevSnpVerifier` into `attest.default_registry()`.
 2. Delete `test_sev_snp_is_not_in_the_default_registry`, which exists to fail the moment someone
    enables this without validating it — that is its whole job.
-3. `blindkeep status` will flip **`SEV-SNP enabled by default`** to `OK` on its own, and
+3. `oblivio status` will flip **`SEV-SNP enabled by default`** to `OK` on its own, and
    `SEV-SNP validated against real hardware` should be removed from `NOT_CLAIMED` in
-   `blindkeep/status.py`.
+   `oblivio/status.py`.
 4. Update the README and `SECURITY.md`, both of which currently state plainly that no vendor
    verifier is validated.
 

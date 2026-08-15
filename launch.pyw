@@ -1,4 +1,4 @@
-"""Desktop launcher for the Blindkeep app.
+"""Desktop launcher for the Oblivio app.
 
 .pyw so Windows runs it with pythonw and no console window appears.
 

@@ -1,6 +1,6 @@
 """Prove things about records in the keep without saying which record.
 
-This is where the proof system meets the log, and it is the reason Blindkeep is a
+This is where the proof system meets the log, and it is the reason Oblivio is a
 zero-knowledge project rather than a project that happens to contain some
 zero-knowledge code.
 
@@ -54,7 +54,7 @@ def keep_context(head: dict[str, Any]) -> bytes:
     including the size makes a proof self-describing about *which* state, and
     makes an accidental cross-keep verification impossible rather than unlikely.
     """
-    return ("blindkeep-keep-v1|root=" + str(head["root_hex"])
+    return ("oblivio-keep-v1|root=" + str(head["root_hex"])
             + "|size=" + str(int(head["tree_size"]))).encode("utf-8")
 
 

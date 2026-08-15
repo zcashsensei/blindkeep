@@ -60,7 +60,7 @@ P = int(
 Q = (P - 1) // 2
 G = 4                       # 2 squared: a quadratic residue, so it has order q
 CHALLENGE_BITS = 256
-DOMAIN = b"blindkeep-zk-v1"
+DOMAIN = b"oblivio-zk-v1"
 
 
 class ProofError(Exception):

@@ -8,15 +8,15 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from blindkeep.anon_token import Client, Issuer, Token, issue
-from blindkeep.frontier_gateway import (
+from oblivio.anon_token import Client, Issuer, Token, issue
+from oblivio.frontier_gateway import (
     FrontierGateway,
     GatewayError,
     make_gateway_remote,
     serve_gateway,
     transport_of,
 )
-from blindkeep.frontier_private import frontier_chat
+from oblivio.frontier_private import frontier_chat
 
 
 def test_gateway_redeems_token_once():

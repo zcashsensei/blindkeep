@@ -1,4 +1,4 @@
-"""python -m blindkeep ..."""
+"""python -m oblivio ..."""
 
 from .cli import main
 

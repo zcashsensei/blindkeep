@@ -14,7 +14,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from blindkeep.cloud_gate import (
+from oblivio.cloud_gate import (
     NOT_PRIVATE_NOTICE,
     CloudGateError,
     cloud_complete,
@@ -199,7 +199,7 @@ def test_no_default_module_imports_the_cloud_gate():
     # ENUMERATED, not listed. This guard protects the project's headline privacy claim, and
     # for most of its life it named eleven modules while the package held thirty — so a new
     # module could import the cloud gate and this test would still pass. Worse, the omitted
-    # nineteen included `__init__.py`, which is what runs on `import blindkeep`: the single
+    # nineteen included `__init__.py`, which is what runs on `import oblivio`: the single
     # most default path there is was the one path never checked.
     #
     # These modules are allowed to reach the gate, and each is opt-in by construction:
@@ -215,7 +215,7 @@ def test_no_default_module_imports_the_cloud_gate():
     # new entry against that test rather than against this comment.
     allowed = {"cli.py", "vault_proxy.py", "cloud_gate.py",
                "frontier_gateway.py", "frontier_private.py"}
-    pkg = os.path.join(root, "blindkeep")
+    pkg = os.path.join(root, "oblivio")
     names = sorted(f for f in os.listdir(pkg) if f.endswith(".py"))
     assert len(names) > 11, "module enumeration failed; this guard would pass vacuously"
 
@@ -246,8 +246,8 @@ def test_importing_the_package_does_not_load_any_cloud_module():
     import sys
 
     root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    for entry in ("blindkeep", "blindkeep.client", "blindkeep.node", "blindkeep.store",
-                  "blindkeep.cli"):
+    for entry in ("oblivio", "oblivio.client", "oblivio.node", "oblivio.store",
+                  "oblivio.cli"):
         code = (
             f"import sys; sys.path.insert(0, {root!r}); import {entry}; "
             "print(','.join(sorted(m for m in sys.modules "

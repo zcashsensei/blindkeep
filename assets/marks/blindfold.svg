@@ -1,7 +1,7 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96" width="96" height="96"
      role="img" aria-label="Blindfold">
   <title>Blindfold</title>
-  <!-- Blindkeep mark, claim: cannot-read. Cut-outs use the panel colour rather than a
+  <!-- Oblivio mark, claim: cannot-read. Cut-outs use the panel colour rather than a
        true knockout; on a light ground, convert them to fill-rule="evenodd". -->
   <rect x="12" y="12" width="72" height="72" rx="22" fill="none" stroke="#F4B728" stroke-width="4"/>
             <circle cx="34" cy="42" r="5" fill="#F4B728" opacity=".35"/>

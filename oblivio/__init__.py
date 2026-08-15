@@ -1,4 +1,4 @@
-"""Blindkeep — privacy-preserving AI memory infrastructure.
+"""Oblivio — privacy-preserving AI memory infrastructure.
 
 Clients encrypt locally. Nodes store ciphertext they cannot read, committed to
 an append-only Merkle log they cannot rewrite undetected. The current release

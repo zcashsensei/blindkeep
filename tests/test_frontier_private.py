@@ -5,8 +5,8 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from blindkeep.delegate import LeakError
-from blindkeep.frontier_private import (
+from oblivio.delegate import LeakError
+from oblivio.frontier_private import (
     FrontierPrivateError,
     assess_network,
     frontier_chat,

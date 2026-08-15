@@ -14,18 +14,18 @@ from http.server import ThreadingHTTPServer
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from blindkeep.audit import audit_node, audit_peers, rank
-from blindkeep.client import BlindkeepClient
-from blindkeep.crypto import generate_master_key
-from blindkeep.node import _Handler
-from blindkeep.store import MemoryStore
+from oblivio.audit import audit_node, audit_peers, rank
+from oblivio.client import OblivioClient
+from oblivio.crypto import generate_master_key
+from oblivio.node import _Handler
+from oblivio.store import MemoryStore
 
 SERVERS = []
 TMPDIRS = []
 
 
 def tmpdir():
-    d = tempfile.mkdtemp(prefix="blindkeep-audit-")
+    d = tempfile.mkdtemp(prefix="oblivio-audit-")
     TMPDIRS.append(d)
     return d
 
@@ -39,7 +39,7 @@ def node(handler_cls=_Handler, records=0, key=None):
     SERVERS.append(httpd)
     url = f"http://127.0.0.1:{httpd.server_address[1]}"
     key = key or generate_master_key()
-    client = BlindkeepClient(url, key, pin_path=os.path.join(d, "pin.json"))
+    client = OblivioClient(url, key, pin_path=os.path.join(d, "pin.json"))
     ids = [client.put(f"record {i}".encode())["record_id"] for i in range(records)]
     return client, store, httpd, ids, d, key
 
@@ -117,7 +117,7 @@ def test_substituting_node_is_flagged_as_a_security_failure():
     h1 = ThreadingHTTPServer(("127.0.0.1", 0), honest)
     threading.Thread(target=h1.serve_forever, daemon=True).start()
     SERVERS.append(h1)
-    setup = BlindkeepClient(f"http://127.0.0.1:{h1.server_address[1]}", key,
+    setup = OblivioClient(f"http://127.0.0.1:{h1.server_address[1]}", key,
                             pin_path=os.path.join(d, "p1.json"))
     ids = [setup.put(f"rec {i}".encode())["record_id"] for i in range(5)]
 
@@ -125,7 +125,7 @@ def test_substituting_node_is_flagged_as_a_security_failure():
     h2 = ThreadingHTTPServer(("127.0.0.1", 0), evil)
     threading.Thread(target=h2.serve_forever, daemon=True).start()
     SERVERS.append(h2)
-    client = BlindkeepClient(f"http://127.0.0.1:{h2.server_address[1]}", key,
+    client = OblivioClient(f"http://127.0.0.1:{h2.server_address[1]}", key,
                              pin_path=os.path.join(d, "p2.json"))
 
     r = audit_node(client, record_ids=ids[1:], sample_size=4)
@@ -136,7 +136,7 @@ def test_substituting_node_is_flagged_as_a_security_failure():
 
 def test_one_security_failure_outweighs_many_passes():
     """Honesty is not scored proportionally."""
-    from blindkeep.audit import AuditResult
+    from oblivio.audit import AuditResult
     r = AuditResult(url="x", challenges=100, passed=99, failed=1,
                     security_failures=1)
     assert r.score == 0.99
@@ -161,7 +161,7 @@ def test_audit_peers_judges_each_node_separately():
 
 
 def test_rank_puts_honest_and_fast_first():
-    from blindkeep.audit import AuditResult
+    from oblivio.audit import AuditResult
     a = AuditResult(url="slow", challenges=10, passed=10,
                     samples=[type("C", (), {"ms": 900.0})()])
     b = AuditResult(url="fast", challenges=10, passed=10,

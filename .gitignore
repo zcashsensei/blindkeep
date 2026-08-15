@@ -15,7 +15,7 @@
 #   LICENSE_RIGHTS.md       what MIT does and does not grant
 #   GRANT_ONE_PAGER.md      public funding summary
 #   AUTHORS.md              provenance
-#   LICENSE, blindkeep/, tests/, demo.py, requirements.txt
+#   LICENSE, oblivio/, tests/, demo.py, requirements.txt
 #
 # NOT PUBLISHED (listed below):
 #   secrets, personal cockpit and task board, working notes, unfiled drafts.
@@ -64,7 +64,7 @@ data/policy.json
 # -----------------------------------------------------------------------------
 dashboard.py
 data/plan.json
-blindkeep/progress.py
+oblivio/progress.py
 # The dashboard's desktop launcher. Follows dashboard.py: a launcher for a file
 # a clone does not have would be an icon that fails on the first click.
 launch_dashboard.pyw
@@ -113,3 +113,4 @@ env/
 .DS_Store
 Thumbs.db
 desktop.ini
+tests/_gate_tmp/

@@ -1,6 +1,6 @@
 """Console output must survive a non-UTF-8 stdout.
 
-The defect these tests exist to hold shut: ``blindkeep progress`` built its report
+The defect these tests exist to hold shut: ``oblivio progress`` built its report
 from U+2713 CHECK MARK and U+2192 RIGHTWARDS ARROW, and Windows hands a redirected
 or piped process a cp1252 stdout, which can encode neither. The command exited 1
 having printed none of its 22 detector lines. In a terminal it printed all 22.
@@ -34,16 +34,16 @@ import pytest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from blindkeep._console import use_utf8_stdout
+from oblivio._console import use_utf8_stdout
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-PROGRESS_PY = os.path.join(ROOT, "blindkeep", "progress.py")
+PROGRESS_PY = os.path.join(ROOT, "oblivio", "progress.py")
 HAS_PROGRESS = os.path.isfile(PROGRESS_PY)
 
 # Entry points are discovered, not listed, so a new one cannot quietly skip the
 # guard. Anything with an ``if __name__ == "__main__"`` block is a console entry
-# point; ``blindkeep/__main__.py`` delegates to ``cli.main`` and is covered there.
-ENTRY_GLOBS = [ROOT, os.path.join(ROOT, "blindkeep")]
+# point; ``oblivio/__main__.py`` delegates to ``cli.main`` and is covered there.
+ENTRY_GLOBS = [ROOT, os.path.join(ROOT, "oblivio")]
 
 
 def _cp1252_env():
@@ -86,7 +86,7 @@ def test_cp1252_actually_breaks_unguarded_output():
 def test_guard_makes_the_same_print_succeed():
     """The mirror of the control: same char, same encoding, guard applied."""
     code = ("import sys; sys.path.insert(0, %r)\n"
-            "from blindkeep._console import use_utf8_stdout\n"
+            "from oblivio._console import use_utf8_stdout\n"
             "use_utf8_stdout()\n"
             "print('\\u2713')\n" % ROOT)
     r = _run([sys.executable, "-c", code], env=_cp1252_env())
@@ -98,7 +98,7 @@ def test_guard_makes_the_same_print_succeed():
                     reason="progress.py is maintainer-only (gitignored on clean clones)")
 def test_progress_reports_fully_under_cp1252():
     """The original failure, end to end: exit 0 and a COMPLETE report."""
-    r = _run([sys.executable, "-m", "blindkeep", "progress"], env=_cp1252_env())
+    r = _run([sys.executable, "-m", "oblivio", "progress"], env=_cp1252_env())
     assert r.returncode == 0, f"progress exited {r.returncode}: {r.stderr[:300]!r}"
     out = r.stdout.decode("utf-8", errors="replace")
     assert "charmap" not in out and "charmap" not in r.stderr.decode("utf-8", errors="replace")
@@ -112,10 +112,10 @@ def test_progress_reports_fully_under_cp1252():
                     reason="progress.py is maintainer-only (gitignored on clean clones)")
 def test_progress_output_is_identical_piped_and_utf8():
     """Encoding must change nothing about WHAT is reported."""
-    a = _run([sys.executable, "-m", "blindkeep", "progress"], env=_cp1252_env())
+    a = _run([sys.executable, "-m", "oblivio", "progress"], env=_cp1252_env())
     env = dict(os.environ)
     env["PYTHONIOENCODING"] = "utf-8"
-    b = _run([sys.executable, "-m", "blindkeep", "progress"], env=env)
+    b = _run([sys.executable, "-m", "oblivio", "progress"], env=env)
     assert a.returncode == b.returncode == 0
     assert a.stdout.decode("utf-8") == b.stdout.decode("utf-8"), \
         "report differs between cp1252 and utf-8 stdout"
@@ -158,11 +158,11 @@ def test_progress_still_runs_as_a_bare_script():
     """Adding the guard must not cost progress.py its script entry point.
 
     It is the one module here with no relative imports, so ``py -3
-    blindkeep/progress.py`` worked. The first relative import silently removed
+    oblivio/progress.py`` worked. The first relative import silently removed
     that -- ``attempted relative import with no known parent package`` -- and the
     ``-m`` path kept passing, so nothing else here would have noticed.
     """
-    r = _run([sys.executable, os.path.join("blindkeep", "progress.py"), "--dry-run"],
+    r = _run([sys.executable, os.path.join("oblivio", "progress.py"), "--dry-run"],
              env=_cp1252_env())
     assert r.returncode == 0, \
         f"progress.py no longer runs as a script: {r.stderr.decode('utf-8', 'replace')[:300]}"

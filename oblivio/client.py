@@ -1,4 +1,4 @@
-"""Blindkeep client: encrypt locally, verify every response.
+"""Oblivio client: encrypt locally, verify every response.
 
 The client never trusts the node with plaintext or with history.
 Every get re-checks inclusion against the signed head; optional pin
@@ -42,7 +42,7 @@ class PinnedHead:
     public_key_hex: str
 
 
-class BlindkeepClient:
+class OblivioClient:
     def __init__(
         self,
         base_url: str,

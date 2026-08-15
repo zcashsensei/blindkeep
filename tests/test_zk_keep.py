@@ -15,11 +15,11 @@ from http.server import ThreadingHTTPServer
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from blindkeep.client import BlindkeepClient
-from blindkeep.crypto import generate_master_key
-from blindkeep.node import _Handler
-from blindkeep.store import MemoryStore
-from blindkeep.zk_keep import (
+from oblivio.client import OblivioClient
+from oblivio.crypto import generate_master_key
+from oblivio.node import _Handler
+from oblivio.store import MemoryStore
+from oblivio.zk_keep import (
     keep_context,
     keep_leaves,
     leaf_to_scalar,
@@ -50,14 +50,14 @@ def keep(n=4, tag="a"):
     # Fresh directory every call — same isolation fix as test_private_read.
     # Reusing a fixed path under tests/ made the second pytest session load
     # prior-run leaves under a new key (wrong branch counts / tree sizes).
-    d = tempfile.mkdtemp(prefix=f"blindkeep-zkkeep-{tag}-")
+    d = tempfile.mkdtemp(prefix=f"oblivio-zkkeep-{tag}-")
     TMPDIRS.append(d)
     store = MemoryStore(os.path.join(d, "node"))
     handler = type("B", (_Handler,), {"store": store, "log_message": lambda *a, **k: None})
     httpd = ThreadingHTTPServer(("127.0.0.1", 0), handler)
     threading.Thread(target=httpd.serve_forever, daemon=True).start()
     SERVERS.append(httpd)
-    client = BlindkeepClient(f"http://127.0.0.1:{httpd.server_address[1]}",
+    client = OblivioClient(f"http://127.0.0.1:{httpd.server_address[1]}",
                              generate_master_key(),
                              pin_path=os.path.join(d, "pin.json"))
     for i in range(n):
@@ -156,7 +156,7 @@ def test_the_context_names_both_root_and_size():
 
 def test_leaf_scalars_are_reduced_not_truncated():
     """Truncation would let two distinct leaves share a label."""
-    from blindkeep.zk import Q
+    from oblivio.zk import Q
     a = leaf_to_scalar("ff" * 32)
     assert 0 <= a < Q
     assert leaf_to_scalar("ff" * 32) != leaf_to_scalar("fe" + "ff" * 31)

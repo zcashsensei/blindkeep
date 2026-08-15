@@ -16,9 +16,9 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-from blindkeep.anon_token import issue
-from blindkeep.frontier_gateway import FrontierGateway, make_gateway_remote, serve_gateway
-from blindkeep.frontier_private import frontier_chat
+from oblivio.anon_token import issue
+from oblivio.frontier_gateway import FrontierGateway, make_gateway_remote, serve_gateway
+from oblivio.frontier_private import frontier_chat
 
 
 PRIVATE = (
@@ -28,7 +28,7 @@ PRIVATE = (
 
 
 def main() -> int:
-    print("=== Blindkeep historic stack demo (offline) ===\n")
+    print("=== Oblivio historic stack demo (offline) ===\n")
 
     gw = FrontierGateway(api_base="http://mock.invalid", api_key="sk-NEVER-ON-CLIENT")
     seen_at_gateway: list[str] = []

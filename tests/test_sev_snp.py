@@ -25,7 +25,7 @@ from cryptography.hazmat.primitives.asymmetric import ec
 from cryptography.hazmat.primitives.serialization import Encoding
 from cryptography.x509.oid import NameOID
 
-from blindkeep.attest import (
+from oblivio.attest import (
     Attestation,
     Policy,
     Unverified,
@@ -34,7 +34,7 @@ from blindkeep.attest import (
     new_nonce,
     verify_attestation,
 )
-from blindkeep.sev_snp import (
+from oblivio.sev_snp import (
     OFF_CHIP_ID,
     OFF_CURRENT_TCB,
     OFF_MEASUREMENT,

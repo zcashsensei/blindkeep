@@ -1,6 +1,6 @@
 //! merkle.rs — PROVE A RECORD IS IN THE LOG, WITHOUT SAYING WHICH RECORD.
 //!
-//! This is the circuit the Blindkeep keep needs, and the reason it is worth building: membership
+//! This is the circuit the Oblivio keep needs, and the reason it is worth building: membership
 //! there is currently an OR-proof across every leaf, so a proof costs about a kilobyte per record.
 //! Fine at forty records. Useless at forty thousand.
 //!
@@ -24,7 +24,7 @@
 //! **1. Poseidon, not SHA-256.** A SHA-256 Merkle path is roughly 826,000 R1CS constraints; the
 //! same path with Poseidon is a few thousand. That is not an optimisation, it is the difference
 //! between a proof you can generate and one you cannot. It is also why `merkle.CachedLog` in
-//! Blindkeep takes `leaf_fn`/`node_fn` — the ZK tree is a second tree over the same records, and
+//! Oblivio takes `leaf_fn`/`node_fn` — the ZK tree is a second tree over the same records, and
 //! that decision had to be made before any head was published.
 //!
 //! **2. The swap must be constrained, not chosen.** At each level the prover supplies a direction
@@ -349,7 +349,7 @@ mod real_proof {
     }
 
     /// The point of the circuit: proof size must not track the size of the log. The sigma-protocol
-    /// version in Blindkeep is O(n) — about a kilobyte per record — and this is what replaces it.
+    /// version in Oblivio is O(n) — about a kilobyte per record — and this is what replaces it.
     #[test]
     fn proof_size_does_not_grow_with_the_tree() {
         let (small, _, _, _) = prove(8, 3);

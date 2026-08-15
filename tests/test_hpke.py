@@ -19,7 +19,7 @@ from cryptography.hazmat.primitives.asymmetric.x25519 import (
     X25519PublicKey,
 )
 
-from blindkeep.hpke import (
+from oblivio.hpke import (
     MODE_BASE,
     NENC,
     HpkeError,

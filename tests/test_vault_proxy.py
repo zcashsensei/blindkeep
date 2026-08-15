@@ -16,8 +16,8 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from blindkeep.cloud_gate import CloudGateError
-from blindkeep.vault_proxy import (
+from oblivio.cloud_gate import CloudGateError
+from oblivio.vault_proxy import (
     EntityVault,
     LeakError,
     VaultError,
@@ -54,7 +54,7 @@ def echo_provider(reply=None):
 
 
 class StubClient:
-    """Stands in for BlindkeepClient's put/get_by_id contract."""
+    """Stands in for OblivioClient's put/get_by_id contract."""
 
     def __init__(self):
         self.records = {}
@@ -387,7 +387,7 @@ def test_no_default_module_imports_the_proxy():
     import ast
 
     root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    pkg = os.path.join(root, "blindkeep")
+    pkg = os.path.join(root, "oblivio")
     # The frontier modules ARE cloud paths, same as vault_proxy: reachable only through
     # `frontier` CLI commands that import them lazily, so importing one is choosing it.
     # See the matching note in test_cloud_gate.py -- reachability is proved by importing

@@ -31,7 +31,7 @@ def main() -> int:
             BASE + path, data=body,
             method="POST" if body is not None else "GET",
             headers={
-                "X-Blindkeep-Token": token,
+                "X-Oblivio-Token": token,
                 "Content-Type": "application/json",
                 "Host": "127.0.0.1:8743",
             },

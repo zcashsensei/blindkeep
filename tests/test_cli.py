@@ -23,16 +23,16 @@ from http.server import ThreadingHTTPServer
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from blindkeep.cli import main
-from blindkeep.node import _Handler
-from blindkeep.store import MemoryStore
+from oblivio.cli import main
+from oblivio.node import _Handler
+from oblivio.store import MemoryStore
 
 SERVERS = []
 TMPDIRS = []
 
 
 def tmpdir():
-    d = tempfile.mkdtemp(prefix="blindkeep-cli-")
+    d = tempfile.mkdtemp(prefix="oblivio-cli-")
     TMPDIRS.append(d)
     return d
 
@@ -125,7 +125,7 @@ def test_put_refuses_without_a_key_and_says_how_to_make_one():
     code, _, err = cli("put", "--url", url, "--text", "x", cwd=work)
     assert code == 2, code
     assert "no master key" in err, err
-    assert "blindkeep keygen" in err, err
+    assert "oblivio keygen" in err, err
 
 
 def test_get_refuses_without_a_key():
@@ -223,7 +223,7 @@ def test_roundtrip_leaves_exactly_one_key():
 
 
 def test_hosted_paths_require_an_explicit_endpoint():
-    """Blindkeep must not ship an opinion about whose cloud gets your data.
+    """Oblivio must not ship an opinion about whose cloud gets your data.
 
     A default `--api-base` is an endorsement, and on the paths that disclose it
     is the one choice a user has to make consciously. argparse enforces it for
@@ -273,7 +273,7 @@ def test_zk_prove_explains_a_missing_prover():
 def test_zk_prove_names_the_env_var_and_the_build_command():
     """With nothing on PATH either, the message must be actionable rather than merely true."""
     import os as _os
-    saved = _os.environ.pop("BLINDKEEP_PROVER", None)
+    saved = _os.environ.pop("OBLIVIO_PROVER", None)
     saved_path = _os.environ.get("PATH", "")
     _os.environ["PATH"] = ""
     try:
@@ -282,12 +282,12 @@ def test_zk_prove_names_the_env_var_and_the_build_command():
             code = main(["zk-prove", "--index", "0"])
         msg = err.getvalue() + out.getvalue()
         assert code != 0
-        for expected in ("BLINDKEEP_PROVER", "cargo build", "zk-witness"):
+        for expected in ("OBLIVIO_PROVER", "cargo build", "zk-witness"):
             assert expected in msg, f"the refusal never mentions {expected!r}: {msg}"
     finally:
         _os.environ["PATH"] = saved_path
         if saved is not None:
-            _os.environ["BLINDKEEP_PROVER"] = saved
+            _os.environ["OBLIVIO_PROVER"] = saved
 
 
 def test_every_hosted_tier_offers_the_delegating_options():
@@ -318,7 +318,7 @@ def test_one_hosted_completer_serves_every_tier():
     success while protecting nothing.
     """
     import pathlib as _p
-    src = (_p.Path(__file__).resolve().parent.parent / "blindkeep" / "cli.py").read_text(
+    src = (_p.Path(__file__).resolve().parent.parent / "oblivio" / "cli.py").read_text(
         encoding="utf-8")
     assert src.count("def _hosted_completer") == 1
     assert "cloud = _hosted_completer(args, api_key)" in src, (

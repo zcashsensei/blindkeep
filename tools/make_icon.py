@@ -1,4 +1,4 @@
-"""Render assets/blindkeep-mark.svg to a Windows .ico, stdlib only.
+"""Render assets/oblivio-mark.svg to a Windows .ico, stdlib only.
 
 There is no Pillow on this machine and adding a dependency to draw one icon is
 a poor trade, so this rasterises the mark directly: sample the SVG's two cubic
@@ -17,7 +17,7 @@ import struct
 import zlib
 
 HERE = pathlib.Path(__file__).resolve().parent
-OUT = HERE.parent / "assets" / "blindkeep.ico"
+OUT = HERE.parent / "assets" / "oblivio.ico"
 
 GOLD = (0xF4, 0xB7, 0x28)
 GROUND = (0x0A, 0x0E, 0x14)          # the dashboard's own background

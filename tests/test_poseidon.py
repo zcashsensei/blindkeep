@@ -15,10 +15,10 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from blindkeep.poseidon import P, hash2, hash_n, leaf_hash, node_hash, permute
-from blindkeep.poseidon_params import (FULL_ROUNDS, PARTIAL_ROUNDS, ROUND_CONSTANTS,
+from oblivio.poseidon import P, hash2, hash_n, leaf_hash, node_hash, permute
+from oblivio.poseidon_params import (FULL_ROUNDS, PARTIAL_ROUNDS, ROUND_CONSTANTS,
                                        VECTORS, WIDTH)
-from blindkeep.zk_tree import build_levels, leaf_scalar, poseidon_path, poseidon_root
+from oblivio.zk_tree import build_levels, leaf_scalar, poseidon_path, poseidon_root
 
 # Roots computed by the Rust circuit's own path_for(), over leaves 1000..1000+n.
 RUST_ROOTS = [

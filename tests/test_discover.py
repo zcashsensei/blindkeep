@@ -10,7 +10,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from blindkeep.discover import (
+from oblivio.discover import (
     DiscoveryError,
     Peer,
     discover,
@@ -20,15 +20,15 @@ from blindkeep.discover import (
     normalise_url,
     urls,
 )
-from blindkeep.node import _Handler
-from blindkeep.store import MemoryStore
+from oblivio.node import _Handler
+from oblivio.store import MemoryStore
 
 SERVERS = []
 TMPDIRS = []
 
 
 def tmpdir():
-    d = tempfile.mkdtemp(prefix="blindkeep-disc-")
+    d = tempfile.mkdtemp(prefix="oblivio-disc-")
     TMPDIRS.append(d)
     return d
 
@@ -306,8 +306,8 @@ def test_unreachable_bootstrap_raises():
 
 def test_discovered_peers_drive_a_replicated_client():
     """Discovery must produce something ReplicatedClient actually accepts."""
-    from blindkeep.crypto import generate_master_key
-    from blindkeep.replica import ReplicatedClient
+    from oblivio.crypto import generate_master_key
+    from oblivio.replica import ReplicatedClient
 
     a, _ = live_node()
     b, _ = live_node()

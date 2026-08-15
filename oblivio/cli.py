@@ -1,4 +1,4 @@
-"""Blindkeep CLI — run a node, put/get encrypted memory, verify the log."""
+"""Oblivio CLI — run a node, put/get encrypted memory, verify the log."""
 
 from __future__ import annotations
 
@@ -35,25 +35,25 @@ def _load_key(key_path: str) -> bytes:
     to fail left one behind. `keygen` and `recover` create keys — deliberately,
     and with an overwrite guard. Nothing else does.
     """
-    from .client import BlindkeepClient
+    from .client import OblivioClient
 
     if not os.path.exists(key_path):
         raise CliError(
             f"no master key at {key_path}\n"
-            f"  create one:  blindkeep keygen --key {key_path}\n"
-            f"  or restore:  blindkeep recover restore --code ... --key {key_path}")
-    return BlindkeepClient.load_master_key(key_path)
+            f"  create one:  oblivio keygen --key {key_path}\n"
+            f"  or restore:  oblivio recover restore --code ... --key {key_path}")
+    return OblivioClient.load_master_key(key_path)
 
 
 def _client_from_args(args, need_key: bool = True):
-    from .client import BlindkeepClient
+    from .client import OblivioClient
 
     key_path = args.key
     # `head` and `list` are metadata-only: neither touches master_key. Asking
     # for a key to read a signed tree head would be a lie about what is needed.
     key = _load_key(key_path) if need_key else b""
     pin = getattr(args, "pin", None) or os.path.join(os.path.dirname(key_path) or ".", "pin.json")
-    return BlindkeepClient(args.url, key, pin_path=pin,
+    return OblivioClient(args.url, key, pin_path=pin,
                           expected_pubkey_hex=getattr(args, "pubkey", None) or None)
 
 
@@ -166,11 +166,11 @@ def cmd_verify_proof(args) -> int:
 
 def cmd_prove_in_keep(args) -> int:
     """Prove you hold a record in this keep, without revealing which one."""
-    from .client import BlindkeepClient
+    from .client import OblivioClient
     from .zk_keep import prove_in_keep
 
     key = _load_key(args.key)
-    client = BlindkeepClient(args.url, key, pin_path=args.pin)
+    client = OblivioClient(args.url, key, pin_path=args.pin)
     bundle = prove_in_keep(client, args.index)
 
     text = json.dumps(bundle, indent=2)
@@ -188,11 +188,11 @@ def cmd_prove_in_keep(args) -> int:
 
 def cmd_verify_in_keep(args) -> int:
     """Verify against a keep the verifier looks up itself. Exit 0 only if it holds."""
-    from .client import BlindkeepClient
+    from .client import OblivioClient
     from .zk_keep import keep_leaves, verify_in_keep
 
     key = _load_key(args.key)
-    client = BlindkeepClient(args.url, key, pin_path=args.pin)
+    client = OblivioClient(args.url, key, pin_path=args.pin)
     with open(args.proof, "r", encoding="utf-8") as f:
         bundle = json.load(f)
 
@@ -208,11 +208,11 @@ def cmd_verify_in_keep(args) -> int:
 
 def cmd_zk_witness(args) -> int:
     """Export everything a halo2 prover needs for a membership proof over this keep."""
-    from .client import BlindkeepClient
+    from .client import OblivioClient
     from .zk_tree import export_for_circuit, write_witness
 
     key = _load_key(args.key)
-    client = BlindkeepClient(args.url, key, pin_path=args.pin)
+    client = OblivioClient(args.url, key, pin_path=args.pin)
     bundle = export_for_circuit(client, args.index)
 
     if args.out:
@@ -228,28 +228,28 @@ def cmd_zk_witness(args) -> int:
 
 
 def _find_prover(explicit=None):
-    """Locate blindkeep-prove: an explicit path, an env var, or PATH.
+    """Locate oblivio-prove: an explicit path, an env var, or PATH.
 
     Returned as a path rather than invoked, so a missing prover is a message about installing one
     binary and not a traceback from a failed subprocess.
     """
     import shutil
 
-    for candidate in (explicit, os.environ.get("BLINDKEEP_PROVER")):
+    for candidate in (explicit, os.environ.get("OBLIVIO_PROVER")):
         if candidate:
             if os.path.isfile(candidate):
                 return candidate
             raise CliError(f"no prover at {candidate}")
-    found = shutil.which("blindkeep-prove") or shutil.which("blindkeep-prove.exe")
+    found = shutil.which("oblivio-prove") or shutil.which("oblivio-prove.exe")
     if found:
         return found
     raise CliError(
-        "blindkeep-prove was not found.\n"
+        "oblivio-prove was not found.\n"
         "  It is a single binary that turns a witness into a SNARK proof. Either:\n"
-        "    put it on PATH, pass --prover /path/to/it, or set BLINDKEEP_PROVER\n"
+        "    put it on PATH, pass --prover /path/to/it, or set OBLIVIO_PROVER\n"
         "  Build it from https://github.com/zcashsensei/zk-encrypted-intelligence:\n"
-        "    cargo build --release --bin blindkeep-prove\n"
-        "  Or skip proving and export the witness alone:  blindkeep zk-witness")
+        "    cargo build --release --bin oblivio-prove\n"
+        "  Or skip proving and export the witness alone:  oblivio zk-witness")
 
 
 def cmd_zk_prove(args) -> int:
@@ -257,13 +257,13 @@ def cmd_zk_prove(args) -> int:
     import subprocess
     import tempfile
 
-    from .client import BlindkeepClient
+    from .client import OblivioClient
     from .zk_tree import export_for_circuit, write_witness
 
     prover = _find_prover(args.prover)
 
     key = _load_key(args.key)
-    client = BlindkeepClient(args.url, key, pin_path=args.pin)
+    client = OblivioClient(args.url, key, pin_path=args.pin)
     bundle = export_for_circuit(client, args.index)
 
     # The witness holds the leaf and the full path — the private half. It goes to a temporary file
@@ -364,11 +364,11 @@ def cmd_token(args) -> int:
 
 def cmd_read_private(args) -> int:
     """Read one record without telling the node which. Costs the whole keep."""
-    from .client import BlindkeepClient
+    from .client import OblivioClient
     from .private_read import RetrievalError, read_private, visibility
 
     key = _load_key(args.key)
-    client = BlindkeepClient(args.url, key, pin_path=args.pin)
+    client = OblivioClient(args.url, key, pin_path=args.pin)
     try:
         r = read_private(client, args.index, max_records=args.max_records)
     except RetrievalError as exc:
@@ -387,11 +387,11 @@ def cmd_read_private(args) -> int:
 
 def cmd_gossip(args) -> int:
     """Compare signed heads with another client. Catches a node telling two stories."""
-    from .client import BlindkeepClient
+    from .client import OblivioClient
     from .witness import EquivocationError, HeadLog, SignedHead, gossip
 
     key = _load_key(args.key)
-    client = BlindkeepClient(args.url, key, pin_path=args.pin)
+    client = OblivioClient(args.url, key, pin_path=args.pin)
     head = client.head()
 
     log = (HeadLog.load(args.log) if args.log and os.path.exists(args.log)
@@ -463,11 +463,11 @@ def cmd_audit(args) -> int:
 
 
 def cmd_chat(args) -> int:
-    from .client import BlindkeepClient
+    from .client import OblivioClient
     from .ollama_mem import OllamaMemory
 
     key = _load_key(args.key)
-    client = BlindkeepClient(args.url, key, pin_path=args.pin)
+    client = OblivioClient(args.url, key, pin_path=args.pin)
     mem = OllamaMemory(client, ollama_base=args.ollama_base, model=args.model,
                        allow_remote=args.allow_remote)
     reply = mem.chat(args.text, system=args.system,
@@ -480,7 +480,7 @@ def cmd_cloud_chat(args) -> int:
     """Opt-in path to a hosted model. NOT PRIVATE."""
     from .cloud_gate import cloud_complete
 
-    api_key = args.api_key or os.environ.get("BLINDKEEP_CLOUD_KEY", "")
+    api_key = args.api_key or os.environ.get("OBLIVIO_CLOUD_KEY", "")
     result = cloud_complete(
         args.text, api_base=args.api_base, api_key=api_key, model=args.model,
         dialect=getattr(args, 'dialect', None),
@@ -497,11 +497,11 @@ def cmd_cloud_chat(args) -> int:
 
 def cmd_private_chat(args) -> int:
     """Pseudonymised cloud path. Smaller disclosure — still a disclosure."""
-    from .client import BlindkeepClient
+    from .client import OblivioClient
     from .vault_proxy import EntityVault, private_cloud_complete
 
     key = _load_key(args.key)
-    client = BlindkeepClient(args.url, key, pin_path=args.pin)
+    client = OblivioClient(args.url, key, pin_path=args.pin)
 
     if args.vault_record:
         vault = EntityVault.load(client, args.vault_record)
@@ -516,7 +516,7 @@ def cmd_private_chat(args) -> int:
             raise ValueError(f"--declare-as expects KIND:VALUE, got {pair!r}")
         vault.declare(value, kind=kind)
 
-    api_key = args.api_key or os.environ.get("BLINDKEEP_CLOUD_KEY", "")
+    api_key = args.api_key or os.environ.get("OBLIVIO_CLOUD_KEY", "")
     result = private_cloud_complete(
         args.text, vault=vault, api_base=args.api_base, api_key=api_key,
         dialect=getattr(args, 'dialect', None),
@@ -563,9 +563,9 @@ def cmd_frontier_chat(args) -> int:
     context: list[str] = []
     if args.with_keep:
         key = _load_key(args.key)
-        from .client import BlindkeepClient
+        from .client import OblivioClient
         from .memory_gate import Sensitivity, decode_label
-        c = BlindkeepClient(args.url, key, pin_path=args.pin)
+        c = OblivioClient(args.url, key, pin_path=args.pin)
         try:
             for rec in c.list()[-args.recall:]:
                 try:
@@ -590,7 +590,7 @@ def cmd_frontier_chat(args) -> int:
         if not args.token:
             raise CliError(
                 "--gateway-url requires --token (a blind token from the issuer).\n"
-                "  blindkeep token issue --out token.json   # with issuer key\n"
+                "  oblivio token issue --out token.json   # with issuer key\n"
                 "  Or redeem against the gateway's issuer.")
         from .anon_token import Token
         from .frontier_gateway import make_gateway_remote
@@ -616,7 +616,7 @@ def cmd_frontier_chat(args) -> int:
             raise CliError("--model is required")
         if not api_key:
             raise CliError(
-                "no API key: pass --api-key or set BLINDKEEP_CLOUD_KEY, "
+                "no API key: pass --api-key or set OBLIVIO_CLOUD_KEY, "
                 "or use --gateway-url + --token so the client never holds one")
         remote = make_cloud_remote(
             api_base=args.api_base, api_key=api_key, model=args.model,
@@ -693,9 +693,9 @@ def cmd_frontier_gateway(args) -> int:
     )
     from .anon_token import Issuer
 
-    api_key = args.api_key or os.environ.get("BLINDKEEP_CLOUD_KEY", "")
+    api_key = args.api_key or os.environ.get("OBLIVIO_CLOUD_KEY", "")
     if not api_key or not args.api_base:
-        raise CliError("--api-base and --api-key (or BLINDKEEP_CLOUD_KEY) required")
+        raise CliError("--api-base and --api-key (or OBLIVIO_CLOUD_KEY) required")
     if args.issuer_key and os.path.exists(args.issuer_key):
         issuer = load_issuer(args.issuer_key)
     else:
@@ -712,7 +712,7 @@ def cmd_frontier_gateway(args) -> int:
     params = gw.public_params()
     print(f"frontier-gateway -> http://{args.host}:{args.port}", file=sys.stderr)
     print(f"  params: GET /v1/params", file=sys.stderr)
-    print(f"  complete: POST /v1/complete  (header Blindkeep-Token)", file=sys.stderr)
+    print(f"  complete: POST /v1/complete  (header Oblivio-Token)", file=sys.stderr)
     print(f"  ohttp: POST /ohttp", file=sys.stderr)
     print(f"  issuer n…{params['issuer_n_hex'][-16:]}", file=sys.stderr)
     print("  Ctrl-C to stop. Clients should NOT send a provider API key.",
@@ -785,7 +785,7 @@ def _hosted_completer(args, api_key):
         tok = Token(value_hex=blob["token_hex"], signature_hex=blob["signature_hex"])
         # The Privacy Pass shape: an entitlement presented alongside the request, carrying no
         # identity. Sent as a header rather than in the body so the model never reads it.
-        headers["Blindkeep-Token"] = f"{tok.value_hex}.{tok.signature_hex}"
+        headers["Oblivio-Token"] = f"{tok.value_hex}.{tok.signature_hex}"
 
     def complete(prompt, system=None):
         return cloud_complete(
@@ -800,7 +800,7 @@ def _hosted_completer(args, api_key):
 def _require_api_base_for_tier(args) -> None:
     """Refuse a missing endpoint before anything that needs a key.
 
-    Every tier above local sends somewhere, and Blindkeep does not pick the
+    Every tier above local sends somewhere, and Oblivio does not pick the
     somewhere. A shipped default endpoint is an endorsement, and on the paths
     that disclose it is the one choice the user must make consciously.
 
@@ -817,7 +817,7 @@ def _require_api_base_for_tier(args) -> None:
         return
     raise CliError(
         f"--api-base is required for --tier {tier.label}\n"
-        f"  Blindkeep does not choose a provider for you, and does not "
+        f"  Oblivio does not choose a provider for you, and does not "
         f"require one API. Closed or open weights, hosted or self-run:\n"
         f"    --api-base https://api.anthropic.com  --model <claude model>\n"
         f"    --api-base https://api.x.ai           --model <grok model>\n"
@@ -847,7 +847,7 @@ def _gate_backend(args, client):
 
     _require_api_base_for_tier(args)
 
-    api_key = args.api_key or os.environ.get("BLINDKEEP_CLOUD_KEY", "")
+    api_key = args.api_key or os.environ.get("OBLIVIO_CLOUD_KEY", "")
 
     if tier in (Tier.DELEGATED, Tier.SEALED):
         from .delegate import LeakGate
@@ -915,7 +915,7 @@ def _gate_backend(args, client):
 
 def cmd_gate_chat(args) -> int:
     """One memory layer, any model, release decided by a PROVEN tier."""
-    from .client import BlindkeepClient
+    from .client import OblivioClient
     from .memory_gate import MemoryGate, Sensitivity
 
     # Endpoint before key: a missing --api-base is the user's real omission on
@@ -924,7 +924,7 @@ def cmd_gate_chat(args) -> int:
     _require_api_base_for_tier(args)
 
     key = _load_key(args.key)
-    client = BlindkeepClient(args.url, key, pin_path=args.pin)
+    client = OblivioClient(args.url, key, pin_path=args.pin)
     gate = MemoryGate(client, index_path=args.index)
     backend = _gate_backend(args, client)
 
@@ -971,7 +971,7 @@ def _read_passphrase(args, confirm: bool = False) -> str:
 
 
 def cmd_recover(args) -> int:
-    from .client import BlindkeepClient
+    from .client import OblivioClient
     from . import recovery
 
     action = args.action
@@ -988,7 +988,7 @@ def cmd_recover(args) -> int:
         if os.path.exists(args.key) and not args.force:
             print(f"refusing to overwrite {args.key} (pass --force)", file=sys.stderr)
             return 1
-        BlindkeepClient.save_master_key(args.key, key)
+        OblivioClient.save_master_key(args.key, key)
         print(f"key restored -> {args.key}")
         return 0
 
@@ -1008,7 +1008,7 @@ def cmd_recover(args) -> int:
         if os.path.exists(args.key) and not args.force:
             print(f"refusing to overwrite {args.key} (pass --force)", file=sys.stderr)
             return 1
-        BlindkeepClient.save_master_key(args.key, key)
+        OblivioClient.save_master_key(args.key, key)
         print(f"key restored -> {args.key}")
         return 0
 
@@ -1029,7 +1029,7 @@ def cmd_recover(args) -> int:
         if os.path.exists(args.key) and not args.force:
             print(f"refusing to overwrite {args.key} (pass --force)", file=sys.stderr)
             return 1
-        BlindkeepClient.save_master_key(args.key, key)
+        OblivioClient.save_master_key(args.key, key)
         print(f"key reconstructed from {len(shares)} shares -> {args.key}")
         return 0
 
@@ -1038,11 +1038,11 @@ def cmd_recover(args) -> int:
 
 
 def cmd_keygen(args) -> int:
-    from .client import BlindkeepClient
+    from .client import OblivioClient
     if os.path.exists(args.key) and not args.force:
         print(f"refusing to overwrite {args.key} (pass --force)", file=sys.stderr)
         return 1
-    BlindkeepClient.create_keys(args.key)
+    OblivioClient.create_keys(args.key)
     print(f"wrote 32-byte master key -> {args.key}")
     print("keep this file secret; without it ciphertext is unreadable")
     return 0
@@ -1108,8 +1108,8 @@ def cmd_list(args) -> int:
 
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
-        prog="blindkeep",
-        description="Blindkeep — verifiable encrypted memory for local AI",
+        prog="oblivio",
+        description="Oblivio — verifiable encrypted memory for local AI",
     )
     sub = p.add_subparsers(dest="cmd", required=True)
 
@@ -1261,7 +1261,7 @@ def build_parser() -> argparse.ArgumentParser:
     zp.add_argument("--index", type=int, required=True)
     zp.add_argument("--out", default="proof.json")
     zp.add_argument("--prover", default=None,
-                    help="path to blindkeep-prove; also read from BLINDKEEP_PROVER or PATH")
+                    help="path to oblivio-prove; also read from OBLIVIO_PROVER or PATH")
     zp.add_argument("--url", default="http://127.0.0.1:8741")
     zp.add_argument("--key", default="data/client/master.key")
     zp.add_argument("--pin", default="data/client/pin.json")
@@ -1337,11 +1337,11 @@ def build_parser() -> argparse.ArgumentParser:
                         help="send a prompt to a hosted model — NOT PRIVATE")
     cc.add_argument("--text", required=True)
     cc.add_argument("--api-base", required=True,
-                    help="required: Blindkeep does not choose a provider for you")
+                    help="required: Oblivio does not choose a provider for you")
     cc.add_argument("--dialect", default=None, choices=sorted(dialects.DIALECTS),
                     help="wire format to speak; inferred from --api-base when omitted (any model, closed or open weights)")
     cc.add_argument("--api-key", default=None,
-                    help="or set BLINDKEEP_CLOUD_KEY; a flag is visible in shell history")
+                    help="or set OBLIVIO_CLOUD_KEY; a flag is visible in shell history")
     cc.add_argument("--model", required=True)
     cc.add_argument("--system", default=None)
     cc.add_argument("--redact", action="store_true",
@@ -1366,11 +1366,11 @@ def build_parser() -> argparse.ArgumentParser:
     pc.add_argument("--declare-as", action="append", default=[],
                     help="KIND:VALUE, e.g. ORG:Acme (repeatable)")
     pc.add_argument("--api-base", required=True,
-                    help="required: Blindkeep does not choose a provider for you")
+                    help="required: Oblivio does not choose a provider for you")
     pc.add_argument("--dialect", default=None, choices=sorted(dialects.DIALECTS),
                     help="wire format to speak; inferred from --api-base when omitted (any model, closed or open weights)")
     pc.add_argument("--api-key", default=None,
-                    help="or set BLINDKEEP_CLOUD_KEY; a flag is visible in shell history")
+                    help="or set OBLIVIO_CLOUD_KEY; a flag is visible in shell history")
     pc.add_argument("--model", required=True)
     pc.add_argument("--system", default=None)
     pc.add_argument("--enable-cloud", action="store_true")
@@ -1485,15 +1485,15 @@ def build_parser() -> argparse.ArgumentParser:
                     help="refuse an abstraction carrying more than N uncommon "
                          "terms; a proxy for how identifying it is, off by default")
     gc.add_argument("--anon-token", default=None,
-                    help="a blind-signed entitlement from `blindkeep token`, so "
+                    help="a blind-signed entitlement from `oblivio token`, so "
                          "the request is not attributable to you")
     gc.add_argument("--ollama-base", default="http://127.0.0.1:11434")
     gc.add_argument("--api-base", default=None,
-                    help="required for every tier except local: Blindkeep does not choose a provider for you")
+                    help="required for every tier except local: Oblivio does not choose a provider for you")
     gc.add_argument("--dialect", default=None, choices=sorted(dialects.DIALECTS),
                     help="wire format to speak; inferred from --api-base when omitted (any model, closed or open weights)")
     gc.add_argument("--api-key", default=None,
-                    help="or set BLINDKEEP_CLOUD_KEY; a flag is visible in shell history")
+                    help="or set OBLIVIO_CLOUD_KEY; a flag is visible in shell history")
     gc.add_argument("--attest-url", default=None,
                     help="attestation endpoint, required for --tier attested")
     gc.add_argument("--measurement", action="append", default=[])
@@ -1511,11 +1511,11 @@ def build_parser() -> argparse.ArgumentParser:
         help="serve the keep to an MCP host (Claude Desktop/Code) over stdio; "
              "reads and writes pass through the app's release gate")
     mp.add_argument("--app-url", default=None,
-                    help="the Blindkeep app (default BLINDKEEP_APP_URL or "
+                    help="the Oblivio app (default OBLIVIO_APP_URL or "
                          "http://127.0.0.1:8743)")
     mp.add_argument("--token", default=None,
                     help="agent token from the app's Agent access switch; "
-                         "prefer the BLINDKEEP_AGENT_TOKEN env var — a flag "
+                         "prefer the OBLIVIO_AGENT_TOKEN env var — a flag "
                          "is visible in the process list")
     mp.set_defaults(func=cmd_mcp)
 
@@ -1533,12 +1533,12 @@ def main(argv=None) -> int:
         print(str(e), file=sys.stderr)
         return 2
     except KeyboardInterrupt:
-        # Ctrl-C is how `blindkeep node` is meant to be stopped. Exiting with a
+        # Ctrl-C is how `oblivio node` is meant to be stopped. Exiting with a
         # traceback made a normal shutdown look like a crash.
         print("\ninterrupted", file=sys.stderr)
         return 130
     except Exception as e:
-        if os.environ.get("BLINDKEEP_DEBUG"):
+        if os.environ.get("OBLIVIO_DEBUG"):
             raise
         print(f"error: {e}", file=sys.stderr)
         return 1

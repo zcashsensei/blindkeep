@@ -24,7 +24,7 @@ import sys
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-from blindkeep.status import summary  # noqa: E402
+from oblivio.status import summary  # noqa: E402
 
 # The label each suite is called by in prose. A suite missing from here is a hard error rather
 # than a silent omission — that asymmetry is the whole point of the file.

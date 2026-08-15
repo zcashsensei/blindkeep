@@ -1,6 +1,6 @@
 """The app's release gate: what an agent token may and may not be handed.
 
-Until this suite existed the app had no gate at all. `blindkeep/memory_gate.py`
+Until this suite existed the app had no gate at all. `oblivio/memory_gate.py`
 carried the whole engine — Sensitivity, Tier, DEFAULT_POLICY, encode_label — and
 `app.py` never imported it, so an agent token reached `/api/read/<n>` and
 `/api/state` unconditionally: every memory readable, every label enumerable.
@@ -47,11 +47,11 @@ IDX = {}
 def _boot():
     """Start a throwaway node, point the app at it, and seed four memories."""
     global app
-    tmp = pathlib.Path(tempfile.mkdtemp(prefix="blindkeep-gate-"))
+    tmp = pathlib.Path(tempfile.mkdtemp(prefix="oblivio-gate-"))
     TMPDIRS.append(str(tmp))
 
     proc = subprocess.Popen(
-        [sys.executable, "-m", "blindkeep", "node",
+        [sys.executable, "-m", "oblivio", "node",
          "--data-dir", str(tmp / "keep"), "--port", str(NODE_PORT)],
         cwd=ROOT, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
         # Windowless: the engines were windowless but the code WATCHING them
@@ -106,7 +106,7 @@ def req(path, body=None, token=None):
     data = json.dumps(body).encode() if body is not None else None
     r = urllib.request.Request(f"http://127.0.0.1:{APP_PORT}" + path,
                                data=data, method="POST" if data else "GET")
-    r.add_header("X-Blindkeep-Token", tok)
+    r.add_header("X-Oblivio-Token", tok)
     r.add_header("Host", "127.0.0.1")
     if data:
         r.add_header("Content-Type", "application/json")
@@ -171,7 +171,7 @@ def test_secret_is_pinned_to_local():
 
 
 def test_an_agent_starts_at_the_weakest_tier():
-    """Blindkeep cannot verify what holds a token — a local script and a
+    """Oblivio cannot verify what holds a token — a local script and a
     frontier model behind a relay are indistinguishable from in here — so the
     tier is a declaration and it starts at the bottom."""
     _, pol = req("/api/policy")

@@ -2,7 +2,7 @@
 
 ## The mark
 
-`assets/blindkeep-lockup.svg` is the primary lockup. `assets/blindkeep-mark.svg` is the
+`assets/oblivio-lockup.svg` is the primary lockup. `assets/oblivio-mark.svg` is the
 mark alone, for square crops. `assets/favicon.svg` is a separately drawn variant with a
 heavier stroke and a wider door, because the full mark's 4px shield line disappears below
 about 20px and its door closes into a solid block. Scaling one file down is not the same

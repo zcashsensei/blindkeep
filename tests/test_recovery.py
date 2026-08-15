@@ -12,8 +12,8 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from blindkeep.crypto import generate_master_key
-from blindkeep.recovery import (
+from oblivio.crypto import generate_master_key
+from oblivio.recovery import (
     RecoveryError,
     Share,
     combine_shares,
@@ -308,7 +308,7 @@ def test_recovered_key_actually_decrypts_stored_records():
     and reads the original plaintext back.
     """
     import tempfile
-    from blindkeep.store import MemoryStore, client_encrypt, client_open
+    from oblivio.store import MemoryStore, client_encrypt, client_open
 
     key = generate_master_key()
     secret = b"the only copy of something that matters"

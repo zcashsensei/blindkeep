@@ -83,7 +83,7 @@ stays as the backstop when the ε budget is exhausted.
 - **[Apple PCC expanded onto Google Cloud / NVIDIA Blackwell](https://blogs.nvidia.com/blog/nvidia-confidential-computing-apple-private-cloud-compute/)**
   (2026) — attested frontier-scale inference with **two independent hardware
   roots** and a public transparency log now runs on rented cloud GPUs. The
-  precedent Blindkeep needs: user-side attestation verification at frontier
+  precedent Oblivio needs: user-side attestation verification at frontier
   scale is deployable, because someone deployed it.
 - **[NVIDIA CC remote attestation](https://www.nvidia.com/en-us/glossary/confidential-computing/)** —
   GPU-signed report covering firmware and workload hash, verifiable before
@@ -221,7 +221,7 @@ waiting for the first user-verifiable frontier endpoint.
 
 ### Implementation status (2026-08-14)
 
-`blindkeep/dp.py` ships the first tranche, with each guarantee scoped to what
+`oblivio/dp.py` ships the first tranche, with each guarantee scoped to what
 the code actually delivers:
 
 | Item | Shipped as | Scope of the claim |

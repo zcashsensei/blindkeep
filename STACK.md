@@ -1,4 +1,4 @@
-# Blindkeep frontier stack
+# Oblivio frontier stack
 
 **What this is:** an open, end-to-end path for *content-gated* and
 *account-decoupled* frontier inference — with receipts that refuse to over-claim.
@@ -64,20 +64,20 @@ python tools/demo_historic_stack.py
 
 ```bash
 # Terminal A — gateway holds the provider credential
-export BLINDKEEP_CLOUD_KEY=sk-...
-python -m blindkeep frontier-gateway \
+export OBLIVIO_CLOUD_KEY=sk-...
+python -m oblivio frontier-gateway \
   --api-base https://api.x.ai \
-  --api-key "$BLINDKEEP_CLOUD_KEY" \
+  --api-key "$OBLIVIO_CLOUD_KEY" \
   --issuer-key data/gateway_issuer.pem \
   --port 8751
 
 # Terminal B — one-time token
-python -m blindkeep token issue \
+python -m oblivio token issue \
   --issuer-key data/gateway_issuer.pem \
   --out token.json
 
 # Terminal C — client (Ollama required for live abstraction)
-python -m blindkeep frontier-chat \
+python -m oblivio frontier-chat \
   --enable-frontier --accept-residual-risks \
   --gateway-url http://127.0.0.1:8751 \
   --token token.json \
@@ -90,14 +90,14 @@ App UI: **Privacy truth → Historic frontier stack** (gateway mode default).
 ### Optional OHTTP relay
 
 ```bash
-python -m blindkeep frontier-relay --gateway http://GATEWAY:8751 --port 8750
+python -m oblivio frontier-relay --gateway http://GATEWAY:8751 --port 8750
 # Only meaningful if a *different* party runs the gateway.
 ```
 
 The client then needs the gateway's key config, read from `GET /v1/params`:
 
 ```bash
-python -m blindkeep frontier-chat … \
+python -m oblivio frontier-chat … \
   --relay-url http://RELAY:8750 \
   --ohttp-config "<ohttp_key_config_b64 from /v1/params>" \
   --ohttp-independent            # your assertion; nothing can verify it
@@ -157,4 +157,4 @@ reason for every refusal is returned in `metadata_reasons`.
 
 ---
 
-*Blindkeep remains v0 alpha. No public multi-operator network is shipped.*
+*Oblivio remains v0 alpha. No public multi-operator network is shipped.*

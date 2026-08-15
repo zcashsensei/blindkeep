@@ -20,23 +20,23 @@ from http.server import ThreadingHTTPServer
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from blindkeep.client import MAX_RESPONSE_BYTES, BlindkeepClient, SecurityError
-from blindkeep.crypto import generate_master_key
-from blindkeep.node import (
+from oblivio.client import MAX_RESPONSE_BYTES, OblivioClient, SecurityError
+from oblivio.crypto import generate_master_key
+from oblivio.node import (
     LIST_MAX_LIMIT,
     MAX_BODY_BYTES,
     MAX_RECORD_BYTES,
     MAX_RECORD_ID_LEN,
     _Handler,
 )
-from blindkeep.store import MemoryStore, client_encrypt
+from oblivio.store import MemoryStore, client_encrypt
 
 SERVERS = []
 TMPDIRS = []
 
 
 def node():
-    d = tempfile.mkdtemp(prefix="blindkeep-hard-")
+    d = tempfile.mkdtemp(prefix="oblivio-hard-")
     TMPDIRS.append(d)
     store = MemoryStore(os.path.join(d, "node"))
     handler = type("H", (_Handler,), {"store": store,
@@ -189,7 +189,7 @@ def test_client_refuses_redirects():
             self.send_header("Content-Length", "0")
             self.end_headers()
 
-    d = tempfile.mkdtemp(prefix="blindkeep-redir-")
+    d = tempfile.mkdtemp(prefix="oblivio-redir-")
     TMPDIRS.append(d)
     store = MemoryStore(os.path.join(d, "node"))
     handler = type("R", (Redirector,), {"store": store,
@@ -199,7 +199,7 @@ def test_client_refuses_redirects():
     SERVERS.append(httpd)
     url = f"http://127.0.0.1:{httpd.server_address[1]}"
 
-    client = BlindkeepClient(url, generate_master_key(),
+    client = OblivioClient(url, generate_master_key(),
                              pin_path=os.path.join(d, "pin.json"))
     try:
         client.head()
@@ -247,7 +247,7 @@ def test_public_bind_is_refused_without_acknowledgement():
     check that grouped it with "localhost" would wave through the exact case this
     gate exists to catch.
     """
-    from blindkeep.node import ExposureRefused, serve
+    from oblivio.node import ExposureRefused, serve
 
     for host in ("0.0.0.0", "", "::", "192.168.1.50", "example.com"):
         try:
@@ -262,7 +262,7 @@ def test_public_bind_is_refused_without_acknowledgement():
 
 def test_loopback_is_not_gated():
     """The default must stay frictionless, or the gate gets removed instead of used."""
-    from blindkeep.node import _is_loopback
+    from oblivio.node import _is_loopback
 
     for host in ("127.0.0.1", "localhost", "::1", "127.0.0.5"):
         assert _is_loopback(host), f"{host!r} should be treated as loopback"

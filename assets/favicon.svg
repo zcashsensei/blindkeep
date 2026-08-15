@@ -1,7 +1,7 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96" width="96" height="96"
-     role="img" aria-label="Blindkeep">
-  <title>Blindkeep</title>
-  <!-- Favicon variant: heavier stroke and a wider door than assets/blindkeep-mark.svg.
+     role="img" aria-label="Oblivio">
+  <title>Oblivio</title>
+  <!-- Favicon variant: heavier stroke and a wider door than assets/oblivio-mark.svg.
        The full mark's 4px shield line disappears below about 20px, and its door closes
        up into a solid block. Scaling one file down is not the same as drawing for the
        size it will actually be seen at. -->

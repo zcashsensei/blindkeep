@@ -86,7 +86,7 @@ class _Handler(BaseHTTPRequestHandler):
         path = parsed.path
         try:
             if path == "/health":
-                return self._send(200, {"ok": True, "service": "blindkeep", "size": self.store.size})
+                return self._send(200, {"ok": True, "service": "oblivio", "size": self.store.size})
             if path == "/v1/head":
                 from dataclasses import asdict
                 return self._send(200, asdict(self.store.head()))
@@ -210,7 +210,7 @@ def serve(data_dir: str, host: str = "127.0.0.1", port: int = 8741,
     handler = type("Handler", (_Handler,), {"store": store})
     httpd = ThreadingHTTPServer((host, port), handler)
     pub = store.identity.public_hex()
-    print(f"blindkeep memory node listening on http://{host}:{port}")
+    print(f"oblivio memory node listening on http://{host}:{port}")
     print(f"  data_dir = {data_dir}")
     print(f"  pubkey   = {pub}")
     print(f"  size     = {store.size}")
@@ -225,7 +225,7 @@ def main(argv: Optional[list[str]] = None) -> int:
     use_utf8_stdout()
     import argparse
 
-    p = argparse.ArgumentParser(description="Blindkeep local memory node")
+    p = argparse.ArgumentParser(description="Oblivio local memory node")
     p.add_argument("--data-dir", default="data/node", help="persistent store directory")
     p.add_argument("--host", default="127.0.0.1")
     p.add_argument("--port", type=int, default=8741)

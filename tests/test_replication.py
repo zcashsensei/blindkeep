@@ -15,14 +15,14 @@ from http.server import ThreadingHTTPServer
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from blindkeep.crypto import generate_master_key
-from blindkeep.node import _Handler
-from blindkeep.replica import (
+from oblivio.crypto import generate_master_key
+from oblivio.node import _Handler
+from oblivio.replica import (
     DivergenceError,
     ReplicatedClient,
     ReplicationError,
 )
-from blindkeep.store import MemoryStore
+from oblivio.store import MemoryStore
 
 SERVERS = []
 TMPDIRS = []
@@ -42,7 +42,7 @@ def start_node(data_dir, handler_cls=_Handler):
 
 
 def tmpdir():
-    d = tempfile.mkdtemp(prefix="blindkeep-repl-")
+    d = tempfile.mkdtemp(prefix="oblivio-repl-")
     TMPDIRS.append(d)
     return d
 

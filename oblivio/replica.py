@@ -32,7 +32,7 @@ from dataclasses import dataclass, field
 from typing import Any, Optional
 from urllib.parse import urlparse
 
-from .client import BlindkeepClient, SecurityError
+from .client import OblivioClient, SecurityError
 from .store import client_encrypt
 
 
@@ -113,7 +113,7 @@ class ReplicatedClient:
                 f"quorum {self.quorum} must be between 1 and {len(self.urls)}")
         self._workers = timeout_workers
         self.clients = {
-            url: BlindkeepClient(
+            url: OblivioClient(
                 url, master_key,
                 pin_path=os.path.join(pin_dir, _pin_name(url)))
             for url in self.urls

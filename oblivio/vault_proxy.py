@@ -116,7 +116,7 @@ class Anonymized:
 
 
 class EntityVault:
-    """A reversible value <-> placeholder map, storable as a Blindkeep record.
+    """A reversible value <-> placeholder map, storable as a Oblivio record.
 
     Every other implementation of this pattern keeps the mapping in a session
     dict or a cache. Here it can be persisted through the client, which means the
@@ -297,7 +297,7 @@ class EntityVault:
         return v
 
     def save(self, client, label: str = "entity-vault") -> dict[str, Any]:
-        """Persist through a BlindkeepClient: encrypted, committed, recoverable."""
+        """Persist through a OblivioClient: encrypted, committed, recoverable."""
         return client.put(self.to_json(), label=label)
 
     @classmethod

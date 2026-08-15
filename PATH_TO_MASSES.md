@@ -80,7 +80,7 @@ Fees belong on **operated network capacity**, not on a crippled license.
 | **M1** | Multi-node replication + docs + demo | Network seed |
 | **M2** | Free community quota + operator metrics | Scale story |
 | **M3** | Optional ZEC micropay above free quota | Zcash-native settlement |
-| **M4** | Local model integration (e.g. Ollama) using Blindkeep memory | End-user product |
+| **M4** | Local model integration (e.g. Ollama) using Oblivio memory | End-user product |
 | **M5** | PoR / light ZK where cost is justified | Honest advanced path |
 
 **Illustrative budget split for grant ZEC:**
@@ -116,13 +116,13 @@ Free **compute** for the public is a later layer on free **memory**:
 
 ## 6. Repository
 
-**https://github.com/zcashsensei/blindkeep**
+**https://github.com/zcashsensei/oblivio**
 
 ---
 
 ## 7. One-line grant / GitHub pitch
 
-> **Blindkeep** is MIT-licensed, privacy-preserving AI memory infrastructure: clients encrypt, nodes store ciphertext, Merkle proofs detect tampering. Free tier for the public (grant-sponsored capacity); optional micropay for guaranteed capacity, settleable in ZEC. Compute and ZKML are later layers on a working free memory path.
+> **Oblivio** is MIT-licensed, privacy-preserving AI memory infrastructure: clients encrypt, nodes store ciphertext, Merkle proofs detect tampering. Free tier for the public (grant-sponsored capacity); optional micropay for guaranteed capacity, settleable in ZEC. Compute and ZKML are later layers on a working free memory path.
 
 ---
 

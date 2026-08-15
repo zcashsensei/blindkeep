@@ -15,8 +15,8 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from blindkeep import dialects
-from blindkeep.dialects import ANTHROPIC, OLLAMA, OPENAI, DialectError
+from oblivio import dialects
+from oblivio.dialects import ANTHROPIC, OLLAMA, OPENAI, DialectError
 
 
 def check(name, cond):

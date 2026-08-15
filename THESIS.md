@@ -1,4 +1,4 @@
-# Blindkeep — category and privacy thesis
+# Oblivio — category and privacy thesis
 
 **Updated:** 2026-08-05  
 **Status:** product doctrine; implementation truth tracked in code and README  
@@ -8,7 +8,7 @@
 
 ## Intent
 
-Blindkeep is the **privacy answer for AI memory**: sensitive context stays inside the user’s ecosystem so cloud LLM providers **never receive** raw prompts or stored memories by default.
+Oblivio is the **privacy answer for AI memory**: sensitive context stays inside the user’s ecosystem so cloud LLM providers **never receive** raw prompts or stored memories by default.
 
 | Pillar | Position |
 |--------|----------|
@@ -43,9 +43,9 @@ Build sequence: encrypted verifiable memory → multi-node mesh → optional loc
 
 ### Name
 
-Public product name: **Blindkeep** only.
+Public product name: **Oblivio** only.
 
-The mark was checked for conflicts (package indexes, GitHub, domains, crypto/AI projects) before adoption. Under MIT, forks may reuse code; **brand** is the exclusive surface—protect “Blindkeep.” This project is **not** a grid or power-coordination product.
+The mark was checked for conflicts (package indexes, GitHub, domains, crypto/AI projects) before adoption. Under MIT, forks may reuse code; **brand** is the exclusive surface—protect “Oblivio.” This project is **not** a grid or power-coordination product.
 
 ---
 
@@ -80,7 +80,7 @@ If the software ever forwards real user inputs to third-party LLM APIs, those pr
 ## Claims discipline
 
 **Safe today:**  
-> Blindkeep is privacy-preserving AI memory infrastructure: clients encrypt, nodes store ciphertext, and log rewrites are detectable.
+> Oblivio is privacy-preserving AI memory infrastructure: clients encrypt, nodes store ciphertext, and log rewrites are detectable.
 
 **Not safe until true:**  
 > Full ZKML private inference over DePIN with universal privacy against all cloud providers.
@@ -94,7 +94,7 @@ If the software ever forwards real user inputs to third-party LLM APIs, those pr
 | Portable encrypted agent memory | Closest to current scope |
 | Decentralized storage (Filecoin, Arweave, Storj) | Storage proofs lineage |
 | Decentralized compute (Akash, Render, Petals) | Future compute layer |
-| Local LLM runtimes (Ollama, llama.cpp) | Complementary — they run models; Blindkeep stores memory |
+| Local LLM runtimes (Ollama, llama.cpp) | Complementary — they run models; Oblivio stores memory |
 
 ---
 

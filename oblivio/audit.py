@@ -28,7 +28,7 @@ import time
 from dataclasses import dataclass, field
 from typing import Any, Optional
 
-from .client import BlindkeepClient, SecurityError
+from .client import OblivioClient, SecurityError
 
 DEFAULT_SAMPLE = 5
 
@@ -106,7 +106,7 @@ class AuditResult:
         }
 
 
-def audit_node(client: BlindkeepClient,
+def audit_node(client: OblivioClient,
                record_ids: Optional[list[str]] = None,
                sample_size: int = DEFAULT_SAMPLE,
                rng: Optional[random.Random] = None) -> AuditResult:
@@ -170,7 +170,7 @@ def audit_peers(urls: list[str], master_key: bytes, pin_dir: str,
     from .replica import _pin_name
 
     def one(url: str) -> AuditResult:
-        client = BlindkeepClient(url, master_key,
+        client = OblivioClient(url, master_key,
                                  pin_path=os.path.join(pin_dir, _pin_name(url)))
         try:
             return audit_node(client, record_ids, sample_size)
