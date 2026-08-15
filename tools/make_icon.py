@@ -5,10 +5,12 @@ a poor trade, so this rasterises the mark directly: sample the SVG's two cubic
 segments into a polygon, scanline-fill it with 4x supersampling, deflate to
 PNG, and wrap the PNGs in an ICO directory.
 
-Colour follows BRAND.md: Zcash gold #F4B728 on near-black. Gold is the accent
-and never the surface, so the keep is drawn as an outline with the door knocked
-out, exactly as the SVG does -- a solid gold shield would read as a warning
-sign at size.
+Colour follows BRAND.md: the shipped surfaces are monochrome, so this renders
+white on transparent to match the app, the dashboard and the wordmark. Gold
+remains the identity colour for brand contexts where the ground is ours to
+choose; a desktop icon is not one of those, it sits next to whatever wallpaper
+the user picked. The keep is still drawn as an outline with the door knocked
+out, exactly as the SVG does.
 
 Run: python tools/make_icon.py
 """
@@ -19,7 +21,7 @@ import zlib
 HERE = pathlib.Path(__file__).resolve().parent
 OUT = HERE.parent / "assets" / "oblivio.ico"
 
-GOLD = (0xF4, 0xB7, 0x28)
+INK = (0xFF, 0xFF, 0xFF)   # monochrome; see the note above
 GROUND = (0x0A, 0x0E, 0x14)          # the dashboard's own background
 SIZES = (256, 128, 64, 48, 32, 16)
 SS = 4                                # supersampling factor
@@ -86,9 +88,9 @@ def render(size):
     # Outline: fill the shield, then knock a smaller copy back to ground. An
     # inset by scaling about the centroid is an approximation of a true offset
     # curve, and at icon sizes the difference is invisible.
-    fill(buf, w, SHIELD, GOLD, s)
+    fill(buf, w, SHIELD, INK, s)
     fill(buf, w, scaled(SHIELD, 0.90), GROUND, s)
-    fill(buf, w, BLOCK, GOLD, s)
+    fill(buf, w, BLOCK, INK, s)
     fill(buf, w, DOOR, GROUND, s)
 
     # Downsample the supersampled buffer -- this is what softens the edges.

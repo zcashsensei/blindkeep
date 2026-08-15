@@ -1373,15 +1373,24 @@ PAGE = r"""<!doctype html><html lang=en><head><meta charset=utf-8>
 /* Same palette as the project dashboard: deep navy ground, cyan brand, blue
    interactive, gold reserved as a minor accent. The first cut of this page was
    gold-on-black throughout and read brown rather than night. */
-:root{--ink:#e6edf3;--muted:#7d8794;--line:rgba(255,255,255,.08);
---panel:rgba(18,24,33,.90);--panel2:rgba(15,20,28,.94);
---cyan:#4fd0e0;--accent:#58a6ff;--gold:#e3b341;
---good:#3fb950;--bad:#f85149;--warn:#d29922;
+/* Monochrome, matching dashboard.py and the mark. Status is carried by LIGHTNESS,
+   not hue: desaturating the old palette mechanically put good, warn and accent on
+   the same grey, so an OK and a failure would have looked identical. Urgency is
+   brightness, and --ink sits below maximum so --bad can exceed it. */
+:root{--ink:#d8d8dc;--muted:#7e7e86;--line:rgba(255,255,255,.10);
+--panel:rgba(22,22,24,.90);--panel2:rgba(16,16,18,.94);
+--cyan:#cfcfd6;--accent:#b0b0b8;--gold:#e6e6ec;
+--good:#8e8e96;--bad:#ffffff;--warn:#bfbfc6;
 --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
 --sans:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
 *{box-sizing:border-box}
 html,body{height:100%}
-body{margin:0;background:#0a0e14;color:var(--ink);font-family:var(--sans);
+/* The backstop: this file carries raw hex and ~41 rgba() calls inline, and the
+   #sky canvas is painted in JS where no stylesheet reaches it. Converting those
+   by hand would miss some, and whatever it missed would be the only colour on
+   the page. One declaration makes the whole surface mono, canvas included. */
+html{filter:grayscale(1)}
+body{margin:0;background:#0a0a0b;color:var(--ink);font-family:var(--sans);
 line-height:1.6;overflow-x:hidden}
 #sky{position:fixed;inset:0;z-index:0;display:block}
 .veil{position:fixed;inset:0;z-index:1;pointer-events:none;

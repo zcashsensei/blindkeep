@@ -6,8 +6,8 @@
        up into a solid block. Scaling one file down is not the same as drawing for the
        size it will actually be seen at. -->
   <path d="M48 6 L82 18 v29 c0 20-14 34-34 43 C28 82 14 68 14 48 V18 Z"
-        fill="none" stroke="#F4B728" stroke-width="7" stroke-linejoin="round"/>
-  <path fill-rule="evenodd" fill="#F4B728"
+        fill="none" stroke="#FFFFFF" stroke-width="7" stroke-linejoin="round"/>
+  <path fill-rule="evenodd" fill="#FFFFFF"
         d="M30 44 h7 v-8 h7 v8 h8 v-8 h7 v8 h7 v27 H30 Z
            M42 56 h12 v15 h-12 Z"/>
 </svg>

@@ -55,6 +55,21 @@ as drawing for the size it will be seen at.
 Colour is Zcash gold `#F4B728` on a dark ground. Gold is an accent, never a surface: at
 scale it reads as a warning colour, and on near-black it is what makes the mark legible.
 
+**Shipped surfaces are monochrome.** The app, the dashboard, the favicon and the desktop
+icon carry no hue at all — gold is the identity colour for brand contexts where the ground
+is ours to choose, and a browser tab or a desktop icon is not one of those; it sits beside
+whatever wallpaper and theme the user picked. Keeping colour for the mark and dropping it
+from the product is the distinction, not an inconsistency.
+
+In the interfaces, **status is carried by lightness, not hue**: brightest is most urgent,
+and body text sits deliberately below maximum so an alert can exceed it. This had to be
+designed rather than derived — desaturating the old palette mechanically landed `good`,
+`warn` and `accent` on the identical grey `#a1a1a1`, which would have made a failure and
+an OK indistinguishable. Both `app.py` and `dashboard.py` also carry
+`html{filter:grayscale(1)}` as a backstop, because between them they hold several hundred
+inline `rgba()` and hex values written over months; a hand conversion would have missed
+some, and whatever it missed would have been the only colour on the page.
+
 The wordmark in the lockup is live `<text>` on a system font stack, not outlined paths.
 That is fine for web and README use. It is **not** fine for print, embroidery, or handing
 to a third party — convert the glyphs to outlines first, or it renders in whatever font
