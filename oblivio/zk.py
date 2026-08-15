@@ -60,7 +60,8 @@ P = int(
 Q = (P - 1) // 2
 G = 4                       # 2 squared: a quadratic residue, so it has order q
 CHALLENGE_BITS = 256
-DOMAIN = b"oblivio-zk-v1"
+# Domain tag frozen from before the Oblivio rename: existing data/signatures verify against it. Never rename.
+DOMAIN = b"blindkeep-zk-v1"
 
 
 class ProofError(Exception):

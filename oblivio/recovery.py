@@ -57,7 +57,8 @@ class RecoveryError(Exception):
 # --------------------------------------------------------------------------- #
 
 def _checksum(key: bytes) -> bytes:
-    return hashlib.sha256(b"oblivio-recovery-v1" + key).digest()[:_CHECKSUM_LEN]
+    # Domain tag frozen from before the Oblivio rename: existing data/signatures verify against it. Never rename.
+    return hashlib.sha256(b"blindkeep-recovery-v1" + key).digest()[:_CHECKSUM_LEN]
 
 
 def to_recovery_code(key: bytes) -> str:
@@ -229,7 +230,8 @@ class Share:
 
 
 def _checksum_share(body: bytes) -> bytes:
-    return hashlib.sha256(b"oblivio-share-v1" + body).digest()[:_CHECKSUM_LEN]
+    # Domain tag frozen from before the Oblivio rename: existing data/signatures verify against it. Never rename.
+    return hashlib.sha256(b"blindkeep-share-v1" + body).digest()[:_CHECKSUM_LEN]
 
 
 def split_key(key: bytes, threshold: int, shares: int) -> list[Share]:

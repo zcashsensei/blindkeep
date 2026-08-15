@@ -87,7 +87,8 @@ def expected_report_data(nonce: bytes) -> str:
     exactly this. The host cannot forge it without the hardware key, and cannot
     reuse an old report because it never contained this nonce.
     """
-    return hashlib.sha256(b"oblivio-attest-v1\0" + nonce).hexdigest()
+    # Domain tag frozen from before the Oblivio rename: existing data/signatures verify against it. Never rename.
+    return hashlib.sha256(b"blindkeep-attest-v1\0" + nonce).hexdigest()
 
 
 # ---- what a host presents ---------------------------------------------------
@@ -128,7 +129,8 @@ class Attestation:
         host that could add fields outside the signed range could vary anything
         the client later reads.
         """
-        return (b"oblivio-attestation-v1\0"
+        # Domain tag frozen from before the Oblivio rename: existing data/signatures verify against it. Never rename.
+        return (b"blindkeep-attestation-v1\0"
                 + self.format.encode("utf-8") + b"\0"
                 + self.measurement_hex.encode("ascii") + b"\0"
                 + self.report_data_hex.encode("ascii") + b"\0"
