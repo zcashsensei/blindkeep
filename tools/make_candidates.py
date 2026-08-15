@@ -188,7 +188,177 @@ CANDIDATES = [
         d="M16 16 H80 V80 H16 Z
            M32 50 L43 62 L66 34 L59 28 L43 48 L38 43 Z"/>""",
     },
+
+    # ---- second batch --------------------------------------------------
+    # Deliberately a different set of ideas, not restatements of the first
+    # ten. Nothing here reuses the tree, the ring, the ladder, the tick or
+    # the three move exchange; where a claim was already taken, this batch
+    # goes to a different claim rather than redrawing the same one.
+    {
+        "id": "compression",
+        "name": "Compression",
+        "claim": "Any amount of data, one fixed-size value",
+        "why": "The hash function itself. Five inputs of any length collapse "
+               "into one short bar — the property everything else here is "
+               "built on, and the only mark that draws the primitive.",
+        "body": f"""
+  <path d="M12 18 L50 48 M12 33 L50 48 M12 48 H50 M12 63 L50 48 M12 78 L50 48"
+        fill="none" stroke="currentColor" stroke-width="{S2}" opacity=".5"
+        stroke-linecap="round"/>
+  <rect x="52" y="40" width="32" height="16" rx="5" fill="currentColor"/>""",
+    },
+    {
+        "id": "two-operators",
+        "name": "Two Operators",
+        "claim": "Neither one sees the whole request",
+        "why": "oblivious.py, the OHTTP split. Two halves that never meet and "
+               "are offset so they cannot be read as one broken circle. The "
+               "gap is the point: it is where the identity stops.",
+        "body": f"""
+  <path d="M46 12 A34 34 0 0 0 46 80" fill="none" stroke="currentColor"
+        stroke-width="{S1}" stroke-linecap="round"/>
+  <path d="M56 22 A34 34 0 0 1 56 90" fill="none" stroke="currentColor"
+        stroke-width="{S1}" stroke-linecap="round" transform="translate(0,-6)"/>""",
+    },
+    {
+        "id": "sealed-block",
+        "name": "Sealed Block",
+        "claim": "Ciphertext and its tag: altered, and it will not open",
+        "why": "crypto.py, AES-256-GCM. The body plus the authentication tag "
+               "drawn as a separate piece, because that is exactly how it "
+               "works — the tag is not decoration on the block, it is the "
+               "thing that refuses.",
+        "body": f"""
+  <path d="M18 26 H62 A6 6 0 0 1 68 32 V72 A6 6 0 0 1 62 78 H24
+           A6 6 0 0 1 18 72 Z" fill="currentColor"/>
+  <rect x="60" y="14" width="22" height="22" rx="5" fill="none"
+        stroke="currentColor" stroke-width="{S1}"/>""",
+    },
+    {
+        "id": "spent-once",
+        "name": "Spent Once",
+        "claim": "A token is unlinkable, not un-copyable. It redeems once",
+        "why": "anon_token.py holds a spent set for exactly this reason. The "
+               "strike is the redemption log doing its second job, and it is "
+               "the honest half of the blind signature story.",
+        "body": f"""
+  <circle cx="48" cy="48" r="28" fill="none" stroke="currentColor"
+          stroke-width="{S1}"/>
+  <path d="M26 70 L70 26" stroke="currentColor" stroke-width="{S1}"
+        stroke-linecap="round"/>""",
+    },
+    {
+        "id": "anonymity-set",
+        "name": "Anonymity Set",
+        "claim": "In together, out in an order that tells you nothing",
+        "why": "The epoch batch. Four in on the left, four out on the right in "
+               "a different arrangement — the timing defence and the anonymity "
+               "set are the same mechanism, which this is the only way to show.",
+        "body": f"""
+  <circle cx="14" cy="24" r="5" fill="currentColor"/>
+  <circle cx="14" cy="40" r="5" fill="currentColor"/>
+  <circle cx="14" cy="56" r="5" fill="currentColor"/>
+  <circle cx="14" cy="72" r="5" fill="currentColor"/>
+  <rect x="32" y="16" width="32" height="64" rx="8" fill="currentColor"/>
+  <circle cx="82" cy="32" r="5" fill="currentColor" opacity=".55"/>
+  <circle cx="82" cy="48" r="5" fill="currentColor" opacity=".55"/>
+  <circle cx="82" cy="64" r="5" fill="currentColor" opacity=".55"/>""",
+    },
+    {
+        "id": "blind-signature",
+        "name": "Blind Signature",
+        "claim": "Signed without ever being seen",
+        "why": "anon_token.py. A seal pressing onto something behind a cover — "
+               "the issuer's mark lands, the content never surfaces. Chaum's "
+               "construction as a physical action rather than an equation.",
+        "body": f"""
+  <rect x="30" y="12" width="36" height="20" rx="5" fill="currentColor"/>
+  <rect x="42" y="32" width="12" height="14" fill="currentColor"/>
+  <path d="M10 56 H86" stroke="currentColor" stroke-width="{S1}"
+        stroke-linecap="round"/>
+  <path d="M22 72 H74" stroke="currentColor" stroke-width="{S2}"
+        stroke-linecap="round" stroke-dasharray="7 8" opacity=".55"/>""",
+    },
+    {
+        "id": "log-depth",
+        "name": "Log Depth",
+        "claim": "The proof grows like the logarithm, not the log",
+        "why": "|π| = ⌈log₂ N⌉. Each frame is half the last, so the shape is "
+               "the cost curve: doubling the keep adds one ring. The claim "
+               "that makes a million records practical.",
+        "body": f"""
+  <rect x="8" y="20" width="80" height="56" rx="6" fill="none"
+        stroke="currentColor" stroke-width="{S2}" opacity=".4"/>
+  <rect x="24" y="28" width="48" height="40" rx="5" fill="none"
+        stroke="currentColor" stroke-width="{S2}" opacity=".65"/>
+  <rect x="36" y="36" width="24" height="24" rx="4" fill="none"
+        stroke="currentColor" stroke-width="{S1}"/>
+  <rect x="44" y="44" width="8" height="8" rx="2" fill="currentColor"/>""",
+    },
+    {
+        "id": "uniform-cipher",
+        "name": "Uniform Cipher",
+        "claim": "Nothing in here stands out, and that is the guarantee",
+        "why": "Indistinguishability drawn literally: a field where every cell "
+               "is identical, so there is nothing for an observer to fix on. "
+               "The one mark whose meaning is that it has no feature.",
+        "body": """
+  <g fill="currentColor">
+    <rect x="14" y="14" width="16" height="16" rx="3"/>
+    <rect x="36" y="14" width="16" height="16" rx="3"/>
+    <rect x="58" y="14" width="16" height="16" rx="3"/>
+    <rect x="14" y="36" width="16" height="16" rx="3"/>
+    <rect x="36" y="36" width="16" height="16" rx="3"/>
+    <rect x="58" y="36" width="16" height="16" rx="3"/>
+    <rect x="14" y="58" width="16" height="16" rx="3"/>
+    <rect x="36" y="58" width="16" height="16" rx="3"/>
+    <rect x="58" y="58" width="16" height="16" rx="3"/>
+  </g>""",
+    },
+    {
+        "id": "range-bound",
+        "name": "Range Bound",
+        "claim": "It was within the limit. The number stays private",
+        "why": "zk.py prove_range, and the shape of the whole privacy budget "
+               "argument: two hard bounds, and between them something that is "
+               "never disclosed. The ε on the receipt in one glyph.",
+        "body": f"""
+  <path d="M18 22 V74 M78 22 V74" stroke="currentColor" stroke-width="{S1}"
+        stroke-linecap="round"/>
+  <path d="M26 48 H70" stroke="currentColor" stroke-width="{S2}"
+        stroke-linecap="round" stroke-dasharray="6 8" opacity=".5"/>
+  <circle cx="54" cy="48" r="11" fill="currentColor"/>""",
+    },
+    {
+        "id": "pinned-head",
+        "name": "Pinned Head",
+        "claim": "You saw this state. A different one will not pass quietly",
+        "why": "client.py pinning. A head with a pin driven through it — the "
+               "check that turns a signed value into a memory, and the reason "
+               "a node cannot hand you a different history tomorrow.",
+        "body": f"""
+  <rect x="12" y="26" width="72" height="14" rx="5" fill="currentColor"/>
+  <path d="M48 40 V72" stroke="currentColor" stroke-width="{S1}"
+        stroke-linecap="round"/>
+  <path d="M38 72 H58 L48 86 Z" fill="currentColor"/>""",
+    },
 ]
+
+# Numbers are assigned here, once, from list order -- so a candidate cannot end
+# up with two numbers or share one, and "number 14" means the same thing in the
+# tab, the manifest and a conversation about it.
+for _n, _c in enumerate(CANDIDATES, 1):
+    _c["n"] = _n
+
+_ids = [c["id"] for c in CANDIDATES]
+_dupe_ids = {i for i in _ids if _ids.count(i) > 1}
+_claims = [c["claim"] for c in CANDIDATES]
+_dupe_claims = {c for c in _claims if _claims.count(c) > 1}
+if _dupe_ids or _dupe_claims:
+    # Loud on purpose. A duplicate would overwrite a file on disk and silently
+    # shrink the set, which looks like a candidate was rejected rather than lost.
+    raise SystemExit(f"duplicate id(s): {_dupe_ids or 'none'} · "
+                     f"duplicate claim(s): {_dupe_claims or 'none'}")
 
 
 def svg(c: dict) -> str:
@@ -208,12 +378,12 @@ def main() -> int:
     manifest = []
     for c in CANDIDATES:
         (OUT / f"{c['id']}.svg").write_text(svg(c), encoding="utf-8")
-        manifest.append({k: c[k] for k in ("id", "name", "claim", "why")})
+        manifest.append({k: c[k] for k in ("n", "id", "name", "claim", "why")})
     (OUT / "manifest.json").write_text(
         json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
     print(f"wrote {len(manifest)} candidates + manifest.json to {OUT}")
     for c in manifest:
-        print(f"  {c['id']:20} {c['claim']}")
+        print(f"  {c['n']:>2}. {c['id']:18} {c['claim']}")
     return 0
 
 
