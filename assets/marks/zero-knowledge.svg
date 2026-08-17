@@ -1,9 +1,0 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96" width="96" height="96"
-     role="img" aria-label="Zero Knowledge">
-  <title>Zero Knowledge</title>
-  <!-- Oblivio mark, claim: prove-without-revealing. Cut-outs use the panel colour rather than a
-       true knockout; on a light ground, convert them to fill-rule="evenodd". -->
-  <ellipse cx="48" cy="48" rx="26" ry="36" fill="none" stroke="#F4B728" stroke-width="8"/>
-            <circle cx="48" cy="41" r="8" fill="#F4B728"/>
-            <path d="M43 46 h10 l-2 18 h-6 Z" fill="#F4B728"/>
-</svg>

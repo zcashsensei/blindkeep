@@ -2,22 +2,21 @@
 
 ## The mark
 
-The mark is a **Merkle tree**: sealed leaves at the bottom are the encrypted data, the
-node at the top is the signed head a client pins, and the one bolded route between them
-is an inclusion proof. *Encrypted data, verified proofs* — drawn as the structure that
-actually does it, at 44px against a 28px cap height.
+**The word is the mark.** There is no symbol beside it, and that is a decision rather
+than an absence.
 
-**It replaced a shield.** A shield is the most generic secure-looking object there is,
-and the list below already rules out padlocks, vaults and keyholes on exactly that
-ground. It said nothing this project could not have claimed before writing a line of
-code. The tree says something only this project can back.
+Two symbols were tried in that position and both were cut. A **shield** went first, on
+the rule further down this page against padlocks, vaults and keyholes: it said nothing
+this project could not have claimed before writing a line of code. A **Merkle tree**
+replaced it and lasted no longer — it drew the structure the project rests on, but it
+stood in front of the name as a second object competing for the same glance, and a
+reader had to be told what it meant before it meant anything.
 
-The tree is **solid**, not filled with formulae the way the word is: at 44px the maths
-would be an illegible smear, and a mark showing text nobody can read is the same defect
-as a proof nobody can check.
+What survived both is the wordmark, because it already does the job a symbol was being
+asked to do. The letterforms carry the project's actual statements inside them, so the
+mark makes a claim a reader can check instead of gesturing at one.
 
-`assets/oblivio-lockup.svg` is the gold brand lockup. `assets/oblivio-mark.svg` is the
-old shield, kept only until the tree is cut as a standalone square mark.
+`assets/oblivio-lockup.svg` is the gold brand lockup.
 
 `assets/oblivio-wordmark-mono.svg` and `assets/oblivio-wordmark-mono-inverse.svg` are the
 black-and-white pair — one ink, no colour, black for a light ground and white for a dark
@@ -58,19 +57,21 @@ this brand assumes, and thin on the white half of GitHub's readership — a logo
 works in one of a host's two themes is broken for whoever gets the other one. The gold
 lockup remains primary everywhere the ground is ours to choose.
 
-`assets/favicon.svg` is a separately drawn variant with a
-heavier stroke and a wider door, because the full mark's 4px shield line disappears below
-about 20px and its door closes into a solid block. Scaling one file down is not the same
-as drawing for the size it will be seen at.
+There is no favicon or desktop icon. Both were drawn from the shield, and they went with
+it rather than being kept as the one place a cut mark still lived on. Nothing in the
+project loads either file, so removing them changed no behaviour. A square icon slot is
+the one job a wordmark genuinely cannot do, and it stays empty until something is drawn
+for that size specifically — not by scaling the word down, which is how the shield's 4px
+line vanished below 20px in the first place.
 
 Colour is Zcash gold `#F4B728` on a dark ground. Gold is an accent, never a surface: at
 scale it reads as a warning colour, and on near-black it is what makes the mark legible.
 
-**Shipped surfaces are monochrome.** The app, the dashboard, the favicon and the desktop
-icon carry no hue at all — gold is the identity colour for brand contexts where the ground
-is ours to choose, and a browser tab or a desktop icon is not one of those; it sits beside
-whatever wallpaper and theme the user picked. Keeping colour for the mark and dropping it
-from the product is the distinction, not an inconsistency.
+**Shipped surfaces are monochrome.** The app and the dashboard carry no hue at all — gold
+is the identity colour for brand contexts where the ground is ours to choose, and a
+product surface sitting beside whatever wallpaper and theme the user picked is not one of
+those. Keeping colour for the mark and dropping it from the product is the distinction,
+not an inconsistency.
 
 In the interfaces, **status is carried by lightness, not hue**: brightest is most urgent,
 and body text sits deliberately below maximum so an alert can exceed it. This had to be
@@ -86,18 +87,19 @@ That is fine for web and README use. It is **not** fine for print, embroidery, o
 to a third party — convert the glyphs to outlines first, or it renders in whatever font
 the recipient happens to have.
 
-## Alternates
+## On alternates
 
-`assets/marks/` holds the marks that were considered and kept. They are grouped by the
-claim each one encodes, because a mark that merely looks secure is a mark any password
-manager could wear:
+Roughly thirty candidate symbols were drawn and none shipped. They are not in this
+repository: a folder of rejected logo sketches is a working file, and publishing one
+invites a reader to relitigate a settled decision on the strength of the weakest option
+in it.
 
-| Claim | Marks |
-|---|---|
-| The holder cannot read it | `sealed-keep` (chosen), `blind-eye`, `redacted`, `cipher-grid`, `eclipse`, `aperture`, `blindfold` |
-| The holder cannot alter it undetected | `merkle-keep`, `append-log`, `wax-seal` |
-| You can prove without revealing | `zero-knowledge`, `zk-ligature` |
-| No single operator sees the whole request | `split-trust`, `prism-split` |
+The test they were drawn against is worth keeping even though they are gone. Each had to
+encode a **claim** rather than a mood — the holder cannot read it, the holder cannot
+alter it undetected, you can prove without revealing, no single operator sees the whole
+request — because a mark that merely looks secure is a mark any password manager could
+wear. Most of the thirty failed that test. The ones that passed it still lost to the
+wordmark, which makes the claim in words a reader can verify against the source.
 
 ## Deliberately not used
 
@@ -106,9 +108,11 @@ manager could wear:
 - **A bare Zcash Z.** It leans on an identity this project has not earned and could read
   as an official Zcash product. Adjacent and aligned, not affiliated.
 - **Generic padlocks, vaults, keyholes.** Handsome and interchangeable.
+- **A shield.** Cut for the same reason, after shipping. See the top of this page.
 
 ## Gap
 
-No mark yet draws *durability* — memory surviving a dead device without trusting a host.
-Every mark above draws secrecy or integrity. That is one of the stronger claims and it has
-no picture.
+Nothing in the identity draws *durability* — memory surviving a dead device without
+trusting a host. The formulae in the letterforms cover secrecy, integrity, proof and
+privacy budget; none of them state that claim, and it is one of the stronger ones. If a
+sixth family is ever added to the mark, that is the one with a hole where it should be.
